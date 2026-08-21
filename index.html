@@ -8162,23 +8162,57 @@ function getTrack(name) {
   return AUD.tracks[name];
 }
 
+var _howlMusic = null;
+var _howlMusicName = null;
+
 function playTrack(name) {
-  if (!AUD.loaded) { console.warn('[DD Audio] playTrack("' + name + '") called but AUD.loaded is false — audio not ready yet.'); return; }
+  if (!AUD.loaded) return;
   if (!AUD.musicOn) { AUD.current = name; return; }
   if (_customTrackActive || _ytActive) { AUD.current = name; return; }
-  if (AUD.current === name) return;
+  if (AUD.current === name && _howlMusic && _howlMusic.playing()) return;
+
+  // Stop current track
+  if (_howlMusic) {
+    try { _howlMusic.stop(); _howlMusic.unload(); } catch(e) {}
+    _howlMusic = null;
+  }
+  // Also stop old Audio element if any
   var old = AUD.current ? AUD.tracks[AUD.current] : null;
-  if (old) { old.pause(); old.currentTime = 0; }
+  if (old) { try { old.pause(); old.currentTime = 0; } catch(e) {} }
+
   AUD.current = name;
-  var track = getTrack(name);
-  if (!track) { console.error('[DD Audio] playTrack("' + name + '") — getTrack returned null. Check TRACK_FILES has this key and the file exists at: ' + (TRACK_FILES[name] || 'KEY NOT FOUND IN TRACK_FILES')); return; }
-  track.volume = AUD.musicVol;
-  track.currentTime = 0;
-  AUD.currentEl = track;
-  window._currentTrackEl = track;
-  track.play().catch(function(err) {
-    console.error('[DD Audio] playTrack("' + name + '") — play() failed:', err.message, '| Path:', TRACK_FILES[name] || 'unknown');
-  });
+  var url = TRACK_FILES[name];
+  if (!url) { console.error('[DD Audio] No URL for track:', name); return; }
+
+  // Use Howler if available — fixes iOS volume control
+  if (window.Howl) {
+    _howlMusic = new Howl({
+      src: [url],
+      volume: AUD.musicVol,
+      loop: true,
+      html5: true, // streaming mode — better for long music files on mobile
+      onloaderror: function(id, err) {
+        console.warn('[DD Audio] Howl load error for', name, err);
+        // Fallback to regular Audio
+        _howlMusic = null;
+        var track = getTrack(name);
+        if (track) { track.volume = AUD.musicVol; track.currentTime = 0; AUD.currentEl = track; track.play().catch(function(){}); }
+      }
+    });
+    _howlMusic.play();
+    _howlMusicName = name;
+  } else {
+    // Fallback to regular Audio
+    var track = getTrack(name);
+    if (!track) return;
+    track.volume = AUD.musicVol;
+    track.currentTime = 0;
+    AUD.currentEl = track;
+    window._currentTrackEl = track;
+    track.play().catch(function(err) {
+      console.error('[DD Audio] playTrack fallback failed:', err.message);
+    });
+  }
 }
 
 function playTrackFromPlayer(name) {
@@ -8322,11 +8356,12 @@ function toggleMusic() {
   b.setAttribute('aria-pressed', String(AUD.musicOn));
   b.setAttribute('aria-label', 'Music toggle currently ' + (AUD.musicOn ? 'on' : 'off'));
   if (AUD.musicOn) {
-    // Resume current track
-    var t = AUD.current ? getTrack(AUD.current) : null;
-    if (t) t.play().catch(function(){});
+    // Resume — replay current track through Howler
+    if (AUD.current) playTrack(AUD.current);
   } else {
-    // Pause all tracks
+    // Stop Howler music
+    if (_howlMusic) { try { _howlMusic.stop(); } catch(e) {} }
+    // Also stop regular Audio fallbacks
     Object.keys(AUD.tracks).forEach(function(k) {
       var t = AUD.tracks[k]; if (t) t.pause();
     });
@@ -8373,9 +8408,10 @@ function updateVol(sid, vid, type) {
   el.setAttribute('aria-label', (type === 'music' ? 'Music' : type === 'ambient' ? 'Ambient' : 'Sound effects') + ' volume ' + v + ' percent');
   if (type === 'music') {
     AUD.musicVol = v / 100;
-    // Howler global volume controls ALL Howl instances including music — works on iOS
+    // Update Howler music instance directly — works on iOS
+    if (_howlMusic) _howlMusic.volume(AUD.musicVol);
+    // Also update via Howler global and fallback Audio elements
     if (window.Howler) Howler.volume(AUD.musicVol);
-    // Also update regular Audio elements as fallback
     if (AUD.tracks) Object.keys(AUD.tracks).forEach(function(k) {
       var t = AUD.tracks[k]; if (t) t.volume = AUD.musicVol;
     });
