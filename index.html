@@ -8334,13 +8334,16 @@ function updateVol(sid, vid, type) {
   el.setAttribute('aria-label', (type === 'music' ? 'Music' : type === 'ambient' ? 'Ambient' : 'Sound effects') + ' volume ' + v + ' percent');
   if (type === 'music') {
     AUD.musicVol = v / 100;
+    // Update all cached tracks
     if (AUD.tracks) Object.keys(AUD.tracks).forEach(function(k) {
       var t = AUD.tracks[k]; if (t) t.volume = AUD.musicVol;
     });
-    // Also apply to currently playing track
-    if (AUD.current && AUD.tracks && AUD.tracks[AUD.current]) {
-      AUD.tracks[AUD.current].volume = AUD.musicVol;
-    }
+    // Directly update currently playing track by finding all playing audio elements
+    try {
+      document.querySelectorAll('audio').forEach(function(a) {
+        if (!a.paused && a !== _ambientAudio) a.volume = AUD.musicVol;
+      });
+    } catch(e) {}
   } else if (type === 'ambient') {
     AUD.ambientVol = v / 100;
     if (_ambientAudio) _ambientAudio.volume = AUD.ambientVol;
