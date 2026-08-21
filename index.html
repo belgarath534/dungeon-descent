@@ -1387,6 +1387,7 @@ body.large-text .be-name,.large-text .ach-name{font-size:0.95rem;}
 <!-- FIREBASE SDK -->
 <!-- Capacitor -->
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.4/howler.min.js" crossorigin="anonymous"></script>
 <script src="capacitor.js" onerror="console.log('Running in browser mode')"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js" crossorigin="anonymous"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js" crossorigin="anonymous"></script>
@@ -7563,6 +7564,7 @@ var DDStore = (function() {
     <div class="setting-row">
       <div class="setting-label"><span id="sl-music">Music</span><button class="toggle-btn on" id="music-toggle" aria-pressed="true" onclick="toggleMusic()" aria-label="Music toggle currently on">On</button></div>
       <div class="vol-row"><span class="vol-prefix">VOL</span><input type="range" class="vol-slider" id="music-vol" min="0" max="100" value="70" aria-label="Music volume 70 percent" oninput="updateVol('music-vol','music-vol-val','music')" onchange="updateVol('music-vol','music-vol-val','music')"><span class="vol-val" id="music-vol-val" aria-live="polite">70%</span></div>
+      <div id="ios-vol-notice" style="display:none;font-family:Cinzel,serif;font-size:0.6rem;color:#666;margin:4px 0 8px;line-height:1.6;">📱 On iPhone, use your device volume buttons to control audio levels.</div>
     </div>
     <div class="setting-div"></div>
     <div class="setting-row">
@@ -8065,26 +8067,53 @@ function loadAudioPrefs() {
 
 function loadAudio() {
   AUD.loaded = true;
+  AUD.howls = {};
   loadAudioPrefs();
   // Preload SFX
-  ['sfx-select','sfx-confirm','sfx-hover','sfx-footstep','sfx-search','sfx-loot',
+  var sfxNames = ['sfx-select','sfx-confirm','sfx-hover','sfx-footstep','sfx-search','sfx-loot',
    'sfx-trap','sfx-attack','sfx-crit','sfx-heavy-hit','sfx-heavy-miss',
    'sfx-hurt','sfx-death','sfx-enemy-die','sfx-potion','sfx-purchase',
    'sfx-stairs','sfx-victory','sfx-gameover','sfx-unlock','sfx-levelup',
-   'sfx-sanity-warning','sfx-sanity-critical','sfx-eagle-cry','sfx-firework'].forEach(function(n) {
+   'sfx-sanity-warning','sfx-sanity-critical','sfx-eagle-cry','sfx-firework'];
+
+  sfxNames.forEach(function(n) {
     try {
-      var sfxAudio = new Audio(_audioUrl(n + '.mp3'));
-      sfxAudio.volume = AUD.sfxVol;
-      sfxAudio.onerror = function() {
-        try {
-          var local = new Audio('audio/' + n + '.mp3');
-          local.volume = AUD.sfxVol;
-          AUD.sfx[n] = local;
-        } catch(e2) {}
-      };
-      AUD.sfx[n] = sfxAudio;
+      // Use Howler if available — fixes iOS volume control
+      if (window.Howl) {
+        AUD.howls[n] = new Howl({
+          src: [_audioUrl(n + '.mp3')],
+          volume: AUD.sfxVol,
+          preload: true,
+          onloaderror: function() {
+            // Fallback to regular Audio on load error
+            try {
+              var local = new Audio('audio/' + n + '.mp3');
+              local.volume = AUD.sfxVol;
+              AUD.sfx[n] = local;
+            } catch(e2) {}
+          }
+        });
+      } else {
+        // Fallback to regular Audio
+        var sfxAudio = new Audio(_audioUrl(n + '.mp3'));
+        sfxAudio.volume = AUD.sfxVol;
+        sfxAudio.onerror = function() {
+          try {
+            var local = new Audio('audio/' + n + '.mp3');
+            local.volume = AUD.sfxVol;
+            AUD.sfx[n] = local;
+          } catch(e2) {}
+        };
+        AUD.sfx[n] = sfxAudio;
+      }
     } catch(e) {}
   });
+
+  // If Howler loaded, also use it for music via global volume control
+  if (window.Howler) {
+    Howler.volume(AUD.musicVol);
+  }
+
   // Start menu music
   if (AUD.musicOn) playTrack(getMenuTrack());
 }
@@ -8219,7 +8248,15 @@ function getAmbientKey() {
 
 function sfx(n) {
   if (!AUD.sfxOn) return;
-  try { var s = AUD.sfx[n]; if (s) { s.currentTime = 0; s.play().catch(function(){}); } } catch(e) {}
+  try {
+    // Use Howler if available (fixes iOS volume control)
+    if (window.Howl && AUD.howls && AUD.howls[n]) {
+      AUD.howls[n].volume(AUD.sfxVol);
+      AUD.howls[n].play();
+      return;
+    }
+    var s = AUD.sfx[n]; if (s) { s.currentTime = 0; s.play().catch(function(){}); }
+  } catch(e) {}
 }
 
 // All game tracks in order for looping
@@ -8336,11 +8373,12 @@ function updateVol(sid, vid, type) {
   el.setAttribute('aria-label', (type === 'music' ? 'Music' : type === 'ambient' ? 'Ambient' : 'Sound effects') + ' volume ' + v + ' percent');
   if (type === 'music') {
     AUD.musicVol = v / 100;
-    // Update all cached tracks
+    // Howler global volume controls ALL Howl instances including music — works on iOS
+    if (window.Howler) Howler.volume(AUD.musicVol);
+    // Also update regular Audio elements as fallback
     if (AUD.tracks) Object.keys(AUD.tracks).forEach(function(k) {
       var t = AUD.tracks[k]; if (t) t.volume = AUD.musicVol;
     });
-    // Direct reference to currently playing element
     if (AUD.currentEl) AUD.currentEl.volume = AUD.musicVol;
     if (window._currentTrackEl) window._currentTrackEl.volume = AUD.musicVol;
   } else if (type === 'ambient') {
@@ -8348,6 +8386,11 @@ function updateVol(sid, vid, type) {
     if (_ambientAudio) _ambientAudio.volume = AUD.ambientVol;
   } else {
     AUD.sfxVol = v / 100;
+    // Update Howler sfx instances
+    if (window.Howl && AUD.howls) Object.keys(AUD.howls).forEach(function(k) {
+      if (AUD.howls[k]) AUD.howls[k].volume(AUD.sfxVol);
+    });
+    // Also update regular Audio fallbacks
     if (AUD.sfx) Object.keys(AUD.sfx).forEach(function(k) {
       var s = AUD.sfx[k]; if (s) s.volume = AUD.sfxVol;
     });
