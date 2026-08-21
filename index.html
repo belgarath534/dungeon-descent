@@ -7562,17 +7562,17 @@ var DDStore = (function() {
     <h2 class="settings-panel-title" id="sp-audio-title">🔊 Audio</h2>
     <div class="setting-row">
       <div class="setting-label"><span id="sl-music">Music</span><button class="toggle-btn on" id="music-toggle" aria-pressed="true" onclick="toggleMusic()" aria-label="Music toggle currently on">On</button></div>
-      <div class="vol-row"><span class="vol-prefix">VOL</span><input type="range" class="vol-slider" id="music-vol" min="0" max="100" value="70" aria-label="Music volume 70 percent" oninput="updateVol('music-vol','music-vol-val','music')"><span class="vol-val" id="music-vol-val" aria-live="polite">70%</span></div>
+      <div class="vol-row"><span class="vol-prefix">VOL</span><input type="range" class="vol-slider" id="music-vol" min="0" max="100" value="70" aria-label="Music volume 70 percent" oninput="updateVol('music-vol','music-vol-val','music')" onchange="updateVol('music-vol','music-vol-val','music')"><span class="vol-val" id="music-vol-val" aria-live="polite">70%</span></div>
     </div>
     <div class="setting-div"></div>
     <div class="setting-row">
       <div class="setting-label"><span id="sl-sfx">Sound Effects</span><button class="toggle-btn on" id="sfx-toggle" aria-pressed="true" onclick="toggleSFX()" aria-label="Sound effects toggle currently on">On</button></div>
-      <div class="vol-row"><span class="vol-prefix">VOL</span><input type="range" class="vol-slider" id="sfx-vol" min="0" max="100" value="80" aria-label="Sound effects volume 80 percent" oninput="updateVol('sfx-vol','sfx-vol-val','sfx')"><span class="vol-val" id="sfx-vol-val" aria-live="polite">80%</span></div>
+      <div class="vol-row"><span class="vol-prefix">VOL</span><input type="range" class="vol-slider" id="sfx-vol" min="0" max="100" value="80" aria-label="Sound effects volume 80 percent" oninput="updateVol('sfx-vol','sfx-vol-val','sfx')" onchange="updateVol('sfx-vol','sfx-vol-val','sfx')"><span class="vol-val" id="sfx-vol-val" aria-live="polite">80%</span></div>
     </div>
     <div class="setting-div"></div>
     <div class="setting-row">
       <div class="setting-label"><span id="sl-ambient">Ambient Sound</span><button class="toggle-btn on" id="ambient-toggle" aria-pressed="true" onclick="toggleAmbient()" aria-label="Ambient sound toggle currently on">On</button></div>
-      <div class="vol-row"><span class="vol-prefix">VOL</span><input type="range" class="vol-slider" id="ambient-vol" min="0" max="100" value="35" aria-label="Ambient volume 35 percent" oninput="updateVol('ambient-vol','ambient-vol-val','ambient')"><span class="vol-val" id="ambient-vol-val" aria-live="polite">35%</span></div>
+      <div class="vol-row"><span class="vol-prefix">VOL</span><input type="range" class="vol-slider" id="ambient-vol" min="0" max="100" value="35" aria-label="Ambient volume 35 percent" oninput="updateVol('ambient-vol','ambient-vol-val','ambient')" onchange="updateVol('ambient-vol','ambient-vol-val','ambient')"><span class="vol-val" id="ambient-vol-val" aria-live="polite">35%</span></div>
     </div>
     <div class="setting-div"></div>
     <div class="setting-row">
