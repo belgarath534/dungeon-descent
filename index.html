@@ -8145,6 +8145,7 @@ function playTrack(name) {
   if (!track) { console.error('[DD Audio] playTrack("' + name + '") — getTrack returned null. Check TRACK_FILES has this key and the file exists at: ' + (TRACK_FILES[name] || 'KEY NOT FOUND IN TRACK_FILES')); return; }
   track.volume = AUD.musicVol;
   track.currentTime = 0;
+  window._currentTrackEl = track;
   track.play().catch(function(err) {
     console.error('[DD Audio] playTrack("' + name + '") — play() failed:', err.message, '| Path:', TRACK_FILES[name] || 'unknown');
   });
@@ -8338,12 +8339,12 @@ function updateVol(sid, vid, type) {
     if (AUD.tracks) Object.keys(AUD.tracks).forEach(function(k) {
       var t = AUD.tracks[k]; if (t) t.volume = AUD.musicVol;
     });
-    // Directly update currently playing track by finding all playing audio elements
-    try {
-      document.querySelectorAll('audio').forEach(function(a) {
-        if (!a.paused && a !== _ambientAudio) a.volume = AUD.musicVol;
-      });
-    } catch(e) {}
+    // Direct update on current track
+    if (AUD.current && AUD.tracks && AUD.tracks[AUD.current]) {
+      AUD.tracks[AUD.current].volume = AUD.musicVol;
+    }
+    // Also update _currentTrackEl if it exists
+    if (window._currentTrackEl) _currentTrackEl.volume = AUD.musicVol;
   } else if (type === 'ambient') {
     AUD.ambientVol = v / 100;
     if (_ambientAudio) _ambientAudio.volume = AUD.ambientVol;
@@ -45723,6 +45724,7 @@ DDStore.whenReady().then(function() {
   document.addEventListener('click', initAudio, { once: true });
   document.addEventListener('keydown', initAudio, { once: true });
 
+  var _safariAudioUnlocked = false;
   function unlockSafariAudio() {
     if (_safariAudioUnlocked) return;
     _safariAudioUnlocked = true;
