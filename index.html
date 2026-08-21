@@ -8326,20 +8326,27 @@ function toggleSFX() {
 }
 
 function updateVol(sid, vid, type) {
-  var v = document.getElementById(sid).value;
-  document.getElementById(vid).textContent = v + '%';
-  document.getElementById(sid).setAttribute('aria-label', (type === 'music' ? 'Music' : 'Sound effects') + ' volume ' + v + ' percent');
+  var el = document.getElementById(sid);
+  var vel = document.getElementById(vid);
+  if (!el) return;
+  var v = el.value;
+  if (vel) vel.textContent = v + '%';
+  el.setAttribute('aria-label', (type === 'music' ? 'Music' : type === 'ambient' ? 'Ambient' : 'Sound effects') + ' volume ' + v + ' percent');
   if (type === 'music') {
     AUD.musicVol = v / 100;
-    Object.keys(AUD.tracks).forEach(function(k) {
+    if (AUD.tracks) Object.keys(AUD.tracks).forEach(function(k) {
       var t = AUD.tracks[k]; if (t) t.volume = AUD.musicVol;
     });
+    // Also apply to currently playing track
+    if (AUD.current && AUD.tracks && AUD.tracks[AUD.current]) {
+      AUD.tracks[AUD.current].volume = AUD.musicVol;
+    }
   } else if (type === 'ambient') {
     AUD.ambientVol = v / 100;
     if (_ambientAudio) _ambientAudio.volume = AUD.ambientVol;
   } else {
     AUD.sfxVol = v / 100;
-    Object.keys(AUD.sfx).forEach(function(k) {
+    if (AUD.sfx) Object.keys(AUD.sfx).forEach(function(k) {
       var s = AUD.sfx[k]; if (s) s.volume = AUD.sfxVol;
     });
   }
