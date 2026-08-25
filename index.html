@@ -7563,19 +7563,19 @@ var DDStore = (function() {
     <h2 class="settings-panel-title" id="sp-audio-title">🔊 Audio</h2>
     <div class="setting-row">
       <div class="setting-label"><span id="sl-music">Music</span><button class="toggle-btn on" id="music-toggle" aria-pressed="true" onclick="toggleMusic()" aria-label="Music toggle currently on">On</button></div>
-      <div id="ios-vol-notice" style="display:none;font-family:Cinzel,serif;font-size:0.65rem;color:#888;padding:10px;background:#080808;border:1px solid #333;margin-bottom:8px;line-height:1.7;" aria-live="polite">📱 On iPhone and iPad, audio volume is controlled by your device's volume buttons. The sliders below have no effect on iOS — this is an Apple restriction that cannot be bypassed by web apps.</div>
-      <div class="vol-row"><span class="vol-prefix">VOL</span><input type="range" class="vol-slider" id="music-vol" min="0" max="100" value="50" aria-label="Music volume 50 percent" oninput="updateVol('music-vol','music-vol-val','music')" onchange="updateVol('music-vol','music-vol-val','music')"><span class="vol-val" id="music-vol-val" aria-live="polite">50%</span></div>
+      <div id="ios-vol-notice" style="display:none;font-family:Cinzel,serif;font-size:0.65rem;color:#888;padding:10px;background:#080808;border:1px solid #333;margin-bottom:8px;line-height:1.7;" aria-live="polite">📱 On iPhone and iPad, the music volume slider restarts the track when you stop dragging — this is normal. Your setting is saved and will be remembered on the next launch.</div>
+      <div class="vol-row"><span class="vol-prefix">VOL</span><input type="range" class="vol-slider" id="music-vol" min="0" max="100" value="50" aria-label="Music volume 50 percent" oninput="updateVol('music-vol','music-vol-val','music')" onchange="updateVol('music-vol','music-vol-val','music')"><span class="vol-val" id="music-vol-val" aria-hidden="true">50%</span></div>
       <div id="ios-vol-notice" style="display:none;font-family:Cinzel,serif;font-size:0.6rem;color:#666;margin:4px 0 8px;line-height:1.6;">📱 On iPhone, use your device volume buttons to control audio levels.</div>
     </div>
     <div class="setting-div"></div>
     <div class="setting-row">
       <div class="setting-label"><span id="sl-sfx">Sound Effects</span><button class="toggle-btn on" id="sfx-toggle" aria-pressed="true" onclick="toggleSFX()" aria-label="Sound effects toggle currently on">On</button></div>
-      <div class="vol-row"><span class="vol-prefix">VOL</span><input type="range" class="vol-slider" id="sfx-vol" min="0" max="100" value="60" aria-label="Sound effects volume 60 percent" oninput="updateVol('sfx-vol','sfx-vol-val','sfx')" onchange="updateVol('sfx-vol','sfx-vol-val','sfx')"><span class="vol-val" id="sfx-vol-val" aria-live="polite">60%</span></div>
+      <div class="vol-row"><span class="vol-prefix">VOL</span><input type="range" class="vol-slider" id="sfx-vol" min="0" max="100" value="60" aria-label="Sound effects volume 60 percent" oninput="updateVol('sfx-vol','sfx-vol-val','sfx')" onchange="updateVol('sfx-vol','sfx-vol-val','sfx')"><span class="vol-val" id="sfx-vol-val" aria-hidden="true">60%</span></div>
     </div>
     <div class="setting-div"></div>
     <div class="setting-row">
       <div class="setting-label"><span id="sl-ambient">Ambient Sound</span><button class="toggle-btn on" id="ambient-toggle" aria-pressed="true" onclick="toggleAmbient()" aria-label="Ambient sound toggle currently on">On</button></div>
-      <div class="vol-row"><span class="vol-prefix">VOL</span><input type="range" class="vol-slider" id="ambient-vol" min="0" max="100" value="35" aria-label="Ambient volume 35 percent" oninput="updateVol('ambient-vol','ambient-vol-val','ambient')" onchange="updateVol('ambient-vol','ambient-vol-val','ambient')"><span class="vol-val" id="ambient-vol-val" aria-live="polite">35%</span></div>
+      <div class="vol-row"><span class="vol-prefix">VOL</span><input type="range" class="vol-slider" id="ambient-vol" min="0" max="100" value="35" aria-label="Ambient volume 35 percent" oninput="updateVol('ambient-vol','ambient-vol-val','ambient')" onchange="updateVol('ambient-vol','ambient-vol-val','ambient')"><span class="vol-val" id="ambient-vol-val" aria-hidden="true">35%</span></div>
     </div>
     <div class="setting-div"></div>
     <div class="setting-row">
@@ -7897,6 +7897,10 @@ function initWebAudio() {
     AUD.ambientGain.gain.value = AUD.ambientVol;
     AUD.ambientGain.connect(AUD.masterGain);
     _webAudioReady = true;
+    // Re-apply saved volumes immediately — do not trust default values
+    AUD.musicGain.gain.setValueAtTime(AUD.musicVol, AUD.ctx.currentTime);
+    AUD.sfxGain.gain.setValueAtTime(AUD.sfxVol, AUD.ctx.currentTime);
+    AUD.ambientGain.gain.setValueAtTime(AUD.ambientVol, AUD.ctx.currentTime);
     console.log('[DD Audio] Web Audio API initialized. iOS volume control active.');
   } catch(e) {
     console.warn('[DD Audio] Web Audio API init failed, falling back to HTML Audio:', e);
@@ -8284,6 +8288,8 @@ function playTrack(name) {
         return;
       }
       AUD.currentSource = playBuffer(buffer, AUD.musicGain, true);
+      // Force gain to saved value immediately after starting — iOS can reset it
+      if (AUD.musicGain) AUD.musicGain.gain.setValueAtTime(AUD.musicVol, AUD.ctx.currentTime);
     });
     return;
   }
@@ -8299,6 +8305,10 @@ function _playTrackFallback(name, url) {
       volume: AUD.musicVol,
       loop: true,
       html5: true,
+      onplay: function() {
+        // iOS ignores volume set at creation on html5 Howls — must set after play starts
+        if (_howlMusic) _howlMusic.volume(AUD.musicVol);
+      },
       onloaderror: function() {
         _howlMusic = null;
         var track = getTrack(name);
