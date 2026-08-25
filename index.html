@@ -36293,22 +36293,37 @@ function mpPlay() {
   }
 
   try {
-    _mpAudio = new Audio(filePath);
-    _mpAudio.loop = true;
-    // On iOS audio.volume is hardware-locked — route through Web Audio GainNode instead
+    // On iOS, createMediaElementSource fails on cross-origin URLs (Supabase CDN)
+    // Use fetch + decodeAudioData to route through GainNode safely
     if (_webAudioReady && AUD.ctx && AUD.musicGain) {
-      var mpSource = AUD.ctx.createMediaElementSource(_mpAudio);
-      mpSource.connect(AUD.musicGain);
-      _mpAudio._webAudioConnected = true;
+      fetch(filePath)
+        .then(function(r) { return r.arrayBuffer(); })
+        .then(function(ab) { return AUD.ctx.decodeAudioData(ab); })
+        .then(function(buffer) {
+          if (_mpAudio) { try { _mpAudio.pause(); } catch(e) {} }
+          var src = AUD.ctx.createBufferSource();
+          src.buffer = buffer;
+          src.loop = true;
+          src.connect(AUD.musicGain);
+          AUD.musicGain.gain.setValueAtTime(AUD.musicVol, AUD.ctx.currentTime);
+          src.start(0);
+          _mpAudio = src;
+          _mpPlaying = true;
+          say('Now playing: ' + label);
+        }).catch(function(e) {
+          say('Could not play ' + label + '. Check that the audio file exists.');
+        });
     } else {
+      _mpAudio = new Audio(filePath);
       _mpAudio.volume = AUD.musicVol || 0.7;
+      _mpAudio.loop = true;
+      _mpAudio.play().then(function() {
+        _mpPlaying = true;
+        say('Now playing: ' + label);
+      }).catch(function(e) {
+        say('Could not play ' + label + '. Check that the audio file exists.');
+      });
     }
-    _mpAudio.play().then(function() {
-      _mpPlaying = true;
-      say('Now playing: ' + label);
-    }).catch(function(e) {
-      say('Could not play ' + label + '. Check that the audio file exists.');
-    });
   } catch(e) {
     say('Audio error: ' + e.message);
   }
@@ -36316,7 +36331,13 @@ function mpPlay() {
 
 function mpStop() {
   if (typeof _mpAudio !== 'undefined' && _mpAudio) {
-    try { _mpAudio.pause(); _mpAudio.currentTime = 0; } catch(e) {}
+    try {
+      if (typeof _mpAudio.stop === 'function') {
+        _mpAudio.stop(); // BufferSource
+      } else {
+        _mpAudio.pause(); _mpAudio.currentTime = 0; // Audio element
+      }
+    } catch(e) {}
     _mpAudio = null;
   }
   _mpPlaying = false;
@@ -47934,20 +47955,7 @@ var _heartbeatInterval = null;
 try { if (typeof TRACK_FILES !== 'undefined') TRACK_FILES['hunter-theme'] = _HUNTER_AUDIO.music; } catch(e) {}
 
 function initHunterAudio() {
-  // Hunter music element
-  if (!_hunterMusicEl) {
-    _hunterMusicEl = new Audio(_HUNTER_AUDIO.music);
-    _hunterMusicEl.loop = true;
-    // On iOS audio.volume is hardware-locked — route through Web Audio GainNode instead
-    if (_webAudioReady && AUD.ctx && AUD.musicGain) {
-      var hunterSource = AUD.ctx.createMediaElementSource(_hunterMusicEl);
-      hunterSource.connect(AUD.musicGain);
-      _hunterMusicEl._webAudioConnected = true;
-    } else {
-      _hunterMusicEl.volume = AUD ? (AUD.musicVol || 0.7) : 0.7;
-    }
-  }
-  // Heartbeat element
+  // Heartbeat element — short SFX, plain Audio is fine
   if (!_heartbeatEl) {
     _heartbeatEl = new Audio(_HUNTER_AUDIO.heartbeat);
     _heartbeatEl.loop = false;
@@ -47961,12 +47969,31 @@ function playHunterMusic() {
   // Pause current dungeon music
   try {
     Object.values(AUD.tracks || {}).forEach(function(t) {
-      if (t && !t.paused) { t._wasPlayingBeforeHunter = true; t.pause(); }
+      if (t && !t.paused) { t._wasPlayingBeforeHunter = true; t.pause(); }\
     });
+    if (AUD.currentSource) { try { AUD.currentSource.stop(); } catch(e) {} AUD.currentSource = null; }
+    if (_howlMusic) { try { _howlMusic.stop(); } catch(e) {} }
   } catch(e) {}
-  _hunterMusicEl.volume = AUD.musicVol || 0.7;
-  _hunterMusicEl.currentTime = 0;
-  _hunterMusicEl.play().catch(function(){});
+  // Use Web Audio GainNode path if available (iOS volume control)
+  if (_webAudioReady && AUD.ctx && AUD.musicGain) {
+    loadAudioBuffer(_HUNTER_AUDIO.music, AUD.buffers, 'hunter-theme', function(buffer) {
+      if (!buffer) {
+        // Fallback to Audio element
+        if (!_hunterMusicEl) { _hunterMusicEl = new Audio(_HUNTER_AUDIO.music); _hunterMusicEl.loop = true; }
+        _hunterMusicEl.volume = AUD.musicVol || 0.7;
+        _hunterMusicEl.currentTime = 0;
+        _hunterMusicEl.play().catch(function(){});
+        return;
+      }
+      AUD.musicGain.gain.setValueAtTime(AUD.musicVol, AUD.ctx.currentTime);
+      AUD.currentSource = playBuffer(buffer, AUD.musicGain, true);
+    });
+  } else {
+    if (!_hunterMusicEl) { _hunterMusicEl = new Audio(_HUNTER_AUDIO.music); _hunterMusicEl.loop = true; }
+    _hunterMusicEl.volume = AUD.musicVol || 0.7;
+    _hunterMusicEl.currentTime = 0;
+    _hunterMusicEl.play().catch(function(){});
+  }
 }
 
 function stopHunterMusic() {
