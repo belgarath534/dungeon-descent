@@ -8508,8 +8508,17 @@ function updateVol(sid, vid, type) {
     AUD.musicVol = v / 100;
     // Web Audio API GainNode — WORKS on iOS ✅
     if (AUD.musicGain) AUD.musicGain.gain.setValueAtTime(AUD.musicVol, AUD.ctx ? AUD.ctx.currentTime : 0);
-    // Howler fallback
-    if (_howlMusic) _howlMusic.volume(AUD.musicVol);
+    // Howler fallback — iOS won't apply volume mid-stream, so seek to current position to force refresh
+    if (_howlMusic) {
+      _howlMusic.volume(AUD.musicVol);
+      if (_howlMusic.playing()) {
+        var pos = _howlMusic.seek();
+        _howlMusic.stop();
+        _howlMusic.volume(AUD.musicVol);
+        _howlMusic.seek(pos);
+        _howlMusic.play();
+      }
+    }
     if (window.Howler) Howler.volume(AUD.musicVol);
     // HTML Audio fallback
     if (AUD.tracks) Object.keys(AUD.tracks).forEach(function(k) { var t = AUD.tracks[k]; if (t) t.volume = AUD.musicVol; });
