@@ -8506,21 +8506,32 @@ function updateVol(sid, vid, type) {
   el.setAttribute('aria-label', (type === 'music' ? 'Music' : type === 'ambient' ? 'Ambient' : 'Sound effects') + ' volume ' + v + ' percent');
   if (type === 'music') {
     AUD.musicVol = v / 100;
-    // Web Audio API GainNode — WORKS on iOS ✅
-    if (AUD.musicGain) AUD.musicGain.gain.setValueAtTime(AUD.musicVol, AUD.ctx ? AUD.ctx.currentTime : 0);
-    // Howler fallback — iOS won't apply volume mid-stream, so seek to current position to force refresh
-    if (_howlMusic) {
-      _howlMusic.volume(AUD.musicVol);
-      if (_howlMusic.playing()) {
-        var pos = _howlMusic.seek();
-        _howlMusic.stop();
-        _howlMusic.volume(AUD.musicVol);
-        _howlMusic.seek(pos);
-        _howlMusic.play();
+    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    if (isIOS) {
+      // iOS: GainNode and Howler both ignore mid-stream volume changes.
+      // Only reliable fix is to restart the track with the new volume baked in.
+      if (AUD.musicOn && AUD.current) {
+        // Debounce restarts — only fire 400ms after slider stops moving
+        clearTimeout(AUD._volRestartTimer);
+        AUD._volRestartTimer = setTimeout(function() {
+          var cur = AUD.current;
+          // Tear down current source
+          if (AUD.currentSource) { try { AUD.currentSource.stop(); } catch(e) {} AUD.currentSource = null; }
+          if (_howlMusic) { try { _howlMusic.stop(); _howlMusic.unload(); } catch(e) {} _howlMusic = null; }
+          // Update GainNode if it exists
+          if (AUD.musicGain) AUD.musicGain.gain.setValueAtTime(AUD.musicVol, AUD.ctx ? AUD.ctx.currentTime : 0);
+          // Force current to null so playTrack doesn't bail out on same-track check
+          AUD.current = null;
+          playTrack(cur);
+        }, 400);
       }
+    } else {
+      // Non-iOS: standard in-place volume update works fine
+      if (AUD.musicGain) AUD.musicGain.gain.setValueAtTime(AUD.musicVol, AUD.ctx ? AUD.ctx.currentTime : 0);
+      if (_howlMusic) _howlMusic.volume(AUD.musicVol);
+      if (window.Howler) Howler.volume(AUD.musicVol);
     }
-    if (window.Howler) Howler.volume(AUD.musicVol);
-    // HTML Audio fallback
+    // HTML Audio fallback always
     if (AUD.tracks) Object.keys(AUD.tracks).forEach(function(k) { var t = AUD.tracks[k]; if (t) t.volume = AUD.musicVol; });
     if (AUD.currentEl) AUD.currentEl.volume = AUD.musicVol;
     if (window._currentTrackEl) window._currentTrackEl.volume = AUD.musicVol;
