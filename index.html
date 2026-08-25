@@ -15725,7 +15725,10 @@ function saveProgress(completed) {
     }
     // Track dungeon specific completions
     if (DS.dungeon === 'The Whispering Forest') updateAchievementStat('whisperComplete', (getAchievementStats().whisperComplete||0) + 1);
-    if (DS.dungeon === 'The Infernal Descent') updateAchievementStat('infernalComplete', (getAchievementStats().infernalComplete||0) + 1);
+    if (DS.dungeon === 'The Infernal Descent') {
+      updateAchievementStat('infernalComplete', (getAchievementStats().infernalComplete||0) + 1);
+      updateAchievementStat('infernalTrialWon', (getAchievementStats().infernalTrialWon||0) + 1);
+    }
     if (DS.dungeon === 'The Abyssal Deep') { updateAchievementStat('abyssalComplete', (getAchievementStats().abyssalComplete||0) + 1); updateAchievementStat('abyssalBossDefeated', 1); if (DS.hardcoreMode) updateAchievementStat('abyssalHardcoreWin', 1); }
     // Transfer usable items from dungeon inventory to global inventory on run complete
     if (DS.inventory && DS.inventory.length > 0) {
@@ -24024,7 +24027,8 @@ var ACHIEVEMENTS = [
   { gold:400, trophies:7, id:'ach-infernal-trial', gpId:'CgkI0uiuoZcDEAIQGg', name:'Trial by Void',    icon:'🔥', desc:'The trial was designed to break you. You passed anyway.', check:function(s){ return (s.infernalTrialWon||0)>=1; } },
   { gold:400, trophies:7, id:'ach-infernal-riddles', gpId:'CgkI0uiuoZcDEAIQRQ', name:'Keeper of Secrets', icon:'🔍', desc:'Five hidden riddles solved. The dungeon did not think anyone would find them all.', check:function(s){ return (s.infernalRiddlesSolved||0)>=1; } },
   { gold:400, trophies:7, id:'ach-void-conqueror', gpId:'CgkI0uiuoZcDEAIQLA', gpId:'CgkI0uiuoZcDEAIQLA', name:'Void Conqueror', icon:'🌑', desc:'Five void waves. Five victories. The void has nothing left to offer.', check:function(s){ return (s.voidConqueror||0)>=1; } },
-  { gold:400, trophies:7, id:'ach-enemy-creator', gpId:'CgkI0uiuoZcDEAIQYA', name:'World Builder', icon:'⚗️', desc:'You built something and gave it to the world. That is what creators do.', check:function(s){ return (s.enemyCreated||0)>=1; } },
+  { gold:400, trophies:7, id:'ach-enemy-creator', gpId:'CgkI0uiuoZcDEAIQYA', name:'World Builder', icon:'⚗️', desc:'Depth 50 in the Mine. You did not just descend — you carved your own path through the rock.', check:function(s){ return (s.mineMaxDepth||0)>=50; } },
+  { gold:150, trophies:3, id:'ach-spirit-forger', gpId:'CgkI0uiuoZcDEAIQbA', name:'Spirit Forger', icon:'🔮', desc:'You looked at raw soul fragments and saw something worth building. Then you built it.', check:function(s){ return (s.customSpiritBuilt||0)>=1; } },
   { gold:50, trophies:1, id:'ach-first-sale', gpId:'CgkI0uiuoZcDEAIQGw', name:'First Sale', icon:'💰', desc:'First sale made. The Blacksmith nods approvingly.', check:function(){ return parseInt(DDStore.getItem('dd_total_sells')||'0')>=1; } },
   { gold:50, trophies:1, id:'ach-merchant', gpId:'CgkI0uiuoZcDEAIQIg', name:'Merchant', icon:'🏪', desc:'Five sales. The Blacksmith is starting to recognize you.', check:function(){ return parseInt(DDStore.getItem('dd_total_sells')||'0')>=5; } },
   { gold:150, trophies:3, id:'ach-black-market', gpId:'CgkI0uiuoZcDEAIQUw', name:'Black Market', icon:'🖤', desc:'Twenty items sold. You are practically running the place.', check:function(){ return parseInt(DDStore.getItem('dd_total_sells')||'0')>=20; } },
@@ -36287,6 +36291,11 @@ function mpPlay() {
   // Stop EVERYTHING first — custom track, YouTube, game music
   if (_customTrackActive || _ytActive) stopCustomTrack();
   mpStop();
+  // Stop Web Audio BufferSource (main path on iOS)
+  if (AUD.currentSource) { try { AUD.currentSource.stop(); } catch(e) {} AUD.currentSource = null; }
+  // Stop Howler (fallback path)
+  if (typeof _howlMusic !== 'undefined' && _howlMusic) { try { _howlMusic.stop(); } catch(e) {} }
+  // Stop HTML Audio tracks (legacy path)
   if (AUD.current) {
     var gameTrack = AUD.tracks[AUD.current];
     if (gameTrack) { try { gameTrack.pause(); } catch(e) {} }
@@ -36344,6 +36353,10 @@ function mpStop() {
   document.querySelectorAll('.mp-track-btn').forEach(function(b){ b.classList.remove('playing'); });
   var nameEl = document.getElementById('mp-track-name');
   if (nameEl) nameEl.textContent = 'Nothing playing';
+  // Resume game music if it was playing before music player opened
+  if (AUD && AUD.musicOn && AUD.current) {
+    try { playTrack(AUD.current); } catch(e) {}
+  }
 }
 
 function libTab(tab) {
@@ -40181,6 +40194,8 @@ function mineDig() {
 function mineDescend() {
   if (_mineState.inCombat) { say('Finish the fight first!'); return; }
   _mineState.depth++;
+  var _prevMineMax = getAchievementStats().mineMaxDepth || 0;
+  if (_mineState.depth > _prevMineMax) updateAchievementStat('mineMaxDepth', _mineState.depth);
   _mineState.digsOnFloor = 0;
   // Restore some HP on descend
   _mineState.hp = Math.min(_mineState.maxHp, _mineState.hp + 10);
@@ -47969,7 +47984,7 @@ function playHunterMusic() {
   // Pause current dungeon music
   try {
     Object.values(AUD.tracks || {}).forEach(function(t) {
-      if (t && !t.paused) { t._wasPlayingBeforeHunter = true; t.pause(); }\
+      if (t && !t.paused) { t._wasPlayingBeforeHunter = true; t.pause(); }
     });
     if (AUD.currentSource) { try { AUD.currentSource.stop(); } catch(e) {} AUD.currentSource = null; }
     if (_howlMusic) { try { _howlMusic.stop(); } catch(e) {} }
