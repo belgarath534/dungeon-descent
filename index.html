@@ -7564,7 +7564,6 @@ var DDStore = (function() {
     <div class="setting-row">
       <div class="setting-label"><span id="sl-music">Music</span><button class="toggle-btn on" id="music-toggle" aria-pressed="true" onclick="toggleMusic()" aria-label="Music toggle currently on">On</button></div>
       <div id="ios-vol-notice" style="display:none;font-family:Cinzel,serif;font-size:0.65rem;color:#888;padding:10px;background:#080808;border:1px solid #333;margin-bottom:8px;line-height:1.7;" aria-live="polite">📱 On iPhone and iPad, the music volume slider restarts the track when you stop dragging — this is normal. Your setting is saved and will be remembered on the next launch.</div>
-      <div id="dd-audio-debug" style="font-family:monospace;font-size:0.6rem;color:#0f0;background:#000;border:1px solid #0f0;padding:8px;margin-bottom:8px;white-space:pre;line-height:1.5;" aria-live="polite">Audio debug loading...</div>
       <div class="vol-row"><span class="vol-prefix">VOL</span><input type="range" class="vol-slider" id="music-vol" min="0" max="100" value="50" aria-label="Music volume 50 percent" oninput="updateVol('music-vol','music-vol-val','music')" onchange="updateVol('music-vol','music-vol-val','music')"><span class="vol-val" id="music-vol-val" aria-hidden="true">50%</span></div>
       <div id="ios-vol-notice" style="display:none;font-family:Cinzel,serif;font-size:0.6rem;color:#666;margin:4px 0 8px;line-height:1.6;">📱 On iPhone, use your device volume buttons to control audio levels.</div>
     </div>
@@ -7849,15 +7848,6 @@ function _saySR(msg) {
 // AUDIO
 //═════════════════
 // Music tracks keyed by name. Loaded lazily on first play.
-// ── AUDIO DEBUG PANEL (remove after fix confirmed) ──
-var _ddAudioLogs = [];
-function _ddAudioDebug(msg) {
-  var t = new Date().toISOString().substr(11,8);
-  _ddAudioLogs.push(t + ' ' + msg);
-  var el = document.getElementById('dd-audio-debug');
-  if (el) el.textContent = _ddAudioLogs.slice(-12).join('\n');
-}
-
 var AUD = {
   tracks: {},       // loaded Audio objects by track name
   current: null,    // name of currently playing track
@@ -7911,7 +7901,6 @@ function initWebAudio() {
     AUD.musicGain.gain.setValueAtTime(AUD.musicVol, AUD.ctx.currentTime);
     AUD.sfxGain.gain.setValueAtTime(AUD.sfxVol, AUD.ctx.currentTime);
     AUD.ambientGain.gain.setValueAtTime(AUD.ambientVol, AUD.ctx.currentTime);
-    _ddAudioDebug('WebAudio INIT musicGain=' + AUD.musicVol);
     console.log('[DD Audio] Web Audio API initialized. iOS volume control active.');
   } catch(e) {
     console.warn('[DD Audio] Web Audio API init failed, falling back to HTML Audio:', e);
@@ -8126,7 +8115,6 @@ function saveAudioPrefs() {
     musicOn: AUD.musicOn, sfxOn: AUD.sfxOn, ambientOn: AUD.ambientOn, vibrationOn: AUD.vibrationOn,
     musicVol: AUD.musicVol, sfxVol: AUD.sfxVol, ambientVol: AUD.ambientVol
   }));
-  _ddAudioDebug('SAVED musicVol=' + AUD.musicVol);
 }
 
 function loadAudioPrefs() {
@@ -8136,15 +8124,11 @@ function loadAudioPrefs() {
   if (iosNotice && isIOS) iosNotice.style.display = '';
   try {
     var rawPrefs = DDStore.getItem('dd_audio');
-    _ddAudioDebug('RAW dd_audio from DDStore: ' + rawPrefs);
     // If DDStore missed it (e.g. IndexedDB evicted on iOS), try the localStorage backup
     if (!rawPrefs) {
       try { rawPrefs = window.localStorage.getItem('dd_backup_dd_audio'); } catch(e) {}
-      _ddAudioDebug('BACKUP dd_audio: ' + rawPrefs);
     }
     var prefs = JSON.parse(rawPrefs || 'null');
-    if (!prefs) { _ddAudioDebug('NO PREFS FOUND — using defaults'); return; }
-    _ddAudioDebug('LOADED musicVol=' + prefs.musicVol);
     AUD.musicOn      = prefs.musicOn      !== undefined ? prefs.musicOn      : true;
     AUD.sfxOn        = prefs.sfxOn        !== undefined ? prefs.sfxOn        : true;
     AUD.vibrationOn  = prefs.vibrationOn  !== undefined ? prefs.vibrationOn  : true;
@@ -8152,6 +8136,14 @@ function loadAudioPrefs() {
     AUD.musicVol  = prefs.musicVol  !== undefined ? prefs.musicVol  : 0.7;
     AUD.sfxVol    = prefs.sfxVol    !== undefined ? prefs.sfxVol    : 0.8;
     AUD.ambientVol= prefs.ambientVol!== undefined ? prefs.ambientVol: 0.35;
+    // Sync GainNodes to loaded values — initWebAudio may have run before prefs loaded
+    if (AUD.musicGain) AUD.musicGain.gain.setValueAtTime(AUD.musicVol, AUD.ctx ? AUD.ctx.currentTime : 0);
+    if (AUD.sfxGain) AUD.sfxGain.gain.setValueAtTime(AUD.sfxVol, AUD.ctx ? AUD.ctx.currentTime : 0);
+    if (AUD.ambientGain) AUD.ambientGain.gain.setValueAtTime(AUD.ambientVol, AUD.ctx ? AUD.ctx.currentTime : 0);
+    // If Web Audio is already initialized, sync gain nodes to saved values now
+    if (AUD.ctx && AUD.musicGain) AUD.musicGain.gain.setValueAtTime(AUD.musicVol, AUD.ctx.currentTime);
+    if (AUD.ctx && AUD.sfxGain) AUD.sfxGain.gain.setValueAtTime(AUD.sfxVol, AUD.ctx.currentTime);
+    if (AUD.ctx && AUD.ambientGain) AUD.ambientGain.gain.setValueAtTime(AUD.ambientVol, AUD.ctx.currentTime);
     // Sync UI
     var mt = document.getElementById('music-toggle');
     if (mt) { mt.textContent = AUD.musicOn ? 'On' : 'Off'; mt.classList.toggle('on', AUD.musicOn); mt.setAttribute('aria-pressed', String(AUD.musicOn)); }
@@ -8310,7 +8302,6 @@ function playTrack(name) {
       AUD.currentSource = playBuffer(buffer, AUD.musicGain, true);
       // Force gain to saved value immediately after starting — iOS can reset it
       if (AUD.musicGain) AUD.musicGain.gain.setValueAtTime(AUD.musicVol, AUD.ctx.currentTime);
-      _ddAudioDebug('playBuffer gainVal=' + (AUD.musicGain ? AUD.musicGain.gain.value : 'no gain') + ' musicVol=' + AUD.musicVol);
     });
     return;
   }
@@ -8323,14 +8314,12 @@ function _playTrackFallback(name, url) {
   var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
   // On iOS, Howler html5 audio ignores volume (hardware locked) — always use Web Audio
   if (isIOS && AUD.ctx && AUD.musicGain) {
-    _ddAudioDebug('iOS: forcing Web Audio path for ' + name);
     if (AUD.ctx.state === 'suspended') AUD.ctx.resume();
     loadAudioBuffer(url, AUD.buffers, name, function(buffer) {
       if (!buffer || AUD.current !== name) return;
       if (AUD.currentSource) { try { AUD.currentSource.stop(); } catch(e) {} AUD.currentSource = null; }
       AUD.musicGain.gain.setValueAtTime(AUD.musicVol, AUD.ctx.currentTime);
       AUD.currentSource = playBuffer(buffer, AUD.musicGain, true);
-      _ddAudioDebug('iOS WebAudio fallback playing, gain=' + AUD.musicGain.gain.value);
     });
     return;
   }
@@ -36305,8 +36294,15 @@ function mpPlay() {
 
   try {
     _mpAudio = new Audio(filePath);
-    _mpAudio.volume = 0.7;
     _mpAudio.loop = true;
+    // On iOS audio.volume is hardware-locked — route through Web Audio GainNode instead
+    if (_webAudioReady && AUD.ctx && AUD.musicGain) {
+      var mpSource = AUD.ctx.createMediaElementSource(_mpAudio);
+      mpSource.connect(AUD.musicGain);
+      _mpAudio._webAudioConnected = true;
+    } else {
+      _mpAudio.volume = AUD.musicVol || 0.7;
+    }
     _mpAudio.play().then(function() {
       _mpPlaying = true;
       say('Now playing: ' + label);
@@ -47942,7 +47938,14 @@ function initHunterAudio() {
   if (!_hunterMusicEl) {
     _hunterMusicEl = new Audio(_HUNTER_AUDIO.music);
     _hunterMusicEl.loop = true;
-    _hunterMusicEl.volume = AUD ? (AUD.musicVol || 0.7) : 0.7;
+    // On iOS audio.volume is hardware-locked — route through Web Audio GainNode instead
+    if (_webAudioReady && AUD.ctx && AUD.musicGain) {
+      var hunterSource = AUD.ctx.createMediaElementSource(_hunterMusicEl);
+      hunterSource.connect(AUD.musicGain);
+      _hunterMusicEl._webAudioConnected = true;
+    } else {
+      _hunterMusicEl.volume = AUD ? (AUD.musicVol || 0.7) : 0.7;
+    }
   }
   // Heartbeat element
   if (!_heartbeatEl) {
