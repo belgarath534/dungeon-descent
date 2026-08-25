@@ -1647,7 +1647,7 @@ var DDStore = (function() {
   function setItemWithBackup(k, v) {
     _origSetItem(k, v);
     // Keep a localStorage backup of the most critical keys
-    if (k === 'dd_chars' || k === 'dd_global_gold' || k === 'dd_diamonds' || k === 'dd_achievements' || k === 'dd_global_stats' || k === 'dd_owned_guns') {
+    if (k === 'dd_chars' || k === 'dd_global_gold' || k === 'dd_diamonds' || k === 'dd_achievements' || k === 'dd_global_stats' || k === 'dd_owned_guns' || k === 'dd_audio') {
       try { window.localStorage.setItem('dd_backup_' + k, v); } catch(e) {}
     }
   }
@@ -1655,7 +1655,7 @@ var DDStore = (function() {
 
   // On init — if IndexedDB came up empty but we have a localStorage backup, restore it
   function restoreFromBackup() {
-    var backupKeys = ['dd_chars','dd_global_gold','dd_diamonds','dd_achievements','dd_global_stats','dd_owned_guns'];
+    var backupKeys = ['dd_chars','dd_global_gold','dd_diamonds','dd_achievements','dd_global_stats','dd_owned_guns','dd_audio'];
     var restored = 0;
     backupKeys.forEach(function(k) {
       if (!cache[k]) {
@@ -8119,7 +8119,12 @@ function loadAudioPrefs() {
   var iosNotice = document.getElementById('ios-vol-notice');
   if (iosNotice && isIOS) iosNotice.style.display = '';
   try {
-    var prefs = JSON.parse(DDStore.getItem('dd_audio') || 'null');
+    var rawPrefs = DDStore.getItem('dd_audio');
+    // If DDStore missed it (e.g. IndexedDB evicted on iOS), try the localStorage backup
+    if (!rawPrefs) {
+      try { rawPrefs = window.localStorage.getItem('dd_backup_dd_audio'); } catch(e) {}
+    }
+    var prefs = JSON.parse(rawPrefs || 'null');
     if (!prefs) return;
     AUD.musicOn      = prefs.musicOn      !== undefined ? prefs.musicOn      : true;
     AUD.sfxOn        = prefs.sfxOn        !== undefined ? prefs.sfxOn        : true;
