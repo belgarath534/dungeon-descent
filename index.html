@@ -8217,8 +8217,13 @@ function loadAudio() {
     Howler.volume(AUD.musicVol);
   }
 
-  // Start menu music
-  if (AUD.musicOn) playTrack(getMenuTrack());
+  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  // On iOS, delay music start until after initWebAudio runs so we always use Web Audio GainNode
+  if (isIOS) {
+    if (AUD.musicOn) setTimeout(function() { playTrack(getMenuTrack()); }, 100);
+  } else {
+    if (AUD.musicOn) playTrack(getMenuTrack());
+  }
 }
 
 function getTrack(name) {
@@ -8315,6 +8320,20 @@ function playTrack(name) {
 }
 
 function _playTrackFallback(name, url) {
+  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  // On iOS, Howler html5 audio ignores volume (hardware locked) — always use Web Audio
+  if (isIOS && AUD.ctx && AUD.musicGain) {
+    _ddAudioDebug('iOS: forcing Web Audio path for ' + name);
+    if (AUD.ctx.state === 'suspended') AUD.ctx.resume();
+    loadAudioBuffer(url, AUD.buffers, name, function(buffer) {
+      if (!buffer || AUD.current !== name) return;
+      if (AUD.currentSource) { try { AUD.currentSource.stop(); } catch(e) {} AUD.currentSource = null; }
+      AUD.musicGain.gain.setValueAtTime(AUD.musicVol, AUD.ctx.currentTime);
+      AUD.currentSource = playBuffer(buffer, AUD.musicGain, true);
+      _ddAudioDebug('iOS WebAudio fallback playing, gain=' + AUD.musicGain.gain.value);
+    });
+    return;
+  }
   if (window.Howl) {
     _howlMusic = new Howl({
       src: [url],
@@ -45947,8 +45966,8 @@ DDStore.whenReady().then(function() {
   setTimeout(function(){ try { cleanupMusicPlayers(); } catch(e){} }, 1000);
   var _audioLoaded = false;
   function initAudio() {
+    initWebAudio(); // Must run first so GainNode exists before music starts
     if (!_audioLoaded) { _audioLoaded = true; loadAudio(); }
-    initWebAudio(); // Initialize Web Audio API for iOS volume control
   }
   document.addEventListener('click', initAudio, { once: true });
   document.addEventListener('keydown', initAudio, { once: true });
