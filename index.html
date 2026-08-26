@@ -7932,6 +7932,8 @@ function playBuffer(buffer, gainNode, loop) {
     source.buffer = buffer;
     source.loop = loop || false;
     source.connect(gainNode);
+    source._ended = false;
+    source.onended = function() { source._ended = true; };
     source.start(0);
     return source;
   } catch(e) {
@@ -8269,7 +8271,13 @@ function playTrack(name) {
   if (!AUD.loaded) return;
   if (!AUD.musicOn) { AUD.current = name; return; }
   if (_customTrackActive || _ytActive) { AUD.current = name; return; }
-  if (AUD.current === name && _howlMusic && _howlMusic.playing()) return;
+  // Don't restart if same track is already playing — check both Web Audio and Howler
+  if (AUD.current === name) {
+    // Web Audio: BufferSource is active if it exists and hasn't ended
+    if (AUD.currentSource && !AUD.currentSource._ended) return;
+    // Howler: check if playing
+    if (_howlMusic && _howlMusic.playing()) return;
+  }
 
   // Stop current Web Audio source
   if (AUD.currentSource) {
@@ -8777,6 +8785,16 @@ function goTo(id) {
     playTrack('spire');
   } else if (id === 'graveyard') {
     playTrack('graveyard');
+  } else if (id === 'dungeon') {
+    // Dungeon music is handled by the dungeon system itself via battleTrack()
+    // but make sure something is playing on screen entry
+    if (AUD.musicOn && typeof battleTrack === 'function') {
+      playTrack(battleTrack());
+    }
+  } else if (id === 'runsummary' || id === 'deathlog') {
+    // Stop all music on death/run end screens
+    if (AUD.currentSource) { try { AUD.currentSource.stop(); } catch(e) {} AUD.currentSource = null; }
+    if (_howlMusic) { try { _howlMusic.stop(); _howlMusic.unload(); } catch(e) {} _howlMusic = null; }
   }
   if (id === 'menu') {
     setTimeout(checkNewDayDCPopup, 500);
