@@ -18421,6 +18421,7 @@ function ecShowError(msg) {
 }
 
 function ecSubmit() {
+  say('Submitting enemy. Please wait.');
   var name     = (document.getElementById('ec-name').value || '').trim();
   var desc     = (document.getElementById('ec-desc').value || '').trim();
   var type     = document.getElementById('ec-type').value;
