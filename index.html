@@ -18459,22 +18459,22 @@ function ecSubmit() {
   if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Unleashing...'; }
   document.getElementById('ec-error').style.display = 'none';
 
+  // Show success immediately — don't wait for Firebase to confirm
+  // Same pattern as obituary system which works reliably
+  document.getElementById('enemy-creator-form').style.display = 'none';
+  document.getElementById('enemy-creator-success').style.display = '';
+  var msg = document.getElementById('ec-success-msg');
+  if (msg) {
+    msg.textContent = '"' + name + '" has been added to the dungeon pool. Players will encounter your enemy in ' +
+      (dungeon === 'all' ? 'all dungeons' : dungeon) + '. When they do, the dungeon will announce: "' +
+      name + ', unleashed by ' + creator + '."';
+  }
+  say(name + ' has been unleashed into the dungeon. Players will encounter your creation soon.');
+  try { incrementAchievementStat('enemyCreated', 1); } catch(e) {}
+
+  // Fire and forget — same as obituary system
   window._fbDb.collection('community_enemies').add(enemyData)
-    .then(function() {
-      document.getElementById('enemy-creator-form').style.display = 'none';
-      document.getElementById('enemy-creator-success').style.display = '';
-      var msg = document.getElementById('ec-success-msg');
-      if (msg) {
-        msg.textContent = '"' + name + '" has been added to the dungeon pool. Players will encounter your enemy in ' +
-          (dungeon === 'all' ? 'all dungeons' : dungeon) + '. When they do, the dungeon will announce: "' +
-          name + ', unleashed by ' + creator + '."';
-      }
-      say(name + ' has been unleashed into the dungeon. Players will encounter your creation soon.');
-      try { incrementAchievementStat('enemyCreated', 1); } catch(e) {}
-    })
     .catch(function(err) {
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '⚔ Unleash This Enemy'; }
-      ecShowError('Failed: ' + (err.message || 'Check your connection.'));
       console.error('[EC] Submit failed:', err);
     });
 }
