@@ -1913,7 +1913,7 @@ var DDStore = (function() {
         <span data-i18n="btn-quit">🕯 Quit</span>
       </button>
     </nav>
-    <p class="version-tag" aria-label="Version 10 point 9, Release">v10.9 · Release</p>
+    <p class="version-tag" aria-label="Version 11 point 0, Release">v11.0 · Release</p>
     <p style="font-family:Cinzel,serif;font-size:0.7rem;color:#ffdd44;margin-top:6px;" aria-label="Your global gold" aria-live="polite"><span data-i18n="lbl-gold">💰 </span><span class="global-gold-display">0</span></p>
     <p style="font-family:Cinzel,serif;font-size:0.7rem;color:#88ddff;margin-top:2px;" aria-label="Your diamonds" aria-live="polite">💎 <span class="global-diamond-display">0</span></p>
   </div>
@@ -3333,8 +3333,23 @@ var DDStore = (function() {
       <button class="back-btn" onclick="goTo('menu')" aria-label="Back to main menu">← Menu</button>
       <h2 class="screen-title">What's New</h2>
     </div>
-    <div class="version-block latest" tabindex="0" aria-label="Version 10.9">
-      <div class="version-num">v10.9 — Latest</div>
+    <div class="version-block latest" tabindex="0" aria-label="Version 11.0">
+      <div class="version-num">v11.0 — Latest</div>
+      <div class="version-date">The Community Update</div>
+      <ul class="version-changes">
+        <li>💬 Global Chat — talk to players around the world in real time. Pick a username, send messages, see them appear instantly. Accessible via main menu. New Chat category in Settings to manage your username and toggle the dungeon chat button.</li>
+        <li>⚔ PVP Arena rebuilt from scratch on Firebase Realtime Database — no more Railway server, no more connection drops, no more mysterious bugs. Create a room, share the code, fight. Works on any device, always online, completely free.</li>
+        <li>👥 Community Enemy Creator — submit your own enemy with a name, description, type, dungeon, and theme music. Your enemy joins the global pool and can appear in any player's dungeon with a special announcement. Full bestiary tab for community enemies.</li>
+        <li>🔥 Firebase fully operational for the first time — deaths now save to the global Obituary, leaderboard scores upload correctly, and all Firebase features work as intended.</li>
+        <li>🪦 Global Obituary now shows real deaths from real players — not just your own local deaths.</li>
+        <li>🐛 Fixed a critical bug where characters with corrupted save data (null or negative lives) would crash the game on death instead of showing the run summary.</li>
+        <li>🐛 Fixed run summary crashing when activeSpirit was saved as a string ID instead of a full object.</li>
+        <li>🎵 Keyboard volume controls (Alt+PageUp/PageDown) now correctly adjust Web Audio GainNode so music volume actually changes on desktop.</li>
+      </ul>
+    </div>
+
+    <div class="version-block" tabindex="0" aria-label="Version 10.9">
+      <div class="version-num">v10.9</div>
       <div class="version-date">The Codex Update</div>
       <ul class="version-changes">
         <li>📖 The Codex — a brand new lore system. Three tabs: World Lore, Enemy Lore, and Artifacts. Entries unlock through gameplay — clear a dungeon, kill enough enemies, reach Mine depth milestones, collect Void Fragments. 14 entries total to discover. Access from the main menu.</li>
@@ -21453,7 +21468,7 @@ function vrVictory() {
 
   // Award Mystery Coins
   var raidSave = getRaidSave();
-  raidSave.mysteryCoins = (raidSave.mysteryCoins || 0) + 3;
+  addCoinsToWallet(3);
   saveRaidData(raidSave);
 
   incrementAchievementStat('voidReaperDefeated', 1);
@@ -22332,7 +22347,7 @@ function tnVictory() {
 
   // Award mystery coins for beating the boss
   var raidSave = getRaidSave();
-  raidSave.mysteryCoins = (raidSave.mysteryCoins || 0) + 5;
+  addCoinsToWallet(5);
   saveRaidData(raidSave);
   incrementAchievementStat('tournamentWins', 1);
   checkAchievements();
@@ -24739,7 +24754,7 @@ async function checkWeeklyReward(scores) {
   // Award 3 Mystery Coins
   DDStore.setItem(weekKey, '1');
   var raidSave = getRaidSave();
-  raidSave.mysteryCoins = (raidSave.mysteryCoins || 0) + 3;
+  addCoinsToWallet(3);
   saveRaidData(raidSave);
   setTimeout(function() {
     setEvent('good', '🥇 Weekly Champion! You are #1 on the leaderboard. +3 Mystery Coins awarded!');
@@ -24798,8 +24813,8 @@ async function claimInboxMessage(msgId, coins) {
   try {
     await window._fbDb.collection('users').doc(user.uid).collection('inbox').doc(msgId).update({ claimed: true, claimedAt: Date.now() });
     if (coins > 0) {
+      addCoinsToWallet(coins);
       var raidSave = getRaidSave();
-      raidSave.mysteryCoins = (raidSave.mysteryCoins || 0) + coins;
       saveRaidData(raidSave);
       setEvent('good', '🪙 ' + coins + ' Mystery Coins added to your account!');
       say(coins + ' Mystery Coins claimed and added to your account.');
@@ -25736,7 +25751,14 @@ function saveCoinUpgrades(o) { DDStore.setItem('dd_coin_upgrades', JSON.stringif
 function hasUpgrade(id) { return !!getCoinUpgradesSave()[id]; }
 
 function renderCoinShop() {
-  var coins = getRaidSave().mysteryCoins || 0;
+  // Unified mystery coins — merge raid save coins into dd_mystery_coins if needed
+  var raidCoins = getRaidSave().mysteryCoins || 0;
+  var ddCoins = parseInt(DDStore.getItem('dd_mystery_coins') || '0');
+  if (raidCoins > ddCoins) {
+    DDStore.setItem('dd_mystery_coins', String(raidCoins));
+    ddCoins = raidCoins;
+  }
+  var coins = ddCoins;
   document.getElementById('coinshop-balance').textContent = coins + ' Mystery Coin' + (coins !== 1 ? 's' : '');
   var grid = document.getElementById('coinshop-grid');
   grid.innerHTML = '';
@@ -25804,10 +25826,13 @@ function renderCoinShop() {
 }
 
 function buyCoinUpgrade(upg) {
-  var save = getRaidSave();
-  var coins = save.mysteryCoins || 0;
+  var coins = parseInt(DDStore.getItem('dd_mystery_coins') || '0');
   if (coins < upg.cost) { say('Not enough Mystery Coins.'); return; }
-  save.mysteryCoins = coins - upg.cost;
+  var newCoins = coins - upg.cost;
+  DDStore.setItem('dd_mystery_coins', String(newCoins));
+  // Keep raid save in sync
+  var save = getRaidSave();
+  save.mysteryCoins = newCoins;
   setRaidSave(save);
   var upgSave = getCoinUpgradesSave();
   upgSave[upg.id] = true;
@@ -25924,8 +25949,7 @@ function completeDailyChallenge() {
   DDStore.setItem('dd_dc', JSON.stringify(save));
   // Award Mystery Coin
   var raidSave = getRaidSave();
-  raidSave.mysteryCoins = (raidSave.mysteryCoins || 0) + 1;
-  setRaidSave(raidSave);
+  addCoinsToWallet(1); setRaidSave(raidSave);
   say('Daily Challenge complete! You earned 1 Mystery Coin!');
   sfx('sfx-unlock');
 }
@@ -29033,8 +29057,21 @@ var GLOBAL_AWARDS = [
 ];
 
 function addMysteryCoin(n) {
+  var cur = parseInt(DDStore.getItem('dd_mystery_coins') || '0');
+  DDStore.setItem('dd_mystery_coins', String(cur + n));
+  // Keep raid save in sync
   var save = getRaidSave();
-  save.mysteryCoins = (save.mysteryCoins || 0) + n;
+  save.mysteryCoins = parseInt(DDStore.getItem('dd_mystery_coins') || '0');
+  setRaidSave(save);
+}
+
+// Unified coin add — use this everywhere instead of directly touching raidSave.mysteryCoins
+function addCoinsToWallet(n) {
+  var cur = parseInt(DDStore.getItem('dd_mystery_coins') || '0');
+  var newTotal = cur + n;
+  DDStore.setItem('dd_mystery_coins', String(newTotal));
+  var save = getRaidSave();
+  save.mysteryCoins = newTotal;
   setRaidSave(save);
 }
 
@@ -31307,7 +31344,7 @@ function devResetSRPrompt() {
 }
 
 // ── WHATS NEW ──
-var CURRENT_VERSION = '10.9';
+var CURRENT_VERSION = '11.0';
 function checkWhatsNew() {
   var vtag = document.querySelector('.version-tag');
   if (vtag) vtag.textContent = 'v' + CURRENT_VERSION + ' · Release';
@@ -31344,7 +31381,7 @@ function showMigrationAnimation(onComplete) {
   overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;font-family:Cinzel,serif;';
 
   var lines = [
-    { t: 0,    text: '⚙️ Dungeon Descent v10.9', size: '1.1rem', color: '#c9a227' },
+    { t: 0,    text: '⚙️ Dungeon Descent v11.0', size: '1.1rem', color: '#c9a227' },
     { t: 500,  text: 'Initialising IndexedDB storage engine...', size: '0.78rem', color: '#888' },
     { t: 1400, text: 'Reading save data from localStorage...', size: '0.78rem', color: '#888' },
     { t: 2300, text: 'Copying to IndexedDB — do not close the app', size: '0.78rem', color: '#aaa' },
@@ -31713,6 +31750,26 @@ function mpHandleRoomUpdate(room) {
   // Battle over
   if (room.status === 'over') {
     mpHandleBattleOver(room);
+    return;
+  }
+
+  // Rematch reset — battleStarted went back to false after a battle was over
+  if (!room.battleStarted && room.status === 'full') {
+    var rematch = document.getElementById('mp-rematch-section');
+    var actions = document.getElementById('mp-combat-actions');
+    var readyBtn = document.getElementById('mp-ready-btn');
+    var logEl = document.getElementById('mp-log-lines');
+    if (rematch) rematch.style.display = 'none';
+    if (actions) actions.style.display = 'none';
+    if (readyBtn) { readyBtn.style.display = 'block'; readyBtn.disabled = false; readyBtn.textContent = '⚔️ Ready — FIGHT!'; readyBtn.focus(); }
+    if (logEl && room.log) {
+      var entries = Array.isArray(room.log) ? room.log : Object.values(room.log);
+      logEl.innerHTML = entries.map(function(l) { return '<div tabindex="0">' + l + '</div>'; }).join('');
+    }
+    _mpMyTurn = false;
+    mpSetStatus('Rematch! Press Ready when prepared to fight again.');
+    say('Your opponent wants a rematch! Press the Ready button when you are prepared to fight again.');
+    return;
   }
 }
 
@@ -31736,7 +31793,8 @@ function mpShowBattleUI(room) {
   if (actions) { actions.style.display = 'flex'; actions.style.flexDirection = 'column'; }
   if (playersDisplay) playersDisplay.style.display = 'block';
 
-  // Render players
+  // Switch to battle music on first battle start
+  try { mpUpdateTrack('boss'); } catch(e) {}
   if (room.p1 && room.p2) {
     var me = _mpRole === 'p1' ? room.p1 : room.p2;
     var opponent = _mpRole === 'p1' ? room.p2 : room.p1;
@@ -31882,27 +31940,30 @@ function mpEmote(emote) {
 
 function mpRematch() {
   if (!_mpRoomCode || !_mpRoomRef) return;
-  // Reset room for rematch
   var charData = mpGetCharData(_mpSelectedChar);
   var updates = {};
   updates[_mpRole] = { id: _mpMyId, char: charData, ready: false };
   updates['status'] = 'full';
   updates['battleStarted'] = false;
   updates['turn'] = null;
-  updates['log'] = ['🔄 Rematch! Get ready...'];
+  updates['log'] = ['🔄 Rematch requested! Both players press Ready to begin.'];
   updates['winnerId'] = null;
   updates['winnerName'] = null;
   updates['loserName'] = null;
   _mpRoomRef.update(updates);
 
-  // Reset UI
+  // Reset UI fully — hide combat, show ready button
   var rematch = document.getElementById('mp-rematch-section');
   var actions = document.getElementById('mp-combat-actions');
   var readyBtn = document.getElementById('mp-ready-btn');
+  var logEl = document.getElementById('mp-log-lines');
   if (rematch) rematch.style.display = 'none';
-  if (actions) { actions.style.display = 'flex'; }
-  if (readyBtn) { readyBtn.style.display = 'block'; readyBtn.disabled = false; readyBtn.textContent = '⚔️ Ready — FIGHT!'; }
-  mpSetStatus('Rematch! Press Ready when prepared.');
+  if (actions) actions.style.display = 'none';
+  if (readyBtn) { readyBtn.style.display = 'block'; readyBtn.disabled = false; readyBtn.textContent = '⚔️ Ready — FIGHT!'; readyBtn.focus(); }
+  if (logEl) logEl.innerHTML = '<div tabindex="0">🔄 Rematch! Both players press Ready to begin.</div>';
+  _mpMyTurn = false;
+  mpSetStatus('Rematch! Press Ready when prepared to fight again.');
+  say('Rematch! The Ready button is now available. Press it when you are prepared to fight again.');
   sfx('sfx-confirm');
 }
 
@@ -43789,7 +43850,7 @@ function buyAFKUpgrade(item) {
   if (item.id === 'afk-mystery-coins') {
     save.totalPoints = totalPts - item.cost;
     var raidSave = getRaidSave();
-    raidSave.mysteryCoins = (raidSave.mysteryCoins || 0) + 2;
+    addCoinsToWallet(2);
     setRaidSave(raidSave);
     saveAFKData(save);
     say('Purchased. 2 Mystery Coins added. ' + save.totalPoints + ' descent points remaining.');
@@ -46517,9 +46578,12 @@ function selectTitle(tag) {
 
 function buyTitle(tag, cost) {
   var data = getRaidSave();
-  var coins = data.mysteryCoins || 0;
+  var coins = parseInt(DDStore.getItem('dd_mystery_coins') || '0');
   if (coins < cost) { say('Not enough Mystery Coins.'); return; }
-  data.mysteryCoins = coins - cost;
+  var newCoins = coins - cost;
+  DDStore.setItem('dd_mystery_coins', String(newCoins));
+  var data = getRaidSave();
+  data.mysteryCoins = newCoins;
   setRaidSave(data);
   var owned = JSON.parse(DDStore.getItem('dd_owned_titles') || '["Wanderer"]');
   if (owned.indexOf(tag) === -1) owned.push(tag);
@@ -48961,6 +49025,27 @@ function spireReturnToMenu() {
 
 
 <!-- v10.7 UPDATE POPUP -->
+<div id="v110-popup" role="dialog" aria-modal="true" aria-label="Version 11.0 update" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:99005;align-items:center;justify-content:center;padding:20px;">
+  <div style="max-width:420px;width:100%;background:#080808;border:2px solid #c9a227;padding:28px;text-align:center;max-height:90vh;overflow-y:auto;">
+    <div style="font-size:1.6rem;margin-bottom:12px;" aria-hidden="true">💬</div>
+    <div style="font-family:Cinzel,serif;font-size:0.6rem;letter-spacing:0.4em;color:#c9a227;text-transform:uppercase;margin-bottom:8px;">Version 11.0</div>
+    <h2 style="font-family:Cinzel,serif;font-size:1.1rem;color:#e8c84a;margin-bottom:6px;">The Community Update</h2>
+    <div style="width:50px;height:1px;background:linear-gradient(90deg,transparent,#c9a227,transparent);margin:0 auto 20px;"></div>
+    <div style="text-align:left;font-family:Cinzel,serif;font-size:0.7rem;color:#888;line-height:1.9;margin-bottom:20px;">
+      <div style="color:#c9a227;margin-bottom:6px;">💬 Global Chat</div>
+      Real time chat with players worldwide. Pick a username and start talking. Messages appear instantly via Firebase Realtime Database.<br><br>
+      <div style="color:#c9a227;margin-bottom:6px;">⚔ PVP Arena — Rebuilt</div>
+      No more Railway server. PVP now runs on Firebase Realtime Database — always on, always free, no connection drops. Create a room, share the code, fight.<br><br>
+      <div style="color:#c9a227;margin-bottom:6px;">👥 Community Enemy Creator</div>
+      Build your own enemy and set it loose in the dungeon. Your creation can appear in any player's run with your name attached.<br><br>
+      <div style="color:#c9a227;margin-bottom:6px;">🔥 Firebase Finally Works</div>
+      Deaths save globally. Leaderboard uploads correctly. The Obituary shows real players. Everything Firebase is now fully operational for the first time.<br><br>
+      <div style="color:#555;font-size:0.62rem;">+ Lives crash fix, run summary crash fix, keyboard volume fix for desktop.</div>
+    </div>
+    <button type="button" onclick="dismissV110Popup()" style="width:100%;padding:14px;background:#0a0800;border:2px solid #c9a227;color:#e8c84a;font-family:Cinzel,serif;font-size:0.8rem;cursor:pointer;letter-spacing:0.1em;" aria-label="Got it — dismiss this update notice">💬 Enter the Community. Descend.</button>
+  </div>
+</div>
+
 <div id="v109-popup" role="dialog" aria-modal="true" aria-label="Version 10.9 update" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:99004;align-items:center;justify-content:center;padding:20px;">
   <div style="max-width:420px;width:100%;background:#080808;border:2px solid #c9a227;padding:28px;text-align:center;max-height:90vh;overflow-y:auto;">
     <div style="font-size:1.6rem;margin-bottom:12px;" aria-hidden="true">📖</div>
@@ -50653,6 +50738,26 @@ function handleHardcoreDeath() {
 
 // ── END COMPANION SYSTEM ──
 
+// -- v11.0 UPDATE POPUP --
+function showV110PopupIfNeeded() {
+  if (DDStore.getItem('dd_v110_seen')) return;
+  var el = document.getElementById('v110-popup');
+  if (!el) return;
+  el.style.display = 'flex';
+  setTimeout(function() {
+    var btn = el.querySelector('button');
+    if (btn) btn.focus();
+    say('Version 11.0 — The Community Update. Global Chat, PVP rebuilt on Firebase, Community Enemy Creator, and Firebase fully operational. Press Enter the Community to continue.');
+  }, 300);
+}
+
+function dismissV110Popup() {
+  DDStore.setItem('dd_v110_seen', '1');
+  var el = document.getElementById('v110-popup');
+  if (el) el.style.display = 'none';
+  say('Welcome to version 11.0. The Community Update. The dungeon awaits.');
+}
+
 // -- v10.9 UPDATE POPUP --
 function showV109PopupIfNeeded() {
   if (DDStore.getItem('dd_v109_seen')) return;
@@ -50846,8 +50951,9 @@ window.addEventListener('load', function() {
     // Mark older popups as seen so they don't stack
     DDStore.setItem('dd_v107_seen', '1');
     DDStore.setItem('dd_v108_seen', '1');
-    // Show v10.9 popup
-    showV109PopupIfNeeded();
+    DDStore.setItem('dd_v109_seen', '1');
+    // Show v11.0 popup
+    showV110PopupIfNeeded();
   }, 500);
 });
 // ── END v10.2 UPDATE POPUP ──
