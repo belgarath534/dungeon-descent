@@ -1870,6 +1870,9 @@ var DDStore = (function() {
       <button class="menu-btn" id="menu-btn-codex" onclick="goTo('codex')" aria-label="The Codex, world lore enemy lore and artifacts unlocked through gameplay">
         <span>📖 Codex</span>
       </button>
+      <button class="menu-btn" id="menu-btn-enemy-creator" onclick="goTo('enemy-creator')" aria-label="Community Enemy Creator, build an enemy and set it loose in the dungeon">
+        <span>⚔ Enemy Creator</span>
+      </button>
       <button class="menu-btn" id="menu-btn-bounty" onclick="goTo('bounty')" aria-label="The Bounty Board — register for bounties and earn rewards">
         <span data-i18n="btn-bounty">📋 Bounty Board</span>
       </button>
@@ -1905,7 +1908,7 @@ var DDStore = (function() {
         <span data-i18n="btn-quit">🕯 Quit</span>
       </button>
     </nav>
-    <p class="version-tag" aria-label="Version 10 point 8, Release">v10.8 · Release</p>
+    <p class="version-tag" aria-label="Version 10 point 9, Release">v10.9 · Release</p>
     <p style="font-family:Cinzel,serif;font-size:0.7rem;color:#ffdd44;margin-top:6px;" aria-label="Your global gold" aria-live="polite"><span data-i18n="lbl-gold">💰 </span><span class="global-gold-display">0</span></p>
     <p style="font-family:Cinzel,serif;font-size:0.7rem;color:#88ddff;margin-top:2px;" aria-label="Your diamonds" aria-live="polite">💎 <span class="global-diamond-display">0</span></p>
   </div>
@@ -3107,6 +3110,108 @@ var DDStore = (function() {
   </div>
 </div>
 
+<div id="screen-enemy-creator" class="screen" role="main" aria-label="Community Enemy Creator">
+  <div class="chronicles-wrap">
+    <div class="screen-header">
+      <button class="back-btn" onclick="goTo('menu')" aria-label="Back to main menu">← Menu</button>
+      <h2 class="screen-title">Enemy Creator</h2>
+    </div>
+    <div style="font-family:Cinzel,serif;font-size:0.6rem;color:#666;text-align:center;padding:4px 0 12px;">Build an enemy. Set it loose. Let the dungeon remember your name.</div>
+
+    <!-- Creator Form -->
+    <div id="enemy-creator-form">
+      <!-- Enemy Name -->
+      <div style="margin-bottom:12px;">
+        <label for="ec-name" style="font-family:Cinzel,serif;font-size:0.65rem;color:#c8a832;display:block;margin-bottom:4px;">Enemy Name <span style="color:#444;">(max 30 chars)</span></label>
+        <input id="ec-name" type="text" maxlength="30" placeholder="e.g. The Hollow Watcher" style="width:100%;padding:8px 10px;background:#0a0800;border:1px solid #443300;color:#ccc;font-family:Cinzel,serif;font-size:0.7rem;box-sizing:border-box;" aria-label="Enemy name, maximum 30 characters" />
+      </div>
+
+      <!-- Description -->
+      <div style="margin-bottom:12px;">
+        <label for="ec-desc" style="font-family:Cinzel,serif;font-size:0.65rem;color:#c8a832;display:block;margin-bottom:4px;">Description <span style="color:#444;">(max 120 chars)</span></label>
+        <textarea id="ec-desc" maxlength="120" placeholder="What is this thing? What does it want?" style="width:100%;padding:8px 10px;background:#0a0800;border:1px solid #443300;color:#ccc;font-family:Cinzel,serif;font-size:0.7rem;box-sizing:border-box;resize:none;height:60px;" aria-label="Enemy description, maximum 120 characters"></textarea>
+      </div>
+
+      <!-- Enemy Type -->
+      <div style="margin-bottom:12px;">
+        <label for="ec-type" style="font-family:Cinzel,serif;font-size:0.65rem;color:#c8a832;display:block;margin-bottom:4px;">Enemy Type</label>
+        <select id="ec-type" onchange="ecRollStats()" style="width:100%;padding:8px 10px;background:#0a0800;border:1px solid #443300;color:#ccc;font-family:Cinzel,serif;font-size:0.7rem;" aria-label="Enemy type">
+          <option value="common">Common Enemy — floors 1-5, low stats</option>
+          <option value="uncommon">Uncommon Enemy — floors 3-7, medium stats</option>
+          <option value="rare">Rare Enemy — floors 6-9, high stats</option>
+          <option value="elite">Elite Enemy — floor 10 guardian, boss-tier stats</option>
+          <option value="boss">Boss — can replace the dungeon boss</option>
+        </select>
+      </div>
+
+      <!-- Dungeon -->
+      <div style="margin-bottom:12px;">
+        <label for="ec-dungeon" style="font-family:Cinzel,serif;font-size:0.65rem;color:#c8a832;display:block;margin-bottom:4px;">Dungeon</label>
+        <select id="ec-dungeon" style="width:100%;padding:8px 10px;background:#0a0800;border:1px solid #443300;color:#ccc;font-family:Cinzel,serif;font-size:0.7rem;" aria-label="Which dungeon this enemy lives in">
+          <option value="all">All Dungeons</option>
+          <option value="Crypt of Malachar">Crypt of Malachar</option>
+          <option value="The Ashbound Wastes">The Ashbound Wastes</option>
+          <option value="Frosthold Abyss">Frosthold Abyss</option>
+          <option value="The Sunken Archives">The Sunken Archives</option>
+          <option value="The Hollow">The Hollow</option>
+          <option value="The Whispering Forest">The Whispering Forest</option>
+          <option value="The Infernal Descent">The Infernal Descent</option>
+          <option value="The Abyssal Deep">The Abyssal Deep</option>
+        </select>
+      </div>
+
+      <!-- Theme Music -->
+      <div style="margin-bottom:12px;">
+        <label for="ec-music" style="font-family:Cinzel,serif;font-size:0.65rem;color:#c8a832;display:block;margin-bottom:4px;">Theme Music <span style="color:#444;">(plays when this enemy spawns)</span></label>
+        <select id="ec-music" style="width:100%;padding:8px 10px;background:#0a0800;border:1px solid #443300;color:#ccc;font-family:Cinzel,serif;font-size:0.7rem;" aria-label="Music that plays when your enemy spawns">
+          <option value="">— Default dungeon music —</option>
+        </select>
+      </div>
+
+      <!-- Creator Name -->
+      <div style="margin-bottom:12px;">
+        <label for="ec-creator" style="font-family:Cinzel,serif;font-size:0.65rem;color:#c8a832;display:block;margin-bottom:4px;">Your Name <span style="color:#444;">(shown in dungeon announcement)</span></label>
+        <input id="ec-creator" type="text" maxlength="24" placeholder="Your name or username" style="width:100%;padding:8px 10px;background:#0a0800;border:1px solid #443300;color:#ccc;font-family:Cinzel,serif;font-size:0.7rem;box-sizing:border-box;" aria-label="Your creator name, shown when your enemy appears in the dungeon" />
+      </div>
+
+      <!-- Auto-rolled Stats -->
+      <div id="ec-stats-box" style="background:#060600;border:1px solid #332200;padding:12px;margin-bottom:12px;display:none;">
+        <div style="font-family:Cinzel,serif;font-size:0.62rem;color:#888;margin-bottom:8px;">Auto-rolled Stats <span style="color:#444;">(based on type)</span></div>
+        <div style="display:flex;gap:12px;margin-bottom:8px;">
+          <div style="flex:1;text-align:center;">
+            <div style="font-family:Cinzel,serif;font-size:0.6rem;color:#666;">HP</div>
+            <div id="ec-stat-hp" style="font-family:Cinzel,serif;font-size:0.9rem;color:#c8a832;">—</div>
+          </div>
+          <div style="flex:1;text-align:center;">
+            <div style="font-family:Cinzel,serif;font-size:0.6rem;color:#666;">ATK</div>
+            <div id="ec-stat-atk" style="font-family:Cinzel,serif;font-size:0.9rem;color:#c8a832;">—</div>
+          </div>
+          <div style="flex:1;text-align:center;">
+            <div style="font-family:Cinzel,serif;font-size:0.6rem;color:#666;">DEF</div>
+            <div id="ec-stat-def" style="font-family:Cinzel,serif;font-size:0.9rem;color:#c8a832;">—</div>
+          </div>
+        </div>
+        <button onclick="ecRollStats()" style="width:100%;padding:6px;background:#0a0800;border:1px solid #443300;color:#888;font-family:Cinzel,serif;font-size:0.62rem;cursor:pointer;" aria-label="Reroll enemy stats">🎲 Reroll Stats</button>
+      </div>
+
+      <!-- Error message -->
+      <div id="ec-error" style="display:none;font-family:Cinzel,serif;font-size:0.65rem;color:#cc4444;padding:8px;background:#0a0000;border:1px solid #440000;margin-bottom:12px;" aria-live="polite"></div>
+
+      <!-- Submit -->
+      <button onclick="ecSubmit()" style="width:100%;padding:14px;background:#0a0800;border:2px solid #c9a227;color:#e8c84a;font-family:Cinzel,serif;font-size:0.8rem;cursor:pointer;letter-spacing:0.1em;margin-bottom:8px;" aria-label="Submit your enemy to the community pool">⚔ Unleash This Enemy</button>
+      <div style="font-family:Cinzel,serif;font-size:0.58rem;color:#444;text-align:center;">Your enemy will appear in dungeons for all players after passing a content filter.</div>
+    </div>
+
+    <!-- Success state -->
+    <div id="enemy-creator-success" style="display:none;text-align:center;padding:30px 0;">
+      <div style="font-size:2rem;margin-bottom:12px;">⚔</div>
+      <div style="font-family:Cinzel,serif;font-size:0.9rem;color:#c8a832;margin-bottom:8px;">Enemy Unleashed.</div>
+      <div id="ec-success-msg" style="font-family:Cinzel,serif;font-size:0.65rem;color:#666;line-height:1.7;margin-bottom:20px;"></div>
+      <button onclick="ecReset()" style="padding:10px 20px;background:#0a0800;border:1px solid #443300;color:#888;font-family:Cinzel,serif;font-size:0.7rem;cursor:pointer;" aria-label="Create another enemy">Create Another</button>
+    </div>
+  </div>
+</div>
+
 <div id="screen-bestiary" class="screen" role="main" aria-label="Bestiary">
   <div class="bestiary-wrap">
     <div class="screen-header">
@@ -3116,6 +3221,7 @@ var DDStore = (function() {
     <div class="quest-tabs" role="tablist" aria-label="Bestiary sections">
       <button class="quest-tab active" id="be-tab-enemies" role="tab" aria-selected="true" onclick="switchBestiaryTab('enemies')" aria-controls="be-section-enemies">Enemies</button>
       <button class="quest-tab" id="be-tab-spirits" role="tab" aria-selected="false" onclick="switchBestiaryTab('spirits')" aria-controls="be-section-spirits">Spirits</button>
+      <button class="quest-tab" id="be-tab-community" role="tab" aria-selected="false" onclick="switchBestiaryTab('community')" aria-controls="be-section-community" style="border-color:#554488;color:#aa88ff;">⚔ Community</button>
     </div>
     <div id="be-section-enemies" class="quest-section active" role="tabpanel">
       <p class="screen-subtitle" style="font-size:0.9rem;font-style:italic;color:var(--text-secondary);margin-bottom:4px;">A record of the creatures you have faced in the dark.</p>
@@ -3150,6 +3256,14 @@ var DDStore = (function() {
         <button class="quest-tab" id="be-filter-special" role="tab" aria-selected="false" onclick="filterBestiary('special')" aria-label="Special enemies — Void Mode, Boss Rush, AFK, and seasonal">⭐ Special</button>
       </div>
       <div class="bestiary-grid" id="bestiary-grid" role="list" aria-label="Enemy entries" aria-live="polite"></div>
+    </div>
+
+    <div id="be-section-community" class="quest-section" role="tabpanel" style="display:none;">
+      <p class="screen-subtitle" style="font-size:0.9rem;font-style:italic;color:var(--text-secondary);margin-bottom:8px;">Enemies created by the community. They walk among the others now.</p>
+      <button onclick="goTo('enemy-creator')" style="width:100%;padding:10px;background:#0a0800;border:1px solid #554488;color:#aa88ff;font-family:Cinzel,serif;font-size:0.7rem;cursor:pointer;margin-bottom:12px;" aria-label="Create your own community enemy">⚔ Create Your Own Enemy</button>
+      <div id="be-community-grid" aria-live="polite">
+        <div style="font-family:Cinzel,serif;font-size:0.65rem;color:#444;text-align:center;padding:20px;">Loading community enemies...</div>
+      </div>
     </div>
 
     </div>
@@ -8839,6 +8953,9 @@ function goTo(id) {
     playTrack('bestiary');
   } else if (id === 'help') {
     playTrack('help');
+  } else if (id === 'enemy-creator') {
+    playTrack('bestiary');
+    try { ecInit(); } catch(e) {}
   } else if (id === 'codex') {
     playTrack('codex');
     try { renderCodex(); } catch(e) { console.error('renderCodex:', e); }
@@ -12971,13 +13088,39 @@ function enterRoom() {
           document.getElementById('dg-enemy-icon').textContent = enemy.icon;
           document.getElementById('dg-enemy-name').textContent = t(enemy.name);
           updateEnemyBar(); updatePlayerBar();
-          applySpiritOnCombatStart();
-  applyCustomSpiritAbility('onCombatStart', 0);
-          setCombatBtns(true); updateSkillButtons();
-          setTimeout(function(){ document.getElementById('cbtn-attack').focus(); }, 100);
+          renderActionButtons();
           return;
         }
       }
+
+      // Community enemy — 12% chance to spawn a player-created enemy
+      if (_communityEnemyCache.length && Math.random() < 0.12) {
+        var ce = getCommunityEnemy(DS.dungeon);
+        if (ce) {
+          var communityFight = communityEnemyToFightData(ce);
+          communityFight.maxHp = communityFight.hp;
+          DS.enemy = communityFight;
+          DS.inCombat = true; DS.defending = false;
+          // Play their custom music if set
+          if (ce.music) {
+            try { playTrack(ce.music); } catch(ex) { playTrack(battleTrack()); }
+          } else {
+            playTrack(battleTrack());
+          }
+          var ceMsg = 'A creature stirs — ' + ce.name + ', unleashed by ' + ce.creator + '.';
+          setEvent('danger', ceMsg);
+          say(ceMsg);
+          addRunLog('Community enemy: ' + ce.name + ' by ' + ce.creator, 'bad');
+          showEnemyPreview(DS.enemy);
+          showDgPanels(false, true, false);
+          document.getElementById('dg-enemy-icon').textContent = ce.icon || '👤';
+          document.getElementById('dg-enemy-name').textContent = ce.name;
+          updateEnemyBar(); updatePlayerBar();
+          renderActionButtons();
+          return;
+        }
+      }
+
       // 12% elite chance on floors 4+
       var eliteKey = DS.diff === 'Nightmare' ? 'Nightmare' : DS.dungeon;
       var elitePool = (DS.dungeon === 'The Whispering Forest' ? WHISPER_ELITES : null) || ELITE_ENEMIES[eliteKey] || [];
@@ -17801,6 +17944,10 @@ var bestiaryKills = {}; // real value hydrated in the DDStore.whenReady() callba
 function saveBestiary() { DDStore.setItem('dd_bestiary', JSON.stringify(bestiaryKills)); }
 
 function recordKill(enemyName) {
+  // Track community enemy kills in Firebase
+  if (DS && DS.enemy && DS.enemy.isCommunity && DS.enemy.communityId) {
+    incrementCommunityKill(DS.enemy.communityId);
+  }
   var nameToId = {
     'Hollow Shade':'hollow-shade',
     'Crypt Rat':'crypt-rat',
@@ -18192,6 +18339,237 @@ function updateCodexProgress() {
 function renderCodex() {
   switchCodexTab(_codexTab || 'world');
 }
+
+// ═══════════════════════════════════════════════════════
+// COMMUNITY ENEMY CREATOR
+// ═══════════════════════════════════════════════════════
+
+var BAD_WORDS = ['fuck','shit','ass','bitch','cunt','dick','cock','pussy','nigger','nigga','faggot','fag','retard','whore','slut','bastard','damn','hell','piss','crap','asshole','motherfucker','bullshit'];
+
+function ecContainsBadWord(text) {
+  var lower = text.toLowerCase().replace(/[^a-z0-9\s]/g, '');
+  return BAD_WORDS.some(function(w) {
+    return lower.split(/\s+/).indexOf(w) !== -1 || lower.indexOf(w) !== -1;
+  });
+}
+
+var EC_STAT_RANGES = {
+  common:   { hp:[20,60],   atk:[3,8],   def:[0,2] },
+  uncommon: { hp:[50,110],  atk:[7,15],  def:[1,4] },
+  rare:     { hp:[90,180],  atk:[13,24], def:[3,7] },
+  elite:    { hp:[160,300], atk:[20,38], def:[5,12] },
+  boss:     { hp:[280,600], atk:[30,55], def:[8,18] }
+};
+
+var _ecCurrentStats = null;
+
+function ecInit() {
+  // Populate music dropdown from MUSIC_CATALOGUE
+  var sel = document.getElementById('ec-music');
+  if (sel && sel.options.length <= 1) {
+    MUSIC_CATALOGUE.forEach(function(track) {
+      var opt = document.createElement('option');
+      opt.value = track.key;
+      opt.textContent = track.label;
+      sel.appendChild(opt);
+    });
+  }
+  // Roll initial stats
+  ecRollStats();
+  // Show form, hide success
+  document.getElementById('enemy-creator-form').style.display = '';
+  document.getElementById('enemy-creator-success').style.display = 'none';
+  document.getElementById('ec-error').style.display = 'none';
+  // Pre-fill creator name from tag if signed in
+  var creatorInput = document.getElementById('ec-creator');
+  if (creatorInput && !creatorInput.value) {
+    try {
+      var user = firebase.auth().currentUser;
+      if (user) {
+        window._fbDb.collection('users').doc(user.uid).get().then(function(snap) {
+          if (snap.exists && snap.data().username) {
+            creatorInput.value = snap.data().username;
+          }
+        }).catch(function(){});
+      }
+    } catch(e) {}
+  }
+}
+
+function ecRollStats() {
+  var type = document.getElementById('ec-type') ? document.getElementById('ec-type').value : 'common';
+  var range = EC_STAT_RANGES[type] || EC_STAT_RANGES.common;
+  var hp  = Math.floor(Math.random() * (range.hp[1]  - range.hp[0]  + 1)) + range.hp[0];
+  var atk = Math.floor(Math.random() * (range.atk[1] - range.atk[0] + 1)) + range.atk[0];
+  var def = Math.floor(Math.random() * (range.def[1] - range.def[0] + 1)) + range.def[0];
+  _ecCurrentStats = { hp: hp, atk: atk, def: def };
+  var box = document.getElementById('ec-stats-box');
+  if (box) box.style.display = '';
+  var hpEl = document.getElementById('ec-stat-hp');
+  var atkEl = document.getElementById('ec-stat-atk');
+  var defEl = document.getElementById('ec-stat-def');
+  if (hpEl) hpEl.textContent = hp;
+  if (atkEl) atkEl.textContent = atk;
+  if (defEl) defEl.textContent = def;
+  say('Stats rolled. HP: ' + hp + '. ATK: ' + atk + '. DEF: ' + def + '. Type reroll to roll again.');
+}
+
+function ecShowError(msg) {
+  var el = document.getElementById('ec-error');
+  if (el) { el.textContent = msg; el.style.display = ''; }
+  say(msg);
+}
+
+async function ecSubmit() {
+  var name     = (document.getElementById('ec-name').value || '').trim();
+  var desc     = (document.getElementById('ec-desc').value || '').trim();
+  var type     = document.getElementById('ec-type').value;
+  var dungeon  = document.getElementById('ec-dungeon').value;
+  var music    = document.getElementById('ec-music').value;
+  var creator  = (document.getElementById('ec-creator').value || '').trim();
+
+  // Validation
+  if (!name) { ecShowError('Please give your enemy a name.'); return; }
+  if (!desc) { ecShowError('Please add a description.'); return; }
+  if (!creator) { ecShowError('Please enter your creator name.'); return; }
+  if (name.length < 2) { ecShowError('Enemy name is too short.'); return; }
+  if (creator.length < 2) { ecShowError('Creator name is too short.'); return; }
+
+  // Bad word filter
+  if (ecContainsBadWord(name) || ecContainsBadWord(desc) || ecContainsBadWord(creator)) {
+    ecShowError('Your submission contains inappropriate content. Please revise and try again.');
+    return;
+  }
+
+  // Make sure stats are rolled
+  if (!_ecCurrentStats) ecRollStats();
+
+  // Pick an icon based on type
+  var iconMap = { common:'👤', uncommon:'⚠️', rare:'💀', elite:'👁️', boss:'💀' };
+  var icon = iconMap[type] || '👤';
+
+  var enemyData = {
+    name:      name,
+    desc:      desc,
+    type:      type,
+    dungeon:   dungeon,
+    music:     music || null,
+    creator:   creator,
+    icon:      icon,
+    hp:        _ecCurrentStats.hp,
+    atk:       _ecCurrentStats.atk,
+    def:       _ecCurrentStats.def,
+    kills:     0,
+    createdAt: Date.now(),
+    approved:  true
+  };
+
+  // Submit to Firebase
+  try {
+    var submitBtn = document.querySelector('#enemy-creator-form button[onclick="ecSubmit()"]');
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Unleashing...'; }
+
+    await window._fbDb.collection('community_enemies').add(enemyData);
+
+    // Show success
+    document.getElementById('enemy-creator-form').style.display = 'none';
+    document.getElementById('enemy-creator-success').style.display = '';
+    var msg = document.getElementById('ec-success-msg');
+    if (msg) {
+      msg.textContent = '"' + name + '" has been added to the dungeon pool. Players will encounter your enemy in ' +
+        (dungeon === 'all' ? 'all dungeons' : dungeon) + '. When they do, the dungeon will announce: "' +
+        name + ', unleashed by ' + creator + '."';
+    }
+    say(name + ' has been unleashed into the dungeon. Players will encounter your creation soon.');
+
+    // Track locally
+    try { incrementAchievementStat('enemyCreated', 1); } catch(e) {}
+
+  } catch(err) {
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '⚔ Unleash This Enemy'; }
+    ecShowError('Failed to submit. Please check your connection and try again.');
+    console.error('[EC] Submit failed:', err);
+  }
+}
+
+function ecReset() {
+  document.getElementById('ec-name').value = '';
+  document.getElementById('ec-desc').value = '';
+  document.getElementById('ec-type').value = 'common';
+  document.getElementById('ec-dungeon').value = 'all';
+  document.getElementById('ec-music').value = '';
+  document.getElementById('ec-error').style.display = 'none';
+  _ecCurrentStats = null;
+  ecRollStats();
+  document.getElementById('enemy-creator-form').style.display = '';
+  document.getElementById('enemy-creator-success').style.display = 'none';
+}
+
+// ── COMMUNITY ENEMY SPAWNING ──
+var _communityEnemyCache = [];
+var _communityEnemyCacheTime = 0;
+var COMMUNITY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+async function loadCommunityEnemies() {
+  if (Date.now() - _communityEnemyCacheTime < COMMUNITY_CACHE_TTL && _communityEnemyCache.length) return;
+  try {
+    var snap = await window._fbDb.collection('community_enemies')
+      .where('approved', '==', true)
+      .limit(50)
+      .get();
+    _communityEnemyCache = snap.docs.map(function(d) {
+      return Object.assign({ _id: d.id }, d.data());
+    });
+    _communityEnemyCacheTime = Date.now();
+  } catch(e) {
+    console.warn('[EC] Failed to load community enemies:', e);
+  }
+}
+
+function getCommunityEnemy(dungeonName) {
+  if (!_communityEnemyCache.length) return null;
+  var eligible = _communityEnemyCache.filter(function(e) {
+    return e.dungeon === 'all' || e.dungeon === dungeonName;
+  });
+  if (!eligible.length) return null;
+  return eligible[Math.floor(Math.random() * eligible.length)];
+}
+
+function communityEnemyToFightData(ce) {
+  // Convert Firebase enemy to in-game fight format
+  return {
+    name: ce.name,
+    icon: ce.icon || '👤',
+    hp: ce.hp,
+    maxHp: ce.hp,
+    atk: [Math.floor(ce.atk * 0.8), Math.floor(ce.atk * 1.2)],
+    def: ce.def || 0,
+    sp: 0,
+    gold: Math.floor(ce.hp / 4),
+    isCommunity: true,
+    communityId: ce._id,
+    creator: ce.creator,
+    music: ce.music || null,
+    desc: ce.desc
+  };
+}
+
+function incrementCommunityKill(enemyId) {
+  try {
+    window._fbDb.collection('community_enemies').doc(enemyId).update({
+      kills: firebase.firestore.FieldValue.increment(1)
+    }).catch(function(){});
+  } catch(e) {}
+}
+
+// Load community enemies on boot
+try {
+  window.addEventListener('load', function() {
+    setTimeout(function() {
+      try { loadCommunityEnemies(); } catch(e) {}
+    }, 3000);
+  });
+} catch(e) {}
 
 function renderBestiary() {
   var grid = document.getElementById('bestiary-grid');
@@ -24313,7 +24691,8 @@ var ACHIEVEMENTS = [
   { gold:400, trophies:7, id:'ach-infernal-trial', gpId:'CgkI0uiuoZcDEAIQGg', name:'Trial by Void',    icon:'🔥', desc:'The trial was designed to break you. You passed anyway.', check:function(s){ return (s.infernalTrialWon||0)>=1; } },
   { gold:400, trophies:7, id:'ach-infernal-riddles', gpId:'CgkI0uiuoZcDEAIQRQ', name:'Keeper of Secrets', icon:'🔍', desc:'Five hidden riddles solved. The dungeon did not think anyone would find them all.', check:function(s){ return (s.infernalRiddlesSolved||0)>=1; } },
   { gold:400, trophies:7, id:'ach-void-conqueror', gpId:'CgkI0uiuoZcDEAIQLA', gpId:'CgkI0uiuoZcDEAIQLA', name:'Void Conqueror', icon:'🌑', desc:'Five void waves. Five victories. The void has nothing left to offer.', check:function(s){ return (s.voidConqueror||0)>=1; } },
-  { gold:400, trophies:7, id:'ach-enemy-creator', gpId:'CgkI0uiuoZcDEAIQYA', name:'World Builder', icon:'⚗️', desc:'Depth 50 in the Mine. You did not just descend — you carved your own path through the rock.', check:function(s){ return (s.mineMaxDepth||0)>=50; } },
+  { gold:400, trophies:7, id:'ach-enemy-creator', gpId:'CgkI0uiuoZcDEAIQYA', name:'World Builder', icon:'⚗️', desc:'You built something and gave it to the world. That is what creators do.', check:function(s){ return (s.enemyCreated||0)>=1; } },
+  { gold:200, trophies:5, id:'ach-deep-miner', gpId:'CgkI0uiuoZcDEAIQbw', name:'Deep Miner', icon:'⛏️', desc:'Depth 50 in the Mine. You did not just descend — you carved your own path through the rock.', check:function(s){ return (s.mineMaxDepth||0)>=50; } },
   { gold:150, trophies:3, id:'ach-spirit-forger', gpId:'CgkI0uiuoZcDEAIQbA', name:'Spirit Forger', icon:'🔮', desc:'You looked at raw soul fragments and saw something worth building. Then you built it.', check:function(s){ return (s.customSpiritBuilt||0)>=1; } },
   { gold:50, trophies:1, id:'ach-first-sale', gpId:'CgkI0uiuoZcDEAIQGw', name:'First Sale', icon:'💰', desc:'First sale made. The Blacksmith nods approvingly.', check:function(){ return parseInt(DDStore.getItem('dd_total_sells')||'0')>=1; } },
   { gold:50, trophies:1, id:'ach-merchant', gpId:'CgkI0uiuoZcDEAIQIg', name:'Merchant', icon:'🏪', desc:'Five sales. The Blacksmith is starting to recognize you.', check:function(){ return parseInt(DDStore.getItem('dd_total_sells')||'0')>=5; } },
@@ -29767,15 +30146,59 @@ function dismissBossPreview() {
 // SPIRIT BESTIARY
 //═════════════════
 function switchBestiaryTab(tab) {
-  ['enemies','spire','spirits'].forEach(function(t) {
+  ['enemies','spire','spirits','community'].forEach(function(t) {
     var btn = document.getElementById('be-tab-' + t);
     var sec = document.getElementById('be-section-' + t);
     if (btn) { btn.classList.toggle('active', t === tab); btn.setAttribute('aria-selected', t === tab ? 'true' : 'false'); }
-    if (sec) sec.classList.toggle('active', t === tab);
+    if (sec) { sec.classList.toggle('active', t === tab); sec.style.display = t === tab ? '' : 'none'; }
   });
   if (tab === 'spirits') renderSpiritBestiary();
   if (tab === 'spire') renderSpireBestiary();
-  say(tab === 'spirits' ? 'Spirits tab. Your spirit collection.' : tab === 'spire' ? 'The Spire tab. Creatures encountered in The Spire.' : 'Enemies tab. Bestiary entries.');
+  if (tab === 'community') renderCommunityBestiary();
+  say(tab === 'spirits' ? 'Spirits tab. Your spirit collection.' : tab === 'spire' ? 'The Spire tab. Creatures encountered in The Spire.' : tab === 'community' ? 'Community tab. Enemies created by players.' : 'Enemies tab. Bestiary entries.');
+}
+
+async function renderCommunityBestiary() {
+  var grid = document.getElementById('be-community-grid');
+  if (!grid) return;
+  grid.innerHTML = '<div style="font-family:Cinzel,serif;font-size:0.65rem;color:#444;text-align:center;padding:20px;">Loading community enemies...</div>';
+
+  try {
+    await loadCommunityEnemies();
+    grid.innerHTML = '';
+
+    if (!_communityEnemyCache.length) {
+      grid.innerHTML = '<div style="font-family:Cinzel,serif;font-size:0.65rem;color:#444;text-align:center;padding:20px;">No community enemies yet. Be the first to create one!</div>';
+      return;
+    }
+
+    _communityEnemyCache.forEach(function(enemy) {
+      var card = document.createElement('div');
+      card.className = 'be-card';
+      card.setAttribute('tabindex', '0');
+      card.setAttribute('role', 'listitem');
+      card.setAttribute('aria-label', enemy.name + ', created by ' + enemy.creator + ', ' + (enemy.kills || 0) + ' kills');
+      card.style.borderColor = '#554488';
+
+      card.innerHTML =
+        '<div class="be-icon" style="color:#aa88ff;" aria-hidden="true">' + (enemy.icon || '👤') + '</div>' +
+        '<div class="be-name">' + enemy.name + '</div>' +
+        '<div class="be-tier" style="color:#aa88ff;">Created by ' + enemy.creator + '</div>' +
+        '<div class="be-desc">' + (enemy.desc || '') + '</div>' +
+        '<div style="font-family:Cinzel,serif;font-size:0.58rem;color:#555;margin-top:4px;">' +
+          (enemy.dungeon === 'all' ? 'All Dungeons' : enemy.dungeon) + ' · ' +
+          (enemy.type || 'common') + ' · ' +
+          'HP ' + enemy.hp + ' · ATK ' + enemy.atk +
+          ' · ⚔ ' + (enemy.kills || 0) + ' kills' +
+        '</div>';
+
+      grid.appendChild(card);
+    });
+
+    say(_communityEnemyCache.length + ' community enemies loaded.');
+  } catch(e) {
+    grid.innerHTML = '<div style="font-family:Cinzel,serif;font-size:0.65rem;color:#444;text-align:center;padding:20px;">Failed to load community enemies. Check your connection.</div>';
+  }
 }
 
 function renderSpireBestiary() {
