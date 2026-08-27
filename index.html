@@ -18473,10 +18473,22 @@ function ecSubmit() {
   try { incrementAchievementStat('enemyCreated', 1); } catch(e) {}
 
   // Fire and forget — same as obituary system
-  window._fbDb.collection('community_enemies').add(enemyData)
-    .catch(function(err) {
-      console.error('[EC] Submit failed:', err);
-    });
+  try {
+    if (!window._fbDb && typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length) {
+      window._fbDb = firebase.firestore();
+    }
+    var db = window._fbDb;
+    if (db) {
+      db.collection('community_enemies').add(enemyData)
+        .catch(function(err) {
+          console.error('[EC] Submit failed:', err);
+        });
+    } else {
+      console.warn('[EC] No Firestore instance available');
+    }
+  } catch(e) {
+    console.error('[EC] Firebase error:', e);
+  }
 }
 
 function ecReset() {
@@ -44924,20 +44936,27 @@ function loadObituary(targetId) {
 }
 
 function postDeathToObituary(deathData) {
-  if (!window._fbDb) return;
-  window._fbDb.collection('deaths').add({
-    name:      deathData.name     || 'Unknown',
-    cls:       deathData.cls      || 'Warrior',
-    floor:     deathData.floor    || 1,
-    dungeon:   deathData.dungeon  || 'Unknown',
-    killedBy:  deathData.killedBy || 'unknown causes',
-    kills:     deathData.kills    || 0,
-    gold:      deathData.gold     || 0,
-    date:      deathData.date     || new Date().toLocaleDateString(),
-    timestamp: Date.now()
-  }).catch(function(e) {
-    console.warn('Obituary post failed:', e.message || e);
-  });
+  try {
+    if (!window._fbDb && typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length) {
+      window._fbDb = firebase.firestore();
+    }
+    if (!window._fbDb) return;
+    window._fbDb.collection('deaths').add({
+      name:      deathData.name     || 'Unknown',
+      cls:       deathData.cls      || 'Warrior',
+      floor:     deathData.floor    || 1,
+      dungeon:   deathData.dungeon  || 'Unknown',
+      killedBy:  deathData.killedBy || 'unknown causes',
+      kills:     deathData.kills    || 0,
+      gold:      deathData.gold     || 0,
+      date:      deathData.date     || new Date().toLocaleDateString(),
+      timestamp: Date.now()
+    }).catch(function(e) {
+      console.warn('Obituary post failed:', e.message || e);
+    });
+  } catch(e) {
+    console.warn('Obituary post error:', e);
+  }
 }
 
 function getGraveyardAsObituary() {
