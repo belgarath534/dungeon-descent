@@ -3198,7 +3198,7 @@ var DDStore = (function() {
       <div id="ec-error" style="display:none;font-family:Cinzel,serif;font-size:0.65rem;color:#cc4444;padding:8px;background:#0a0000;border:1px solid #440000;margin-bottom:12px;" aria-live="polite"></div>
 
       <!-- Submit -->
-      <button onclick="ecSubmit()" style="width:100%;padding:14px;background:#0a0800;border:2px solid #c9a227;color:#e8c84a;font-family:Cinzel,serif;font-size:0.8rem;cursor:pointer;letter-spacing:0.1em;margin-bottom:8px;" aria-label="Submit your enemy to the community pool">⚔ Unleash This Enemy</button>
+      <button id="ec-submit-btn" onclick="ecSubmit()" style="width:100%;padding:14px;background:#0a0800;border:2px solid #c9a227;color:#e8c84a;font-family:Cinzel,serif;font-size:0.8rem;cursor:pointer;letter-spacing:0.1em;margin-bottom:8px;" aria-label="Submit your enemy to the community pool">⚔ Unleash This Enemy</button>
       <div style="font-family:Cinzel,serif;font-size:0.58rem;color:#444;text-align:center;">Your enemy will appear in dungeons for all players after passing a content filter.</div>
     </div>
 
@@ -18464,9 +18464,15 @@ async function ecSubmit() {
     approved:  true
   };
 
+  // Check Firebase is ready
+  if (!window._fbDb) {
+    ecShowError('Firebase not ready. Please refresh the page and try again.');
+    return;
+  }
+
   // Submit to Firebase
+  var submitBtn = document.getElementById('ec-submit-btn');
   try {
-    var submitBtn = document.querySelector('#enemy-creator-form button[onclick="ecSubmit()"]');
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Unleashing...'; }
 
     await window._fbDb.collection('community_enemies').add(enemyData);
