@@ -1392,6 +1392,7 @@ body.large-text .be-name,.large-text .ach-name{font-size:0.95rem;}
 <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js" crossorigin="anonymous"></script>
 <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-auth-compat.js" crossorigin="anonymous"></script>
 <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore-compat.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-database-compat.js" crossorigin="anonymous"></script>
 <script>
 (function() {
   try {
@@ -1401,7 +1402,8 @@ body.large-text .be-name,.large-text .ach-name{font-size:0.95rem;}
       projectId: "dungeon-descent-fbaf2",
       storageBucket: "dungeon-descent-fbaf2.firebasestorage.app",
       messagingSenderId: "109323203666",
-      appId: "1:109323203666:web:47b6fb68e1492d1058db8b"
+      appId: "1:109323203666:web:47b6fb68e1492d1058db8b",
+      databaseURL: "https://dungeon-descent-fbaf2-default-rtdb.firebaseio.com"
     };
     if (typeof firebase === 'undefined') {
       console.warn('Firebase SDK not loaded yet');
@@ -1803,7 +1805,7 @@ var DDStore = (function() {
       <button data-lang="Play" data-pt="Jogar" class="menu-btn primary" onclick="goTo('charlist')" aria-label="Play, choose or create your character">
         <span data-i18n="btn-play">⚔ Play ⚔</span>
       </button>
-      <button class="menu-btn" onclick="goTo('multiplayer')" aria-label="PVP Arena, fight another player in real time turn based combat" style="border-color:#4466ff;color:#88aaff;display:none;">
+      <button class="menu-btn" onclick="goTo('multiplayer')" aria-label="PVP Arena, fight another player in real time turn based combat" style="border-color:#4466ff;color:#88aaff;">
         <span aria-hidden="true">⚔️👥</span> Multiplayer <span style="font-size:0.6rem;opacity:0.7;">BETA</span>
       </button>
       <div class="menu-sep" aria-hidden="true"></div>
@@ -1872,6 +1874,9 @@ var DDStore = (function() {
       </button>
       <button class="menu-btn" id="menu-btn-enemy-creator" onclick="goTo('enemy-creator')" aria-label="Community Enemy Creator, build an enemy and set it loose in the dungeon">
         <span>⚔ Enemy Creator</span>
+      </button>
+      <button class="menu-btn" id="menu-btn-chat" onclick="goTo('chat')" aria-label="Global Chat, talk to other players">
+        <span>💬 Global Chat</span>
       </button>
       <button class="menu-btn" id="menu-btn-bounty" onclick="goTo('bounty')" aria-label="The Bounty Board — register for bounties and earn rewards">
         <span data-i18n="btn-bounty">📋 Bounty Board</span>
@@ -2850,6 +2855,7 @@ var DDStore = (function() {
   <div class="dg-wrap">
     <header class="dg-topbar" aria-label="Status">
       <button onclick="openPauseMenu()" aria-label="Pause game" style="position:absolute;top:8px;right:8px;background:transparent;border:1px solid var(--border-dim);color:var(--text-dim);font-size:0.8rem;padding:4px 8px;cursor:pointer;z-index:10;" id="dg-pause-btn">⏸</button>
+      <button onclick="chatOpenFromDungeon()" aria-label="Open global chat" id="dg-chat-btn" style="position:absolute;top:8px;right:44px;background:transparent;border:1px solid var(--border-dim);color:var(--text-dim);font-size:0.8rem;padding:4px 8px;cursor:pointer;z-index:10;display:none;">💬</button>
       <div>
         <span class="dg-char-name" id="dg-name">—</span>
         <span class="dg-char-sub" id="dg-sub">—</span>
@@ -7466,6 +7472,15 @@ var DDStore = (function() {
       </button>
 
 
+      <button class="settings-cat-btn" onclick="openSettingsPanel('chat')" aria-label="Chat settings — global chat username and preferences">
+        <span class="settings-cat-icon" aria-hidden="true">💬</span>
+        <div class="settings-cat-info">
+          <div class="settings-cat-name">Chat</div>
+          <div class="settings-cat-desc">Global chat, username, notifications</div>
+        </div>
+        <span class="settings-cat-arrow" aria-hidden="true">›</span>
+      </button>
+
       <button class="settings-cat-btn" onclick="openSettingsPanel('beta')" aria-label="Beta Features — experimental features you can test">
         <span class="settings-cat-icon" aria-hidden="true">🧪</span>
         <div class="settings-cat-info">
@@ -7484,6 +7499,67 @@ var DDStore = (function() {
         <span class="settings-cat-arrow" aria-hidden="true">›</span>
       </button>
     </div>
+  </div>
+</div>
+
+<!-- SETTINGS PANEL: CHAT -->
+<div class="settings-panel" id="settings-panel-chat" role="dialog" aria-modal="true" aria-label="Chat Settings">
+  <div class="settings-panel-wrap">
+    <button class="settings-back" onclick="closeSettingsPanel('chat')" aria-label="Back to settings">← Back</button>
+    <h2 class="settings-section-title">💬 Chat</h2>
+
+    <div class="settings-row" style="margin-bottom:16px;">
+      <div class="settings-row-info">
+        <div class="settings-row-label">Show Chat in Dungeon</div>
+        <div class="settings-row-desc">Adds a chat button inside the dungeon screen</div>
+      </div>
+      <label class="settings-toggle" aria-label="Toggle dungeon chat button">
+        <input type="checkbox" id="chat-dungeon-toggle" onchange="saveChatSettings()" />
+        <span class="settings-toggle-slider"></span>
+      </label>
+    </div>
+
+    <div style="margin-bottom:16px;">
+      <div style="font-family:Cinzel,serif;font-size:0.65rem;color:#c8a832;margin-bottom:6px;">Your Chat Username</div>
+      <div style="display:flex;gap:8px;">
+        <input id="chat-username-input" type="text" maxlength="20" placeholder="Pick a username" style="flex:1;padding:8px 10px;background:#0a0800;border:1px solid #443300;color:#ccc;font-family:Cinzel,serif;font-size:0.7rem;" aria-label="Chat username, maximum 20 characters" />
+        <button onclick="saveChatUsername()" style="padding:8px 14px;background:#0a0800;border:1px solid #c9a227;color:#c9a227;font-family:Cinzel,serif;font-size:0.65rem;cursor:pointer;" aria-label="Save username">Save</button>
+      </div>
+      <div id="chat-username-status" style="font-family:Cinzel,serif;font-size:0.6rem;color:#555;margin-top:4px;" aria-live="polite"></div>
+    </div>
+
+    <button onclick="closeSettingsPanel('chat'); goTo('chat');" style="width:100%;padding:12px;background:#0a0800;border:1px solid #554488;color:#aa88ff;font-family:Cinzel,serif;font-size:0.7rem;cursor:pointer;" aria-label="Open global chat">💬 Open Global Chat</button>
+  </div>
+</div>
+
+<!-- GLOBAL CHAT SCREEN -->
+<div id="screen-chat" class="screen" role="main" aria-label="Global Chat">
+  <div class="chronicles-wrap" style="display:flex;flex-direction:column;height:100%;max-height:100vh;">
+    <div class="screen-header">
+      <button class="back-btn" onclick="chatClose()" aria-label="Back to menu">← Menu</button>
+      <h2 class="screen-title">💬 Global Chat</h2>
+    </div>
+    <div style="font-family:Cinzel,serif;font-size:0.58rem;color:#444;text-align:center;margin-bottom:8px;">Talk to players around the world. Be respectful.</div>
+
+    <!-- Messages area -->
+    <div id="chat-messages" style="flex:1;overflow-y:auto;background:#060600;border:1px solid #221100;padding:10px;margin-bottom:10px;min-height:200px;max-height:55vh;" role="log" aria-live="polite" aria-label="Chat messages" aria-relevant="additions"></div>
+
+    <!-- Username prompt -->
+    <div id="chat-username-prompt" style="display:none;background:#0a0800;border:1px solid #443300;padding:12px;margin-bottom:10px;">
+      <div style="font-family:Cinzel,serif;font-size:0.65rem;color:#c8a832;margin-bottom:6px;">Choose a username to start chatting</div>
+      <div style="display:flex;gap:8px;">
+        <input id="chat-prompt-input" type="text" maxlength="20" placeholder="Your username" style="flex:1;padding:8px;background:#060600;border:1px solid #332200;color:#ccc;font-family:Cinzel,serif;font-size:0.7rem;" aria-label="Enter username" />
+        <button onclick="chatSetUsername()" style="padding:8px 14px;background:#0a0800;border:1px solid #c9a227;color:#c9a227;font-family:Cinzel,serif;font-size:0.65rem;cursor:pointer;" aria-label="Set username">Go</button>
+      </div>
+      <div id="chat-prompt-error" style="font-family:Cinzel,serif;font-size:0.6rem;color:#cc4444;margin-top:4px;" aria-live="polite"></div>
+    </div>
+
+    <!-- Input area -->
+    <div id="chat-input-area" style="display:flex;gap:8px;">
+      <input id="chat-input" type="text" maxlength="200" placeholder="Type a message..." style="flex:1;padding:10px;background:#0a0800;border:1px solid #443300;color:#ccc;font-family:Cinzel,serif;font-size:0.7rem;" aria-label="Chat message, maximum 200 characters" onkeydown="if(event.key==='Enter') chatSend();" />
+      <button onclick="chatSend()" style="padding:10px 16px;background:#0a0800;border:1px solid #c9a227;color:#c9a227;font-family:Cinzel,serif;font-size:0.7rem;cursor:pointer;" aria-label="Send message">Send</button>
+    </div>
+    <div style="font-family:Cinzel,serif;font-size:0.55rem;color:#333;text-align:right;margin-top:4px;" id="chat-char-count">0 / 200</div>
   </div>
 </div>
 
@@ -8953,6 +9029,9 @@ function goTo(id) {
     playTrack('bestiary');
   } else if (id === 'help') {
     playTrack('help');
+  } else if (id === 'chat') {
+    playTrack('home');
+    try { chatInit(); } catch(e) {}
   } else if (id === 'enemy-creator') {
     playTrack('bestiary');
     try { ecInit(); } catch(e) {}
@@ -16030,7 +16109,11 @@ function restoreMidRun(ch) {
   DS.sp = s.sp; DS.maxSp = s.maxSp;
   DS.gold = s.gold;
   DS.level = s.level; DS.xp = s.xp;
-  DS.lives = s.lives;
+  var savedLives = s.lives != null ? s.lives : (LIVES_MAP[s.difficulty] || 1);
+  var savedMaxLives = s.maxLives != null ? s.maxLives : (LIVES_MAP[s.difficulty] || 1);
+  // Clamp — never load negative or zero lives on resume, minimum 1
+  DS.lives = Math.max(1, savedLives);
+  DS.maxLives = Math.max(1, savedMaxLives);
   DS.kills = s.kills;
   DS.atkBonus = s.atkBonus; DS.defBonus = s.defBonus;
   DS.critBonus = s.critBonus || 0;
@@ -18567,6 +18650,221 @@ try {
     setTimeout(function() {
       try { loadCommunityEnemies(); } catch(e) {}
     }, 3000);
+  });
+} catch(e) {}
+
+// ═══════════════════════════════════════════════════════
+// GLOBAL CHAT SYSTEM
+// ═══════════════════════════════════════════════════════
+
+var _chatListener = null;
+var _chatUsername = null;
+var _chatOpen = false;
+
+var CHAT_BAD_WORDS = ['fuck','shit','ass','bitch','cunt','dick','cock','pussy','nigger','nigga','faggot','fag','retard','whore','slut','bastard','piss','asshole','motherfucker','bullshit'];
+
+function chatContainsBadWord(text) {
+  var lower = text.toLowerCase().replace(/[^a-z0-9\s]/g, '');
+  return CHAT_BAD_WORDS.some(function(w) { return lower.indexOf(w) !== -1; });
+}
+
+function chatGetUsername() {
+  if (_chatUsername) return _chatUsername;
+  var saved = DDStore.getItem('dd_chat_username');
+  if (saved) { _chatUsername = saved; return saved; }
+  return null;
+}
+
+function chatSetUsername() {
+  var input = document.getElementById('chat-prompt-input');
+  var errEl = document.getElementById('chat-prompt-error');
+  var name = (input ? input.value : '').trim();
+  if (!name || name.length < 2) { if (errEl) { errEl.textContent = 'Username must be at least 2 characters.'; } say('Username too short.'); return; }
+  if (name.length > 20) { if (errEl) { errEl.textContent = 'Username too long. Max 20 characters.'; } return; }
+  if (chatContainsBadWord(name)) { if (errEl) { errEl.textContent = 'That username is not allowed. Please choose another.'; } say('Username not allowed.'); return; }
+  _chatUsername = name;
+  DDStore.setItem('dd_chat_username', name);
+  document.getElementById('chat-username-prompt').style.display = 'none';
+  document.getElementById('chat-input-area').style.display = 'flex';
+  say('Username set to ' + name + '. You can now chat.');
+  chatLoadMessages();
+}
+
+function saveChatUsername() {
+  var input = document.getElementById('chat-username-input');
+  var statusEl = document.getElementById('chat-username-status');
+  var name = (input ? input.value : '').trim();
+  if (!name || name.length < 2) { if (statusEl) statusEl.textContent = 'Too short — minimum 2 characters.'; return; }
+  if (chatContainsBadWord(name)) { if (statusEl) statusEl.textContent = 'That username is not allowed.'; return; }
+  _chatUsername = name;
+  DDStore.setItem('dd_chat_username', name);
+  if (statusEl) { statusEl.textContent = 'Username saved: ' + name; statusEl.style.color = '#44cc88'; }
+  say('Chat username saved as ' + name + '.');
+}
+
+function saveChatSettings() {
+  var toggle = document.getElementById('chat-dungeon-toggle');
+  var enabled = toggle ? toggle.checked : false;
+  DDStore.setItem('dd_chat_dungeon', enabled ? '1' : '0');
+  var btn = document.getElementById('dg-chat-btn');
+  if (btn) btn.style.display = enabled ? '' : 'none';
+  say('Dungeon chat button ' + (enabled ? 'enabled' : 'disabled') + '.');
+}
+
+function chatInit() {
+  _chatOpen = true;
+  var username = chatGetUsername();
+
+  // Populate settings username input
+  var settingsInput = document.getElementById('chat-username-input');
+  if (settingsInput && username) settingsInput.value = username;
+
+  // Load dungeon toggle state
+  var toggle = document.getElementById('chat-dungeon-toggle');
+  if (toggle) toggle.checked = DDStore.getItem('dd_chat_dungeon') === '1';
+
+  // Show/hide prompt vs input
+  if (!username) {
+    document.getElementById('chat-username-prompt').style.display = '';
+    document.getElementById('chat-input-area').style.display = 'none';
+  } else {
+    document.getElementById('chat-username-prompt').style.display = 'none';
+    document.getElementById('chat-input-area').style.display = 'flex';
+    chatLoadMessages();
+  }
+
+  // Character counter
+  var input = document.getElementById('chat-input');
+  var counter = document.getElementById('chat-char-count');
+  if (input && counter) {
+    input.oninput = function() {
+      counter.textContent = input.value.length + ' / 200';
+    };
+  }
+}
+
+function chatLoadMessages() {
+  if (!window._fbRtdb) return;
+  var messagesEl = document.getElementById('chat-messages');
+  if (!messagesEl) return;
+  messagesEl.innerHTML = '<div style="font-family:Cinzel,serif;font-size:0.65rem;color:#444;text-align:center;padding:20px;">Loading messages...</div>';
+
+  // Clear existing listener
+  if (_chatListener) {
+    try { window._fbRtdb.ref('global_chat').off('value', _chatListener); } catch(e) {}
+    _chatListener = null;
+  }
+
+  // Real time listener via RTDB
+  var ref = window._fbRtdb.ref('global_chat').orderByChild('timestamp').limitToLast(50);
+  _chatListener = function(snap) {
+    if (!_chatOpen) return;
+    var messages = [];
+    snap.forEach(function(child) { messages.push(child.val()); });
+    chatRenderMessages(messages);
+  };
+  ref.on('value', _chatListener, function(err) {
+    console.warn('[Chat] RTDB error:', err);
+    if (messagesEl) messagesEl.innerHTML = '<div style="font-family:Cinzel,serif;font-size:0.65rem;color:#444;text-align:center;padding:20px;">Could not load messages. Check your connection.</div>';
+  });
+}
+
+function chatRenderMessages(messages) {
+  var messagesEl = document.getElementById('chat-messages');
+  if (!messagesEl) return;
+  var myUsername = chatGetUsername();
+  var wasAtBottom = messagesEl.scrollHeight - messagesEl.scrollTop <= messagesEl.clientHeight + 50;
+
+  if (!messages.length) {
+    messagesEl.innerHTML = '<div style="font-family:Cinzel,serif;font-size:0.65rem;color:#444;text-align:center;padding:20px;">No messages yet. Be the first to say something!</div>';
+    return;
+  }
+
+  messagesEl.innerHTML = messages.map(function(msg) {
+    var isMe = msg.username === myUsername;
+    var time = msg.timestamp ? chatFormatTime(msg.timestamp) : '';
+    return '<div style="padding:6px 0;border-bottom:1px solid #111;" tabindex="0" aria-label="' + msg.username + ' said ' + msg.message + ' ' + time + '">' +
+      '<span style="font-family:Cinzel,serif;font-size:0.62rem;color:' + (isMe ? '#c8a832' : '#88aacc') + ';">' + chatEscape(msg.username) + '</span>' +
+      '<span style="font-family:Cinzel,serif;font-size:0.55rem;color:#333;margin-left:6px;">' + time + '</span>' +
+      '<div style="font-family:Cinzel,serif;font-size:0.68rem;color:#aaa;margin-top:2px;">' + chatEscape(msg.message) + '</div>' +
+    '</div>';
+  }).join('');
+
+  // Auto scroll to bottom if was at bottom
+  if (wasAtBottom) messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function chatFormatTime(timestamp) {
+  var now = Date.now();
+  var diff = Math.floor((now - timestamp) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  return Math.floor(diff / 86400) + 'd ago';
+}
+
+function chatEscape(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function chatSend() {
+  var input = document.getElementById('chat-input');
+  var message = (input ? input.value : '').trim();
+  var username = chatGetUsername();
+
+  if (!username) { say('Please set a username first.'); return; }
+  if (!message) { say('Please type a message first.'); return; }
+  if (message.length > 200) { say('Message too long. Maximum 200 characters.'); return; }
+  if (chatContainsBadWord(message)) {
+    say('Your message contains inappropriate content and was not sent.');
+    if (input) input.value = '';
+    return;
+  }
+  if (!window._fbRtdb) { say('Chat unavailable. Check your connection.'); return; }
+
+  var data = {
+    username: username,
+    message: message,
+    timestamp: Date.now()
+  };
+
+  window._fbRtdb.ref('global_chat').push(data).catch(function(err) {
+    console.error('[Chat] Send failed:', err);
+    say('Failed to send message. Check your connection.');
+  });
+
+  if (input) { input.value = ''; }
+  var counter = document.getElementById('chat-char-count');
+  if (counter) counter.textContent = '0 / 200';
+}
+
+function chatClose() {
+  _chatOpen = false;
+  if (_chatListener) {
+    try { window._fbRtdb.ref('global_chat').off('value', _chatListener); } catch(e) {}
+    _chatListener = null;
+  }
+  goTo('menu');
+}
+
+function chatOpenFromDungeon() {
+  // Open chat overlay from dungeon without leaving
+  goTo('chat');
+}
+
+// Apply dungeon chat button visibility on load
+try {
+  window.addEventListener('load', function() {
+    setTimeout(function() {
+      var btn = document.getElementById('dg-chat-btn');
+      if (btn) btn.style.display = DDStore.getItem('dd_chat_dungeon') === '1' ? '' : 'none';
+      // Pre-fill settings username
+      var settingsInput = document.getElementById('chat-username-input');
+      var saved = DDStore.getItem('dd_chat_username');
+      if (settingsInput && saved) settingsInput.value = saved;
+      var toggle = document.getElementById('chat-dungeon-toggle');
+      if (toggle) toggle.checked = DDStore.getItem('dd_chat_dungeon') === '1';
+    }, 1000);
   });
 } catch(e) {}
 
@@ -31184,57 +31482,29 @@ function checkSeasonalEventPopup() {
 // --
 //  DUNGEON DESCENT -- PVP CLIENT
 // --
-var _mpSocket = null;
+// ═══════════════════════════════════════════════════════
+// PVP MULTIPLAYER — Firebase Realtime Database
+// ═══════════════════════════════════════════════════════
+
 var _mpRoomCode = null;
 var _mpSelectedChar = null;
 var _mpMyTurn = false;
 var _mpConnected = false;
 var _mpCurrentTrack = null;
-var _mpFirstTurn = null;
 var _mpMyId = null;
-var _mpDynMode = false;
-var MP_SERVER = 'https://dungeon-descent-multiplayer-production.up.railway.app';
+var _mpRoomRef = null;
+var _mpRoomListener = null;
+var _mpRole = null; // 'p1' or 'p2'
 
-function mpDynLog(msg) {
-  var el = document.getElementById('mp-dyn-log');
-  if (!el) { mpLog(msg); return; }
-  var line = document.createElement('div');
-  line.textContent = msg;
-  line.setAttribute('tabindex','0');
-  el.insertBefore(line, el.firstChild);
+function mpGenId() {
+  return Math.random().toString(36).substr(2, 8);
 }
 
-function mpDynSetStatus(msg) {
-  var el = document.getElementById('mp-dyn-status');
-  if (!el) { mpSetStatus(msg); return; }
-  el.textContent = msg;
-  say(msg);
-}
-
-function mpDynSetMyTurn(isMine) {
-  _mpMyTurn = isMine;
-  var ids = ['mp-dyn-attack','mp-dyn-heavy','mp-dyn-skill','mp-dyn-defend','mp-dyn-taunt'];
-  ids.forEach(function(id) {
-    var btn = document.getElementById(id);
-    if (btn) btn.disabled = !isMine;
-  });
-  mpDynSetStatus(isMine ? '⚔️ YOUR TURN — Choose an action!' : '⏳ Opponent\'s turn. Wait...');
-  if (isMine) say('Your turn! Attack, Heavy Attack, Skill, Defend or Taunt.');
-}
-
-function mpSetStatus(msg) {
-  var el = document.getElementById('mp-status');
-  if (el) { el.textContent = msg; el.setAttribute('aria-live','polite'); }
-  say(msg);
-}
-
-function mpLog(msg) {
-  var el = document.getElementById('mp-log-lines');
-  if (!el) return;
-  var line = document.createElement('div');
-  line.textContent = msg;
-  line.setAttribute('tabindex','0');
-  el.insertBefore(line, el.firstChild);
+function mpGenRoomCode() {
+  var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  var code = '';
+  for (var i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
 }
 
 function mpUpdateTrack(track) {
@@ -31245,35 +31515,14 @@ function mpUpdateTrack(track) {
 }
 
 function goToMultiplayer() {
-  if (typeof io === 'undefined') {
-    say('Multiplayer unavailable. Could not load the connection library. Check your internet connection.');
+  if (!window._fbRtdb) {
+    mpSetStatus('Multiplayer unavailable. Firebase not connected.');
+    say('Multiplayer unavailable. Firebase not connected.');
     return;
   }
-  if (!_mpSocket) {
-    _mpSocket = io(MP_SERVER, { transports: ['websocket'] });
-    _mpSocket.on('connect', function() {
-      _mpConnected = true;
-      _mpMyId = _mpSocket.id;
-      mpRegisterEvents();
-      mpSetStatus('Connected. Select a character to begin.');
-    });
-    _mpSocket.on('disconnect', function() {
-      _mpConnected = false;
-      mpSetStatus('Disconnected. Please leave and rejoin.');
-    });
-    _mpSocket.on('connect_error', function() {
-      mpSetStatus('Could not reach server. Check your connection.');
-    });
-    _mpSocket.on('error', function(data) { mpSetStatus(data.msg || 'An error occurred.'); });
-  } else {
-    // Already have a socket — re-register events in case listeners were lost
-    if (_mpConnected) {
-      mpRegisterEvents();
-      mpSetStatus('Connected. Select a character to begin.');
-    } else {
-      mpSetStatus('Reconnecting...');
-    }
-  }
+  _mpConnected = true;
+  if (!_mpMyId) _mpMyId = mpGenId();
+  mpSetStatus('Connected. Select a character to begin.');
   mpRenderCharList();
 }
 
@@ -31302,78 +31551,358 @@ function mpSelectChar(ch) {
   var display = document.getElementById('mp-selected-char');
   if (display) {
     display.style.display = 'block';
-    display.textContent = '✓ ' + ch.name + ' · ' + ch.race + ' ' + ch.cls + ' · Lv ' + (ch.level||1) + ' · HP ' + (ch.maxHp||100) + ' · ATK ' + (ch.atk||10);
+    display.textContent = '✓ ' + ch.name + ' · ' + ch.race + ' ' + ch.cls + ' · Lv ' + (ch.level||1) + ' · HP ' + (ch.maxHp||100);
   }
   document.getElementById('mp-create-btn').disabled = false;
   document.getElementById('mp-join-btn').disabled = false;
   sfx('sfx-select');
-  say(ch.name + ' selected for battle. Create a room or join a friend.');
+  say(ch.name + ' selected. Create a room or join a friend.');
 }
 
 function mpGetCharData(ch) {
   if (!ch) return null;
+  var atkRange = ATK_MAP[ch.cls] || [6,12];
+  var baseAtk = Math.floor((atkRange[0] + atkRange[1]) / 2);
   return {
     name: ch.name || 'Warrior',
     cls: ch.cls || '',
     race: ch.race || '',
     level: ch.level || 1,
-    maxHp: ch.maxHp || 100,
+    maxHp: HP_MAP[ch.cls] || ch.maxHp || 100,
+    hp: HP_MAP[ch.cls] || ch.maxHp || 100,
     maxSp: ch.maxSp || 20,
-    atk: ch.atk || 10,
-    def: ch.def || 0,
+    sp: ch.maxSp || 20,
+    atk: baseAtk,
+    def: DEF_MAP[ch.cls] || 0,
+    alive: true,
+    defending: false,
     dungeon: ch.dungeon || 'Crypt of Malachar'
   };
 }
 
 function mpCreateRoom() {
   if (!_mpSelectedChar) { mpSetStatus('Select a character first.'); return; }
-  if (!_mpConnected) { mpSetStatus('Not connected. Please wait.'); return; }
-  _mpSocket.emit('create_room', { char: mpGetCharData(_mpSelectedChar) });
-  mpSetStatus('Creating room...');
-  sfx('sfx-confirm');
+  var code = mpGenRoomCode();
+  _mpRoomCode = code;
+  _mpRole = 'p1';
+  var charData = mpGetCharData(_mpSelectedChar);
+
+  var roomData = {
+    code: code,
+    status: 'waiting',
+    p1: { id: _mpMyId, char: charData, ready: false },
+    p2: null,
+    turn: null,
+    action: null,
+    createdAt: Date.now()
+  };
+
+  var ref = window._fbRtdb.ref('pvp_rooms/' + code);
+  ref.set(roomData).then(function() {
+    _mpRoomRef = ref;
+    var codeDisplay = document.getElementById('mp-room-code-display');
+    var codeEl = document.getElementById('mp-room-code');
+    if (codeDisplay) codeDisplay.style.display = 'block';
+    if (codeEl) codeEl.textContent = code;
+    var readyBtn = document.getElementById('mp-ready-btn');
+    if (readyBtn) readyBtn.style.display = 'block';
+    mpSetStatus('Room created! Share code ' + code + ' with your opponent. Then both press Ready.');
+    say('Room created. Your code is ' + code.split('').join(' ') + '. Share it with your opponent. Then both press Ready.');
+    sfx('sfx-confirm');
+    mpListenToRoom(code);
+
+    // Auto-delete room after 10 minutes if unused
+    setTimeout(function() {
+      ref.once('value').then(function(snap) {
+        if (snap.exists() && snap.val().status === 'waiting') ref.remove();
+      }).catch(function(){});
+    }, 600000);
+  }).catch(function(err) {
+    mpSetStatus('Failed to create room. Check your connection.');
+    console.error('[PVP] Create room failed:', err);
+  });
 }
 
 function mpJoinRoom() {
   if (!_mpSelectedChar) { mpSetStatus('Select a character first.'); return; }
-  if (!_mpConnected) { mpSetStatus('Not connected. Please wait.'); return; }
   var input = document.getElementById('mp-code-input');
-  var code = input ? input.value.trim() : '';
-  if (code.length !== 4) { mpSetStatus('Enter a valid 4 digit room code.'); return; }
-  _mpSocket.emit('join_room', { code: code, char: mpGetCharData(_mpSelectedChar) });
-  mpSetStatus('Joining room ' + code + '...');
-  sfx('sfx-confirm');
+  var code = input ? input.value.trim().toUpperCase() : '';
+  if (code.length !== 4) { mpSetStatus('Enter a valid 4 character room code.'); return; }
+
+  var ref = window._fbRtdb.ref('pvp_rooms/' + code);
+  ref.once('value').then(function(snap) {
+    if (!snap.exists()) { mpSetStatus('Room not found. Check the code and try again.'); return; }
+    var room = snap.val();
+    if (room.status !== 'waiting') { mpSetStatus('Room is already full or in progress.'); return; }
+    if (room.p2) { mpSetStatus('Room is already full.'); return; }
+
+    _mpRoomCode = code;
+    _mpRole = 'p2';
+    _mpRoomRef = ref;
+
+    var charData = mpGetCharData(_mpSelectedChar);
+    ref.child('p2').set({ id: _mpMyId, char: charData, ready: false });
+    ref.child('status').set('full');
+
+    var readyBtn = document.getElementById('mp-ready-btn');
+    if (readyBtn) readyBtn.style.display = 'block';
+    mpSetStatus('Joined room ' + code + '! Press Ready when prepared to fight!');
+    say('Joined room ' + code + '. Press Ready when prepared to fight.');
+    sfx('sfx-confirm');
+    mpListenToRoom(code);
+  }).catch(function(err) {
+    mpSetStatus('Failed to join room. Check your connection.');
+    console.error('[PVP] Join room failed:', err);
+  });
+}
+
+function mpListenToRoom(code) {
+  if (_mpRoomListener) {
+    try { window._fbRtdb.ref('pvp_rooms/' + (_mpRoomCode || code)).off('value', _mpRoomListener); } catch(e) {}
+  }
+  _mpRoomListener = window._fbRtdb.ref('pvp_rooms/' + code).on('value', function(snap) {
+    if (!snap.exists()) {
+      mpSetStatus('Room no longer exists.');
+      return;
+    }
+    var room = snap.val();
+    mpHandleRoomUpdate(room);
+  });
+}
+
+function mpHandleRoomUpdate(room) {
+  // Opponent joined notification
+  if (room.status === 'full' && room.p1 && room.p2) {
+    var opponentChar = _mpRole === 'p1' ? room.p2.char : room.p1.char;
+    if (opponentChar) {
+      var playersDisplay = document.getElementById('mp-players-display');
+      if (playersDisplay) playersDisplay.style.display = 'block';
+      mpRenderPlayers([
+        Object.assign({}, _mpRole === 'p1' ? room.p1.char : room.p2.char, {isMe: true}),
+        Object.assign({}, opponentChar, {isMe: false})
+      ]);
+    }
+  }
+
+  // Both ready — start battle
+  if (room.status === 'full' && room.p1 && room.p2 && room.p1.ready && room.p2.ready && !room.battleStarted) {
+    // Only p1 initiates the battle start to avoid race condition
+    if (_mpRole === 'p1') {
+      var firstTurn = Math.random() < 0.5 ? room.p1.id : room.p2.id;
+      window._fbRtdb.ref('pvp_rooms/' + _mpRoomCode).update({
+        battleStarted: true,
+        turn: firstTurn,
+        log: ['⚔️ The battle begins!'],
+        p1: Object.assign({}, room.p1.char, {id: room.p1.id, ready: true}),
+        p2: Object.assign({}, room.p2.char, {id: room.p2.id, ready: true})
+      });
+    }
+    return;
+  }
+
+  // Battle in progress
+  if (room.battleStarted) {
+    mpShowBattleUI(room);
+  }
+
+  // Handle action
+  if (room.pendingAction && room.pendingAction.actorId !== _mpMyId) {
+    mpProcessOpponentAction(room);
+  }
+
+  // Battle over
+  if (room.status === 'over') {
+    mpHandleBattleOver(room);
+  }
 }
 
 function mpReady() {
-  say('ready clicked');
-  if (!_mpSocket) { say('no socket'); return; }
-  _mpSocket.emit('player_ready');
+  if (!_mpRoomCode || !_mpRole) { say('Not in a room.'); return; }
   var btn = document.getElementById('mp-ready-btn');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Waiting for opponent...'; }
-  mpSetStatus('Ready! Waiting for your opponent...');
+  window._fbRtdb.ref('pvp_rooms/' + _mpRoomCode + '/' + _mpRole + '/ready').set(true);
+  mpSetStatus('Ready! Waiting for opponent...');
   sfx('sfx-confirm');
 }
 
+function mpShowBattleUI(room) {
+  var toHide = ['mp-char-section','mp-selected-char','mp-room-section','mp-room-code-display','mp-ready-btn'];
+  toHide.forEach(function(id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
+
+  var log = document.getElementById('mp-combat-log');
+  var actions = document.getElementById('mp-combat-actions');
+  var playersDisplay = document.getElementById('mp-players-display');
+  if (log) log.style.display = 'block';
+  if (actions) { actions.style.display = 'flex'; actions.style.flexDirection = 'column'; }
+  if (playersDisplay) playersDisplay.style.display = 'block';
+
+  // Render players
+  if (room.p1 && room.p2) {
+    var me = _mpRole === 'p1' ? room.p1 : room.p2;
+    var opponent = _mpRole === 'p1' ? room.p2 : room.p1;
+    mpRenderPlayers([
+      Object.assign({}, me, {isMe: true}),
+      Object.assign({}, opponent, {isMe: false})
+    ]);
+  }
+
+  // Render log
+  if (room.log) {
+    var logEl = document.getElementById('mp-log-lines');
+    if (logEl) {
+      var entries = Array.isArray(room.log) ? room.log : Object.values(room.log);
+      logEl.innerHTML = entries.map(function(l) {
+        return '<div tabindex="0">' + l + '</div>';
+      }).join('');
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+  }
+
+  // Set turn
+  var isMyTurn = room.turn === _mpMyId;
+  mpSetMyTurn(isMyTurn);
+}
+
 function mpAction(action) {
-  if (!_mpMyTurn) { mpSetStatus('Not your turn! Wait for your opponent.'); sfx('sfx-select'); return; }
-  var atk = _mpSelectedChar ? (_mpSelectedChar.atk || 10) : 10;
-  var dmg = Math.floor(Math.random() * 10) + atk;
-  var spCost = action === 'skill' ? 5 : 0;
-  _mpSocket.emit('player_action', { action: action, damage: dmg, spCost: spCost });
-  mpSetMyTurn(false);
-  sfx(action === 'attack' ? 'sfx-attack' : action === 'heavy' ? 'sfx-heavy-hit' : action === 'skill' ? 'sfx-crit' : 'sfx-select');
+  if (!_mpMyTurn) { mpSetStatus('Not your turn!'); sfx('sfx-select'); return; }
+  if (!_mpRoomCode) return;
+
+  var ref = window._fbRtdb.ref('pvp_rooms/' + _mpRoomCode);
+  ref.once('value').then(function(snap) {
+    if (!snap.exists()) return;
+    var room = snap.val();
+    var me = _mpRole === 'p1' ? room.p1 : room.p2;
+    var opponent = _mpRole === 'p1' ? room.p2 : room.p1;
+    if (!me || !opponent) return;
+
+    var atkRange = ATK_MAP[_mpSelectedChar.cls] || [6,12];
+    var dmg = Math.floor(Math.random() * (atkRange[1] - atkRange[0] + 1)) + atkRange[0];
+    var logMsg = '';
+
+    if (action === 'attack') {
+      var finalDmg = opponent.defending ? Math.floor(dmg * 0.4) : dmg;
+      opponent.hp = Math.max(0, (opponent.hp || 0) - finalDmg);
+      logMsg = '⚔️ ' + me.name + ' attacks for ' + finalDmg + ' damage!' + (opponent.defending ? ' (blocked!)' : '');
+    } else if (action === 'heavy') {
+      var heavyDmg = Math.floor(dmg * 1.8);
+      var finalHeavy = opponent.defending ? Math.floor(heavyDmg * 0.4) : heavyDmg;
+      opponent.hp = Math.max(0, (opponent.hp || 0) - finalHeavy);
+      logMsg = '💥 ' + me.name + ' heavy strikes for ' + finalHeavy + '!';
+    } else if (action === 'defend') {
+      me.defending = true;
+      logMsg = '🛡️ ' + me.name + ' braces for the next hit.';
+    } else if (action === 'skill') {
+      var skillDmg = Math.floor(dmg * 2.0);
+      var finalSkill = opponent.defending ? Math.floor(skillDmg * 0.4) : skillDmg;
+      opponent.hp = Math.max(0, (opponent.hp || 0) - finalSkill);
+      me.sp = Math.max(0, (me.sp || 0) - 5);
+      logMsg = '✨ ' + me.name + ' uses a skill for ' + finalSkill + ' damage!';
+    } else if (action === 'taunt') {
+      logMsg = '😤 ' + me.name + ' taunts: "You have been defeated!"';
+    }
+
+    // Reset defend after taking action (not on defend itself)
+    if (action !== 'defend') me.defending = false;
+    // Reset opponent defend after they get hit
+    if (action !== 'defend') opponent.defending = false;
+
+    // Check if opponent died
+    var updates = {};
+    var opKey = _mpRole === 'p1' ? 'p2' : 'p1';
+    var myKey = _mpRole === 'p1' ? 'p1' : 'p2';
+    updates[opKey] = opponent;
+    updates[myKey] = me;
+
+    // Add to log
+    var currentLog = room.log ? (Array.isArray(room.log) ? room.log : Object.values(room.log)) : [];
+    currentLog.push(logMsg);
+    if (currentLog.length > 30) currentLog = currentLog.slice(-30);
+    updates['log'] = currentLog;
+
+    if (opponent.hp <= 0) {
+      opponent.alive = false;
+      updates[opKey] = opponent;
+      updates['status'] = 'over';
+      updates['winnerId'] = _mpMyId;
+      updates['winnerName'] = me.name;
+      updates['loserName'] = opponent.name;
+      currentLog.push('💀 ' + opponent.name + ' has been defeated!');
+      updates['log'] = currentLog;
+    } else {
+      // Switch turns
+      updates['turn'] = opponent.id;
+    }
+
+    ref.update(updates);
+    mpSetMyTurn(false);
+    sfx(action === 'attack' ? 'sfx-attack' : action === 'heavy' ? 'sfx-heavy-hit' : action === 'skill' ? 'sfx-crit' : 'sfx-select');
+  });
+}
+
+function mpProcessOpponentAction(room) {
+  // Opponent acted — just update UI, the listener handles the rest
+  if (room.pendingAction) {
+    mpLog('💬 ' + (room.pendingAction.log || ''));
+    // Clear pending action so we don't process it again
+    window._fbRtdb.ref('pvp_rooms/' + _mpRoomCode + '/pendingAction').remove();
+  }
+}
+
+function mpHandleBattleOver(room) {
+  var rematch = document.getElementById('mp-rematch-section');
+  var actions = document.getElementById('mp-combat-actions');
+  if (actions) actions.style.display = 'none';
+  if (rematch) rematch.style.display = 'block';
+
+  var isWinner = room.winnerId === _mpMyId;
+  if (isWinner) {
+    mpSetStatus('🏆 YOU WIN! ' + (room.loserName || 'Your opponent') + ' has been defeated!');
+    sfx('sfx-victory');
+    say('Victory! You defeated ' + (room.loserName || 'your opponent') + '! You have been... the defeater.');
+  } else {
+    mpSetStatus('💀 You have been defeated by ' + (room.winnerName || 'your opponent') + '...');
+    sfx('sfx-gameover');
+    say('Defeated. ' + (room.winnerName || 'Your opponent') + ' wins. You have been defeated.');
+  }
 }
 
 function mpEmote(emote) {
-  if (!_mpSocket) return;
-  _mpSocket.emit('send_emote', { emote: emote });
+  if (!_mpRoomCode) return;
+  var emoteMap = { gg:'GG! Well played.', nice:'Nice one!', lets_go:"Let's go!", defeated:'You have been defeated! 😂' };
+  var msg = emoteMap[emote] || emote;
+  var ref = window._fbRtdb.ref('pvp_rooms/' + _mpRoomCode + '/log');
+  ref.once('value').then(function(snap) {
+    var log = snap.val() ? (Array.isArray(snap.val()) ? snap.val() : Object.values(snap.val())) : [];
+    var charData = mpGetCharData(_mpSelectedChar);
+    log.push('💬 ' + (charData ? charData.name : 'Player') + ': ' + msg);
+    ref.set(log);
+  });
   sfx('sfx-select');
 }
 
 function mpRematch() {
-  if (!_mpSocket) return;
-  _mpSocket.emit('rematch');
-  mpSetStatus('Rematch requested. Waiting for opponent...');
+  if (!_mpRoomCode || !_mpRoomRef) return;
+  // Reset room for rematch
+  var charData = mpGetCharData(_mpSelectedChar);
+  var updates = {};
+  updates[_mpRole] = { id: _mpMyId, char: charData, ready: false };
+  updates['status'] = 'full';
+  updates['battleStarted'] = false;
+  updates['turn'] = null;
+  updates['log'] = ['🔄 Rematch! Get ready...'];
+  updates['winnerId'] = null;
+  updates['winnerName'] = null;
+  updates['loserName'] = null;
+  _mpRoomRef.update(updates);
+
+  // Reset UI
+  var rematch = document.getElementById('mp-rematch-section');
+  var actions = document.getElementById('mp-combat-actions');
+  var readyBtn = document.getElementById('mp-ready-btn');
+  if (rematch) rematch.style.display = 'none';
+  if (actions) { actions.style.display = 'flex'; }
+  if (readyBtn) { readyBtn.style.display = 'block'; readyBtn.disabled = false; readyBtn.textContent = '⚔️ Ready — FIGHT!'; }
+  mpSetStatus('Rematch! Press Ready when prepared.');
   sfx('sfx-confirm');
 }
 
@@ -31381,12 +31910,28 @@ function mpSetMyTurn(isMine) {
   _mpMyTurn = isMine;
   var indicator = document.getElementById('mp-turn-indicator');
   var actions = ['mp-attack-btn','mp-heavy-btn','mp-skill-btn','mp-defend-btn','mp-taunt-btn'];
-  if (indicator) indicator.textContent = isMine ? '⚔️ YOUR TURN' : '⏳ Opponent\'s turn...';
+  if (indicator) indicator.textContent = isMine ? '⚔️ YOUR TURN' : '⏳ Opponent turn...';
   actions.forEach(function(id) {
     var btn = document.getElementById(id);
     if (btn) btn.disabled = !isMine;
   });
-  if (isMine) say('Your turn! Choose your action.');
+  if (isMine) say('Your turn! Attack, Heavy Attack, Skill, Defend or Taunt.');
+}
+
+function mpSetStatus(msg) {
+  var el = document.getElementById('mp-status');
+  if (el) { el.textContent = msg; }
+  say(msg);
+}
+
+function mpLog(msg) {
+  var el = document.getElementById('mp-log-lines');
+  if (!el) return;
+  var line = document.createElement('div');
+  line.textContent = msg;
+  line.setAttribute('tabindex','0');
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
 }
 
 function mpRenderPlayers(players) {
@@ -31396,16 +31941,17 @@ function mpRenderPlayers(players) {
   if (display) display.style.display = 'block';
   list.innerHTML = '';
   players.forEach(function(p) {
-    var hpPct = Math.round((p.hp / p.maxHp) * 100);
+    var hpPct = Math.round(((p.hp || 0) / (p.maxHp || 100)) * 100);
     var barColor = hpPct > 50 ? '#44aa44' : hpPct > 25 ? '#aaaa44' : '#cc4444';
     var div = document.createElement('div');
-    div.style.cssText = 'font-family:Cinzel,serif;font-size:0.65rem;padding:10px 12px;border:1px solid ' + (p.alive ? '#333' : '#cc444466') + ';margin-bottom:4px;';
+    div.style.cssText = 'font-family:Cinzel,serif;font-size:0.65rem;padding:10px 12px;border:1px solid ' + (p.alive !== false ? '#333' : '#cc444466') + ';margin-bottom:4px;';
     div.setAttribute('tabindex','0');
-    div.setAttribute('aria-label', p.name + ' the ' + p.cls + ' HP ' + p.hp + ' of ' + p.maxHp + (p.defending ? ' defending' : ''));
+    div.setAttribute('aria-label', (p.name||'Player') + ' HP ' + (p.hp||0) + ' of ' + (p.maxHp||100) + (p.isMe ? ' (you)' : ' (opponent)') + (p.defending ? ' defending' : ''));
     div.innerHTML =
       '<div style="display:flex;justify-content:space-between;margin-bottom:6px;">' +
-      '<span style="color:' + (p.alive ? '#c0b090' : '#cc4444') + ';">' + (p.alive ? '⚔️' : '💀') + ' ' + p.name + ' · ' + p.cls + (p.defending ? ' 🛡️' : '') + '</span>' +
-      '<span style="color:#888;">' + p.hp + '/' + p.maxHp + ' HP</span>' +
+      '<span style="color:' + (p.alive !== false ? (p.isMe ? '#c8a832' : '#88aacc') : '#cc4444') + ';">' +
+      (p.alive !== false ? '⚔️' : '💀') + ' ' + (p.name||'Player') + ' · ' + (p.cls||'') + (p.isMe ? ' (you)' : '') + (p.defending ? ' 🛡️' : '') + '</span>' +
+      '<span style="color:#888;">' + (p.hp||0) + '/' + (p.maxHp||100) + ' HP</span>' +
       '</div>' +
       '<div style="height:4px;background:#111;border-radius:2px;">' +
       '<div style="height:4px;background:' + barColor + ';width:' + hpPct + '%;border-radius:2px;transition:width 0.3s;"></div>' +
@@ -31414,160 +31960,32 @@ function mpRenderPlayers(players) {
   });
 }
 
-function mpRegisterEvents() {
-  if (!_mpSocket) return;
-  // Remove old listeners to prevent duplicates
-  _mpSocket.off('room_created');
-  _mpSocket.off('room_joined');
-  _mpSocket.off('player_joined');
-  _mpSocket.off('pvp_state');
-  _mpSocket.off('battle_start');
-  _mpSocket.off('action_done');
-  _mpSocket.off('battle_over');
-  _mpSocket.off('opponent_left');
-  _mpSocket.off('emote');
-  _mpSocket.off('rematch_waiting');
-
-  _mpSocket.on('room_created', function(data) {
-    _mpMyId = _mpSocket.id; // lock in our ID at this point
-    _mpRoomCode = data.code;
-    var codeDisplay = document.getElementById('mp-room-code-display');
-    var codeEl = document.getElementById('mp-room-code');
-    if (codeDisplay) codeDisplay.style.display = 'block';
-    if (codeEl) codeEl.textContent = data.code;
-    document.getElementById('mp-ready-btn').style.display = 'block';
-    mpSetStatus('Room created! Share code ' + data.code + ' with your opponent. Then both press Ready.');
-    say('Room created. Your code is ' + data.code.split('').join(' ') + '. Share it with your opponent.');
-  });
-
-  _mpSocket.on('room_joined', function(data) {
-    _mpMyId = _mpSocket.id; // lock in our ID at this point
-    _mpRoomCode = data.code;
-    document.getElementById('mp-ready-btn').style.display = 'block';
-    mpSetStatus('Joined room ' + data.code + '. Press Ready when you are prepared to fight!');
-  });
-
-  _mpSocket.on('player_joined', function(data) {
-    mpSetStatus(data.name + ' the ' + data.cls + ' has entered the arena! Press Ready to begin.');
-    sfx('sfx-unlock');
-  });
-
-  _mpSocket.on('pvp_state', function(data) {
-    var listEl = document.getElementById('mp-players-list');
-    var display = document.getElementById('mp-players-display');
-    if (display) display.style.display = 'block';
-    if (listEl && data.players) {
-      listEl.innerHTML = '';
-      data.players.forEach(function(p) {
-        var hpPct = Math.round((p.hp / p.maxHp) * 100);
-        var barColor = hpPct > 50 ? '#44aa44' : hpPct > 25 ? '#aaaa44' : '#cc4444';
-        var div = document.createElement('div');
-        div.style.cssText = 'font-family:Cinzel,serif;font-size:0.65rem;padding:10px 12px;border:1px solid ' + (p.alive ? '#333' : '#cc444466') + ';margin-bottom:4px;';
-        div.setAttribute('tabindex','0');
-        div.setAttribute('aria-label', p.name + ' HP ' + p.hp + ' of ' + p.maxHp + (p.defending ? ' defending' : ''));
-        div.innerHTML =
-          '<div style="display:flex;justify-content:space-between;margin-bottom:6px;">' +
-          '<span style="color:' + (p.alive ? '#c0b090' : '#cc4444') + ';">' + (p.alive ? '⚔️' : '💀') + ' ' + p.name + ' · ' + p.cls + (p.defending ? ' 🛡️' : '') + '</span>' +
-          '<span style="color:#888;">' + p.hp + '/' + p.maxHp + '</span>' +
-          '</div>' +
-          '<div style="height:4px;background:#111;border-radius:2px;">' +
-          '<div style="height:4px;background:' + barColor + ';width:' + hpPct + '%;border-radius:2px;"></div>' +
-          '</div>';
-        listEl.appendChild(div);
-      });
-    }
-    if (data.started) { try { mpUpdateTrack(data.track); } catch(e) {} }
-  });
-
-  _mpSocket.on('battle_start', function(data) {
-    say('Battle start fired.');
-    // Get our ID from multiple sources to ensure it's not undefined
-    _mpMyId = (_mpSocket && _mpSocket.id) ? _mpSocket.id : _mpMyId;
-    // Also check if server told us our ID directly
-    if (data.p1Id && data.p2Id) {
-      // Figure out which player we are based on which ID matches
-      if (data.p1Id === _mpMyId || data.p2Id === _mpMyId) {
-        // ID confirmed
-      } else {
-        // ID mismatch — try to recover by checking which socket events we got
-        say('Warning: player ID mismatch. Attempting recovery.');
-      }
-    }
-    _mpFirstTurn = data.firstTurn;
-
-    // Hide specific lobby elements by ID
-    var toHide = [
-      'mp-char-section', 'mp-selected-char', 'mp-room-section',
-      'mp-code-input', 'mp-room-code-display', 'mp-ready-btn',
-      'mp-players-display', 'mp-create-btn', 'mp-join-btn'
-    ];
-    toHide.forEach(function(id) {
-      var el = document.getElementById(id);
-      if (el) el.style.display = 'none';
-    });
-
-    // Show combat elements
-    var status = document.getElementById('mp-status');
-    var players = document.getElementById('mp-players-display');
-    var log = document.getElementById('mp-combat-log');
-    var actions = document.getElementById('mp-combat-actions');
-    if (status) status.style.display = 'block';
-    if (players) players.style.display = 'block';
-    if (log) log.style.display = 'block';
-    if (actions) { actions.style.display = 'flex'; actions.style.flexDirection = 'column'; }
-
-    var isMyTurn = _mpFirstTurn === _mpMyId;
-    mpSetMyTurn(isMyTurn);
-    mpLog('⚔️ ' + (data.msg || 'FIGHT!'));
-    mpSetStatus(isMyTurn ? 'YOUR TURN! Attack, Heavy, Skill, Defend or Taunt.' : 'Opponent goes first. Wait.');
-    say(isMyTurn ? 'Battle started. Your turn. Attack, Heavy Attack, Skill, Defend or Taunt.' : 'Battle started. Opponent goes first. Wait for your turn.');
-    try { mpUpdateTrack('boss'); } catch(e) {}
-    sfx('sfx-unlock');
-  });
-
-  _mpSocket.on('action_done', function(data) {
-    if (data.log) mpLog(data.log);
-    var isMyTurn = (data.nextTurnId || data.nextTurn) === _mpMyId;
-    mpSetMyTurn(isMyTurn);
-    mpSetStatus(isMyTurn ? 'YOUR TURN — Choose your action!' : 'Opponent is thinking...');
-  });
-
-  _mpSocket.on('battle_over', function(data) {
-    var rematch = document.getElementById('mp-rematch-section');
-    var actions = document.getElementById('mp-combat-actions');
-    if (actions) actions.style.display = 'none';
-    if (rematch) rematch.style.display = 'block';
-    if (data.log) data.log.forEach(function(l) { mpLog(l); });
-    var isWinner = data.winnerId === _mpMyId;
-    if (isWinner) {
-      mpSetStatus('🏆 YOU WIN! ' + data.loserName + ' has been defeated!');
-      try { playTrack('sfx-victory'); } catch(e) {}
-      sfx('sfx-victory');
-    } else {
-      mpSetStatus('💀 You have been defeated by ' + data.winnerName + '...');
-      try { playTrack('menu'); } catch(e) {}
-      sfx('sfx-gameover');
-    }
-    say(isWinner ? 'Victory! You defeated ' + data.loserName + '! You have been... the defeater.' : 'Defeated. ' + data.winnerName + ' wins. You have been defeated.');
-  });
-
-  _mpSocket.on('rematch_waiting', function(data) { mpSetStatus(data.msg); });
-  _mpSocket.on('opponent_left', function(data) {
-    mpSetStatus(data.msg);
-    mpLog('⚠️ ' + data.msg);
-    var actions = document.getElementById('mp-combat-actions');
-    if (actions) actions.style.display = 'none';
-    try { playTrack(getMenuTrack()); } catch(e) {}
-  });
-  _mpSocket.on('emote', function(data) {
-    mpLog('💬 ' + data.msg);
-    say(data.msg);
-  });
-}
-
 function mpLeave() {
-  _mpRoomCode = null; _mpSelectedChar = null; _mpMyTurn = false; _mpCurrentTrack = null;
-  _mpFirstTurn = null;
+  // Clean up room if we're the only one
+  if (_mpRoomCode && _mpRoomRef) {
+    window._fbRtdb.ref('pvp_rooms/' + _mpRoomCode).once('value').then(function(snap) {
+      if (snap.exists()) {
+        var room = snap.val();
+        if (!room.battleStarted || room.status === 'over') {
+          _mpRoomRef.remove().catch(function(){});
+        } else {
+          // Notify opponent we left
+          _mpRoomRef.update({ status: 'over', opponentLeft: true }).catch(function(){});
+        }
+      }
+    }).catch(function(){});
+  }
+  // Clean up listener
+  if (_mpRoomListener && _mpRoomCode) {
+    try { window._fbRtdb.ref('pvp_rooms/' + _mpRoomCode).off('value', _mpRoomListener); } catch(e) {}
+    _mpRoomListener = null;
+  }
+  _mpRoomCode = null;
+  _mpSelectedChar = null;
+  _mpMyTurn = false;
+  _mpCurrentTrack = null;
+  _mpRole = null;
+  _mpRoomRef = null;
   playTrack(getMenuTrack());
   goTo('menu');
   sfx('sfx-select');
@@ -36157,13 +36575,14 @@ function buildRunSummary(isVictory) {
   var spiritSection = document.getElementById('rs-spirit-section');
   var spiritEl = document.getElementById('rs-spirit');
   if (spiritSection) {
-    if (DS.activeSpirit) {
+    var spirit = DS.activeSpirit && typeof DS.activeSpirit === 'object' ? DS.activeSpirit : null;
+    if (spirit) {
       spiritSection.style.display = '';
       if (spiritEl) spiritEl.innerHTML =
-        '<div class="rs-spirit-icon">' + DS.activeSpirit.icon + '</div>' +
+        '<div class="rs-spirit-icon">' + spirit.icon + '</div>' +
         '<div class="rs-spirit-info">' +
-          '<div class="rs-spirit-name">' + DS.activeSpirit.name + '</div>' +
-          '<div class="rs-spirit-ability">' + (DS.activeSpirit.passiveDesc || DS.activeSpirit.ability || '') + '</div>' +
+          '<div class="rs-spirit-name">' + spirit.name + '</div>' +
+          '<div class="rs-spirit-ability">' + (spirit.passiveDesc || spirit.ability || '') + '</div>' +
         '</div>';
     } else {
       spiritSection.style.display = 'none';
@@ -42185,6 +42604,7 @@ function initKeyCommands() {
       var newVol = Math.min(1.0, (AUD.musicVol || 0.7) + 0.10);
       AUD.musicVol = newVol; AUD.sfxVol = newVol;
       Object.keys(AUD.tracks).forEach(function(k) { try { if (AUD.tracks[k]) AUD.tracks[k].volume = newVol; } catch(e2){} });
+      if (AUD.musicGain) try { AUD.musicGain.gain.value = newVol; } catch(e2){}
       if (_customTrackAudio) try { _customTrackAudio.volume = newVol; } catch(e2){}
       var mv = document.getElementById('music-vol'); var sv = document.getElementById('sfx-vol');
       var mvv = document.getElementById('music-vol-val'); var svv = document.getElementById('sfx-vol-val');
@@ -42198,6 +42618,7 @@ function initKeyCommands() {
       var newVol2 = Math.max(0.0, (AUD.musicVol || 0.7) - 0.10);
       AUD.musicVol = newVol2; AUD.sfxVol = newVol2;
       Object.keys(AUD.tracks).forEach(function(k) { try { if (AUD.tracks[k]) AUD.tracks[k].volume = newVol2; } catch(e2){} });
+      if (AUD.musicGain) try { AUD.musicGain.gain.value = newVol2; } catch(e2){}
       if (_customTrackAudio) try { _customTrackAudio.volume = newVol2; } catch(e2){}
       var mv2 = document.getElementById('music-vol'); var sv2 = document.getElementById('sfx-vol');
       var mvv2 = document.getElementById('music-vol-val'); var svv2 = document.getElementById('sfx-vol-val');
@@ -47457,6 +47878,8 @@ DDStore.whenReady().then(function() {
       if (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length) {
         window._fbAuth = firebase.auth();
         window._fbDb = firebase.firestore();
+        window._fbDb.settings({ databaseId: 'dungeon-descent' });
+        window._fbRtdb = firebase.database();
         // Init global multiplayer systems AFTER _fbDb is ready
 
         // Auth helper functions
