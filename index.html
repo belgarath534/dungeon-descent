@@ -18420,7 +18420,7 @@ function ecShowError(msg) {
   say(msg);
 }
 
-async function ecSubmit() {
+function ecSubmit() {
   var name     = (document.getElementById('ec-name').value || '').trim();
   var desc     = (document.getElementById('ec-desc').value || '').trim();
   var type     = document.getElementById('ec-type').value;
@@ -18428,74 +18428,54 @@ async function ecSubmit() {
   var music    = document.getElementById('ec-music').value;
   var creator  = (document.getElementById('ec-creator').value || '').trim();
 
-  // Validation
   if (!name) { ecShowError('Please give your enemy a name.'); return; }
   if (!desc) { ecShowError('Please add a description.'); return; }
   if (!creator) { ecShowError('Please enter your creator name.'); return; }
   if (name.length < 2) { ecShowError('Enemy name is too short.'); return; }
   if (creator.length < 2) { ecShowError('Creator name is too short.'); return; }
 
-  // Bad word filter
   if (ecContainsBadWord(name) || ecContainsBadWord(desc) || ecContainsBadWord(creator)) {
     ecShowError('Your submission contains inappropriate content. Please revise and try again.');
     return;
   }
 
-  // Make sure stats are rolled
   if (!_ecCurrentStats) ecRollStats();
 
-  // Pick an icon based on type
-  var iconMap = { common:'👤', uncommon:'⚠️', rare:'💀', elite:'👁️', boss:'💀' };
-  var icon = iconMap[type] || '👤';
-
-  var enemyData = {
-    name:      name,
-    desc:      desc,
-    type:      type,
-    dungeon:   dungeon,
-    music:     music || null,
-    creator:   creator,
-    icon:      icon,
-    hp:        _ecCurrentStats.hp,
-    atk:       _ecCurrentStats.atk,
-    def:       _ecCurrentStats.def,
-    kills:     0,
-    createdAt: Date.now(),
-    approved:  true
-  };
-
-  // Check Firebase is ready
   if (!window._fbDb) {
     ecShowError('Firebase not ready. Please refresh the page and try again.');
     return;
   }
 
-  // Submit to Firebase
+  var iconMap = { common:'👤', uncommon:'⚠️', rare:'💀', elite:'👁️', boss:'💀' };
+  var enemyData = {
+    name: name, desc: desc, type: type, dungeon: dungeon,
+    music: music || null, creator: creator, icon: iconMap[type] || '👤',
+    hp: _ecCurrentStats.hp, atk: _ecCurrentStats.atk, def: _ecCurrentStats.def,
+    kills: 0, createdAt: Date.now(), approved: true
+  };
+
   var submitBtn = document.getElementById('ec-submit-btn');
-  try {
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Unleashing...'; }
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Unleashing...'; }
+  document.getElementById('ec-error').style.display = 'none';
 
-    await window._fbDb.collection('community_enemies').add(enemyData);
-
-    // Show success
-    document.getElementById('enemy-creator-form').style.display = 'none';
-    document.getElementById('enemy-creator-success').style.display = '';
-    var msg = document.getElementById('ec-success-msg');
-    if (msg) {
-      msg.textContent = '"' + name + '" has been added to the dungeon pool. Players will encounter your enemy in ' +
-        (dungeon === 'all' ? 'all dungeons' : dungeon) + '. When they do, the dungeon will announce: "' +
-        name + ', unleashed by ' + creator + '."';
-    }
-    say(name + ' has been unleashed into the dungeon. Players will encounter your creation soon.');
-
-    // Track locally
-    try { incrementAchievementStat('enemyCreated', 1); } catch(e) {}
-
-  } catch(err) {
-    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '⚔ Unleash This Enemy'; }
-    ecShowError('Failed to submit. Please check your connection and try again.');
-    console.error('[EC] Submit failed:', err);
-  }
+  window._fbDb.collection('community_enemies').add(enemyData)
+    .then(function() {
+      document.getElementById('enemy-creator-form').style.display = 'none';
+      document.getElementById('enemy-creator-success').style.display = '';
+      var msg = document.getElementById('ec-success-msg');
+      if (msg) {
+        msg.textContent = '"' + name + '" has been added to the dungeon pool. Players will encounter your enemy in ' +
+          (dungeon === 'all' ? 'all dungeons' : dungeon) + '. When they do, the dungeon will announce: "' +
+          name + ', unleashed by ' + creator + '."';
+      }
+      say(name + ' has been unleashed into the dungeon. Players will encounter your creation soon.');
+      try { incrementAchievementStat('enemyCreated', 1); } catch(e) {}
+    })
+    .catch(function(err) {
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '⚔ Unleash This Enemy'; }
+      ecShowError('Failed: ' + (err.message || 'Check your connection.'));
+      console.error('[EC] Submit failed:', err);
+    });
 }
 
 function ecReset() {
