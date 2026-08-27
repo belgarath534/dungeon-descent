@@ -47457,6 +47457,7 @@ DDStore.whenReady().then(function() {
       if (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length) {
         window._fbAuth = firebase.auth();
         var _db = firebase.firestore();
+        _db.settings({ databaseId: 'dungeon-descent' });
         window._fbDb = _db;
         // Init global multiplayer systems AFTER _fbDb is ready
 
