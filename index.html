@@ -1914,6 +1914,7 @@ var DDStore = (function() {
       </button>
     </nav>
     <p class="version-tag" aria-label="Version 11 point 0, Release">v11.0 · Release</p>
+    <p id="menu-online-count" style="font-family:Cinzel,serif;font-size:0.55rem;color:#444;margin-top:4px;letter-spacing:0.1em;" aria-live="polite" aria-label="Players currently online"></p>
     <p style="font-family:Cinzel,serif;font-size:0.7rem;color:#ffdd44;margin-top:6px;" aria-label="Your global gold" aria-live="polite"><span data-i18n="lbl-gold">💰 </span><span class="global-gold-display">0</span></p>
     <p style="font-family:Cinzel,serif;font-size:0.7rem;color:#88ddff;margin-top:2px;" aria-label="Your diamonds" aria-live="polite">💎 <span class="global-diamond-display">0</span></p>
   </div>
@@ -16825,6 +16826,7 @@ function continueJourney() {
   var savedLevel = DS.level || ch.level || 1;
 
   // Move character to next dungeon, keep everything else
+  trackGlobalStat('runsCompleted', 1); // count the dungeon we just finished
   ch.dungeon = nextDungeon;
   ch.floor = 1;
   ch.completed = false;
@@ -18664,6 +18666,8 @@ try {
   window.addEventListener('load', function() {
     setTimeout(function() {
       try { loadCommunityEnemies(); } catch(e) {}
+      try { initPresence(); } catch(e) {}
+      try { cleanStalePresence(); } catch(e) {}
     }, 3000);
   });
 } catch(e) {}
@@ -18882,6 +18886,70 @@ try {
     }, 1000);
   });
 } catch(e) {}
+
+// ═══════════════════════════════════════════════════════
+// LIVE PLAYER PRESENCE
+// ═══════════════════════════════════════════════════════
+
+var _presenceRef = null;
+var _presenceListener = null;
+
+function initPresence() {
+  if (!window._fbRtdb) return;
+  try {
+    var uid = _mpMyId || (function() {
+      var id = DDStore.getItem('dd_presence_id');
+      if (!id) { id = Math.random().toString(36).substr(2, 12); DDStore.setItem('dd_presence_id', id); }
+      return id;
+    })();
+
+    // Write presence with timestamp
+    _presenceRef = window._fbRtdb.ref('presence/' + uid);
+    _presenceRef.set({ online: true, t: Date.now() });
+
+    // Remove on disconnect
+    _presenceRef.onDisconnect().remove();
+
+    // Refresh every 2 minutes to stay alive
+    setInterval(function() {
+      if (_presenceRef) _presenceRef.set({ online: true, t: Date.now() }).catch(function(){});
+    }, 120000);
+
+    // Listen to total count
+    _presenceListener = window._fbRtdb.ref('presence').on('value', function(snap) {
+      var count = 0;
+      var now = Date.now();
+      snap.forEach(function(child) {
+        var d = child.val();
+        // Only count players active in last 5 minutes
+        if (d && d.t && (now - d.t) < 300000) count++;
+      });
+      var el = document.getElementById('menu-online-count');
+      if (el) {
+        el.textContent = count > 0 ? '⚔ ' + count + ' player' + (count !== 1 ? 's' : '') + ' online' : '';
+        el.setAttribute('aria-label', count + ' players currently online');
+      }
+    });
+  } catch(e) {
+    console.warn('[Presence] Failed:', e);
+  }
+}
+
+// Clean up stale presence entries (older than 5 min) — runs once on load
+function cleanStalePresence() {
+  if (!window._fbRtdb) return;
+  try {
+    window._fbRtdb.ref('presence').once('value').then(function(snap) {
+      var now = Date.now();
+      snap.forEach(function(child) {
+        var d = child.val();
+        if (d && d.t && (now - d.t) > 300000) {
+          child.ref.remove().catch(function(){});
+        }
+      });
+    }).catch(function(){});
+  } catch(e) {}
+}
 
 function renderBestiary() {
   var grid = document.getElementById('bestiary-grid');
