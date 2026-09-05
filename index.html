@@ -15719,15 +15719,25 @@ function initStalkerFloor() {
   _stalkerGrid.enemyX = startEdge.x;
   _stalkerGrid.enemyY = startEdge.y;
 
-  // Switch to stalker music
-  if (AUD && AUD.currentSource) { try { AUD.currentSource.stop(); } catch(e) {} AUD.currentSource = null; }
-  playTrack('shadow-stalker');
+  // Hide ALL normal dungeon panels — pure stalker mode only
+  showDgPanels(false, false, false);
+  DS.inCombat = false;
+
+  // Stop ALL current audio before switching to stalker music
+  try { stopAmbient(); } catch(e) {}
+  if (AUD) {
+    if (AUD.currentSource) { try { AUD.currentSource.stop(); } catch(e) {} AUD.currentSource = null; }
+    if (AUD.ctx && AUD.ctx.state === 'running') AUD.ctx.suspend().then(function(){ AUD.ctx.resume(); }).catch(function(){});
+  }
+  if (_howlMusic) { try { _howlMusic.stop(); } catch(e) {} }
+  AUD.current = null;
+  setTimeout(function() { playTrack('shadow-stalker'); }, 600);
 
   // Show stalker UI
   showStalkerUI();
   updateStalkerDisplay();
 
-  say('Something stirs in the darkness. The music shifts. Move carefully — the Darkness Swallower is somewhere in this room with you. It is ' + getStalkerDistance() + ' step' + (getStalkerDistance() !== 1 ? 's' : '') + ' away. Move north, south, east, or west to reach the exit. If it gets too close you can choose to fight or flee.');
+  say('Something stirs in the darkness. The music shifts. Move carefully — the Darkness Swallower is somewhere in this room with you. It is ' + getStalkerDistance() + ' step' + (getStalkerDistance() !== 1 ? 's' : '') + ' away. Move north, south, east, or west to reach the exit. Escape three times to leave this room. If it gets too close you can choose to fight or flee.');
 }
 
 function getStalkerDistance() {
@@ -15872,8 +15882,12 @@ function stalkerCaught() {
   updatePlayerBar();
   addLog('💀 THE DARKNESS SWALLOWER CATCHES YOU! ' + dmg + ' shadow damage!');
   say('Caught! The Darkness Swallower strikes. ' + dmg + ' damage. You barely survive.');
-  // Resume normal dungeon music
-  setTimeout(function() { playTrack(exploTrackForFloor(DS.floor)); enterRoom(); }, 2000);
+  // Resume normal dungeon — restore panels then enter next room
+  setTimeout(function() {
+    playTrack(exploTrackForFloor(DS.floor));
+    showDgPanels(true, false, false);
+    enterRoom();
+  }, 2000);
 }
 
 function stalkerEscaped() {
@@ -15892,15 +15906,20 @@ function stalkerEscaped() {
   updateTopBar();
   sfx('sfx-victory');
   vibe && vibe(VIBE.bossKill);
-  // Resume normal dungeon music and continue
-  setTimeout(function() { playTrack(exploTrackForFloor(DS.floor)); enterRoom(); }, 1500);
+  // Resume normal dungeon — restore panels then enter next room
+  setTimeout(function() {
+    playTrack(exploTrackForFloor(DS.floor));
+    showDgPanels(true, false, false);
+    enterRoom();
+  }, 1500);
 }
 
 function stalkerChooseFight() {
   hideStalkerFightOption();
   _stalkerActive = false;
   hideStalkerUI();
-  // Resume normal music then start combat
+  // Restore combat panel
+  showDgPanels(false, true, false);
   playTrack(battleTrack());
   // Spawn the Darkness Swallower as a very hard enemy
   DS.enemy = {
@@ -51855,12 +51874,17 @@ function stopHunterMusic() {
     _hunterMusicEl.pause();
     _hunterMusicEl.currentTime = 0;
   }
-  // Resume dungeon music
+  // Stop Web Audio source too
+  if (AUD && AUD.currentSource) {
+    try { AUD.currentSource.stop(); } catch(e) {}
+    AUD.currentSource = null;
+  }
+  // Resume correct dungeon exploration music
   if (AUD && AUD.musicOn) {
     try {
-      var currentTrack = AUD.tracks[AUD.current];
-      if (currentTrack) { currentTrack.currentTime = 0; currentTrack.play().catch(function(){}); }
-      else { playTrack(getMenuTrack ? getMenuTrack() : 'floor1'); }
+      var resumeTrack = DS && DS.dungeon ? exploTrackForFloor(DS.floor || 1) : getMenuTrack();
+      AUD.current = null; // force playTrack to actually reload
+      playTrack(resumeTrack);
     } catch(e) {}
   }
 }
