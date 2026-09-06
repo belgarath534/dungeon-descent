@@ -13401,7 +13401,9 @@ function enterRoom() {
 
       // 12% elite chance on floors 4+
       var eliteKey = DS.diff === 'Nightmare' ? 'Nightmare' : DS.dungeon;
-      var elitePool = (DS.dungeon === 'The Whispering Forest' ? WHISPER_ELITES : null) || ELITE_ENEMIES[eliteKey] || [];
+      var elitePool = (DS.dungeon === 'The Whispering Forest' ? WHISPER_ELITES : null) ||
+                      (DS.dungeon === 'The Shadow World' ? SHADOW_ENEMIES.elites : null) ||
+                      ELITE_ENEMIES[eliteKey] || [];
       var spawnElite = DS.floor >= 4 && elitePool.length > 0 && Math.random() < 0.15;
       var tier = DS.floor <= 3 ? 't1' : DS.floor <= 6 ? 't2' : 't3';
       var pool = DS.dungeon === 'The Whispering Forest'
@@ -13409,7 +13411,7 @@ function enterRoom() {
         : DS.dungeon === 'The Abyssal Deep'
         ? ABYSSAL_ENEMIES[tier]
         : DS.dungeon === 'The Shadow World'
-        ? ABYSSAL_ENEMIES[tier]
+        ? SHADOW_ENEMIES[tier]
         : enemyPool[tier];
       var base = spawnElite
         ? elitePool[Math.floor(Math.random() * elitePool.length)]
@@ -13529,10 +13531,11 @@ function enterRoom() {
           if (alreadyHas) {
             addLog('You already carry a ' + lootItem.name + '. The duplicate fades back into the dark.');
             say('You already have a ' + lootItem.name + '.');
-            applyItem(lootItem); // still apply any passive effects
+            applyItem(lootItem);
           } else {
             DS.inventory.push(lootItem);
             applyItem(lootItem);
+            addToGlobalInventory(lootItem); // save to persistent inventory so Blacksmith can see it
             sfx('sfx-loot'); vibe(VIBE.loot);
           }
         } else {
@@ -15758,43 +15761,61 @@ function getStalkerDirection() {
 
 function playSpatialGrowl(direction) {
   try {
-    if (!AUD || !AUD.ctx) return;
-    if (AUD.ctx.state === 'suspended') AUD.ctx.resume();
-
-    // Create panner for spatial audio
-    var panner = AUD.ctx.createPanner();
-    panner.panningModel = 'HRTF';
-    panner.distanceModel = 'inverse';
-    panner.refDistance = 1;
-    panner.maxDistance = 10;
-    panner.rolloffFactor = 1;
-
-    // Set position based on direction
+    if (!AUD || !AUD.sfxOn) return;
     var dist = getStalkerDistance();
-    var vol = Math.max(0.1, 1 - (dist * 0.15)); // louder when closer
-    switch(direction) {
-      case 'left':   panner.setPosition(-3, 0, -1); break;
-      case 'right':  panner.setPosition(3, 0, -1);  break;
-      case 'ahead':  panner.setPosition(0, 0, -3);  break;
-      case 'behind': panner.setPosition(0, 0, 3);   break;
-      default:       panner.setPosition(0, 0, -2);  break;
+    var vol = Math.max(0.2, 1 - (dist * 0.15));
+
+    // Try Web Audio spatial path first
+    if (_webAudioReady && AUD.ctx && AUD.ctx.state !== 'closed') {
+      if (AUD.ctx.state === 'suspended') AUD.ctx.resume();
+      var panner = AUD.ctx.createPanner();
+      panner.panningModel = 'equalpower';
+      panner.distanceModel = 'inverse';
+      panner.refDistance = 1;
+      panner.rolloffFactor = 1;
+      switch(direction) {
+        case 'left':   panner.setPosition(-3, 0, -1); break;
+        case 'right':  panner.setPosition(3, 0, -1);  break;
+        case 'ahead':  panner.setPosition(0, 0, -3);  break;
+        case 'behind': panner.setPosition(0, 0, 3);   break;
+        default:       panner.setPosition(0, 0, -2);  break;
+      }
+      panner.connect(AUD.ctx.destination);
+      loadAudioBuffer(_SHADOW_AUDIO.growl, AUD.buffers, 'shadow-growl', function(buffer) {
+        if (!buffer || !_stalkerActive) {
+          // Buffer failed — fall back to simple Audio element
+          playGrowlFallback(direction, vol);
+          return;
+        }
+        var source = AUD.ctx.createBufferSource();
+        source.buffer = buffer;
+        var gainNode = AUD.ctx.createGain();
+        gainNode.gain.value = vol * (AUD.sfxVol || 0.8);
+        source.connect(gainNode);
+        gainNode.connect(panner);
+        source.start(0);
+      });
+    } else {
+      playGrowlFallback(direction, vol);
     }
-
-    panner.connect(AUD.ctx.destination);
-
-    // Play growl through panner
-    loadAudioBuffer(_SHADOW_AUDIO.growl, AUD.buffers, 'shadow-growl', function(buffer) {
-      if (!buffer || !_stalkerActive) return;
-      var source = AUD.ctx.createBufferSource();
-      source.buffer = buffer;
-      var gainNode = AUD.ctx.createGain();
-      gainNode.gain.value = vol * (AUD.sfxVol || 0.8);
-      source.connect(gainNode);
-      gainNode.connect(panner);
-      source.start(0);
-    });
   } catch(e) {
     console.warn('[DD] Spatial growl failed:', e);
+    playGrowlFallback(direction, 0.7);
+  }
+}
+
+function playGrowlFallback(direction, vol) {
+  try {
+    console.log('[DD] Growl fallback — direction:', direction, 'vol:', vol, 'url:', _SHADOW_AUDIO.growl);
+    var audio = new Audio(_SHADOW_AUDIO.growl);
+    audio.volume = Math.min(1, (vol || 0.7) * (AUD ? (AUD.sfxVol || 0.8) : 0.8));
+    var playPromise = audio.play();
+    if (playPromise) {
+      playPromise.then(function(){ console.log('[DD] Growl fallback playing OK'); })
+                 .catch(function(e){ console.warn('[DD] Growl fallback play failed:', e); });
+    }
+  } catch(e) {
+    console.warn('[DD] Growl fallback error:', e);
   }
 }
 
@@ -30145,8 +30166,8 @@ function rollDungeonEvent() {
   DUNGEON_EVENTS.forEach(function(e){
     // Dungeon-specific events — only appear in their dungeon
     if (e.dungeons && e.dungeons.indexOf(DS.dungeon) === -1) return;
-    // Non-specific events should not appear in Abyssal Deep (it has its own)
-    if (!e.dungeons && DS.dungeon === 'The Abyssal Deep') return;
+    // Non-specific events should not appear in Abyssal Deep or Shadow World (they have their own)
+    if (!e.dungeons && (DS.dungeon === 'The Abyssal Deep' || DS.dungeon === 'The Shadow World')) return;
     var w = (e.getWeight ? e.getWeight() : e.weight) || 1;
     for(var i=0;i<w;i++) pool.push(e);
   });
