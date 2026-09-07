@@ -5841,6 +5841,7 @@ var DDStore = (function() {
     <h2 class="story-reader-title" id="story-reader-title">Story</h2>
     <div class="story-reader-meta" id="story-reader-meta"></div>
     <div class="story-reader-body" id="story-reader-body"></div>
+    <div id="story-audio-section" style="display:none;margin-bottom:20px;padding:12px;background:#0a0800;border:1px solid var(--gold-dim);"></div>
     <button class="btn-close" onclick="closeStoryReader()" aria-label="Close story and return to library" style="width:100%;">← Back to Library</button>
   </div>
 </div>
@@ -8673,6 +8674,8 @@ function playTrack(name) {
   if (!AUD.loaded) return;
   if (!AUD.musicOn) { AUD.current = name; return; }
   if (_customTrackActive || _ytActive) { AUD.current = name; return; }
+  // Update music player now playing display
+  try { if (typeof mpUpdateNowPlaying === 'function') setTimeout(mpUpdateNowPlaying, 300); } catch(e) {}
   // Don't restart if same track is already playing — check both Web Audio and Howler
   if (AUD.current === name) {
     // Web Audio: BufferSource is active if it exists and hasn't ended
@@ -13692,6 +13695,7 @@ function advanceFloor() {
     DS._shadowCorruption = 0;
     DS._shadowKilledEnemies = [];
     DS._fearTurns = 0;
+    DS._shadowEchoDefeated = false;
     updateCorruptionDisplay();
   }
   if (typeof applyTraitPerFloor === 'function') applyTraitPerFloor();
@@ -14007,7 +14011,8 @@ function startCombat(isBoss) {
     say(DS.enemy.name + ' hides. It will strike with guaranteed critical next turn.');
   }
   // Boss gets boss music, normal enemies get battle music
-  playTrack(isBoss ? exploTrackForFloor(10) : battleTrack());
+  var _bossTrack = isBoss ? exploTrackForFloor(10) : battleTrack();
+  playTrack(_bossTrack);
   if (isBoss) {
     // 2% chance — DDDI Grand Overseer appears instead of normal boss
     if (Math.random() < 0.02 && !DS.dddiDefeated) {
@@ -14021,7 +14026,14 @@ function startCombat(isBoss) {
              : DS.dungeon === 'The Whispering Forest' ? WHISPER_ENEMIES.bossPool
              : DS.dungeon === 'The Infernal Descent'  ? INFERNAL_ENEMIES.bossPool
              : DS.dungeon === 'The Abyssal Deep'      ? ABYSSAL_ENEMIES.bossPool
-             : DS.dungeon === 'The Shadow World'      ? SHADOW_ENEMIES.bossPool
+             : DS.dungeon === 'The Shadow World'      ? (function() {
+               // Shadow World — always Echo first, then Shapeshifter
+               if (!DS._shadowEchoDefeated) {
+                 return [SHADOW_ENEMIES.bossPool[0]]; // The Echo
+               } else {
+                 return [SHADOW_ENEMIES.bossPool[1]]; // The Shapeshifter
+               }
+             })()
              : ENEMIES.bossPool;
     var bossTemplate = pool[Math.floor(Math.random() * pool.length)];
     // Show boss preview before spawning
@@ -14058,7 +14070,7 @@ function startCombat(isBoss) {
       isShapeshifter: bossTemplate.isShapeshifter || false,
       isEcho:     bossTemplate.isEcho     || false,
     };
-    // Shapeshifter — 4 phase boss, announce dramatically
+    // Shadow World — Shapeshifter needs 4 phases, announce dramatically
     if (bossTemplate.isShapeshifter) {
       DS.enemy.fourPhase = true;
       DS.enemy.phase3Hp = Math.round(_bossHp * 0.15);
@@ -14067,8 +14079,16 @@ function startCombat(isBoss) {
         say('The Shapeshifter. It looks exactly like you. Same class, same level, same weapon. This is the final boss of The Shadow World.');
       }, 800);
     }
-    // Echo boss — announce as copy of a fallen enemy
+    // Echo boss — when defeated, spawn Shapeshifter next
     if (bossTemplate.isEcho) {
+      DS.enemy._onDeathCallback = function() {
+        DS._shadowEchoDefeated = true;
+        setTimeout(function() {
+          addLog('🌑 The Echo falls. But something else stirs in the darkness...');
+          say('The Echo is defeated. Something darker takes its place.');
+          setTimeout(function() { startCombat(true); }, 2000);
+        }, 1000);
+      };
       setTimeout(function() {
         addLog('🔄 The Echo takes shape — a memory of something you defeated. It has learned from your methods.');
         say('The Echo. A shadow copy of an enemy you defeated. It remembers the fight. It will not make the same mistakes.');
@@ -15027,6 +15047,16 @@ function sanitizeGold() {
 function enemyDead() {
   var e = DS.enemy;
   try { resetGunState(); } catch(e2) {}
+
+  // Shadow World — _onDeathCallback (Echo → Shapeshifter sequence)
+  if (e && e._onDeathCallback) {
+    var cb = e._onDeathCallback;
+    e._onDeathCallback = null;
+    DS.enemy = null;
+    DS.inCombat = false;
+    cb();
+    return;
+  }
 
   // Shadow World — Twice Dead mechanic
   if (DS.dungeon === 'The Shadow World' && e && e.twiceDead && !e._diedOnce) {
@@ -28168,6 +28198,7 @@ var STORIES = [
     author: 'Leo — Dungeon Descent',
     version: 'v1.3',
     dungeon: 'All Dungeons',
+    audio: 'ElevenLabs_2026-09-07T17_37_50_Brian_-_Deep__Resonant_and_Comforting_eleven_multilingual_v2.mp3',
     excerpt: 'The Wandering Merchant speaks. He has seen things between the floors.',
     body: [
       'You want to know how I do it. How I survive down here, selling potions between the floors of the worst places in the known world. Fair question. I have been asked it many times by people who did not survive long enough to hear the answer.',
@@ -28185,6 +28216,7 @@ var STORIES = [
     author: 'Unknown — found scratched into the wall of the Nightmare',
     version: 'v2.7',
     dungeon: 'Nightmare',
+    audio: 'ElevenLabs_2026-09-07T17_57_39_Brian_-_Deep__Resonant_and_Comforting_eleven_multilingual_v2.mp3',
     excerpt: 'It was not always a wraith. Before the void, it was something else.',
     body: [
       'It does not remember its name.',
@@ -28212,6 +28244,7 @@ var STORIES = [
     author: 'The Grand Council of Dungeon Descent Incorporated — Third Age, Year 1',
     version: 'v2.7',
     dungeon: 'All Dungeons',
+    audio: 'ElevenLabs_2026-09-07T18_47_03_Brian_-_Deep__Resonant_and_Comforting_eleven_multilingual_v2.mp3',
     excerpt: 'A legal document. Binding. Non-negotiable. 359 million years of jurisdiction.',
     body: [
       'PREAMBLE',
@@ -29145,23 +29178,74 @@ function openStory(story) {
   document.getElementById('story-reader-meta').textContent = story.dungeon + ' · ' + story.version + ' · By ' + story.author;
   var bodyHtml = story.body.map(function(p){ return '<p>' + p + '</p>'; }).join('');
   document.getElementById('story-reader-body').innerHTML = bodyHtml;
+
+  // Audio narration player — shows only if story has audio
+  var audioSection = document.getElementById('story-audio-section');
+  if (audioSection) {
+    if (story.audio) {
+      audioSection.style.display = '';
+      audioSection.innerHTML =
+        '<div style="font-family:Cinzel,serif;font-size:0.62rem;color:var(--gold-dim);letter-spacing:0.2em;margin-bottom:8px;">🎙 NARRATED BY BRIAN</div>' +
+        '<div style="display:flex;align-items:center;gap:10px;">' +
+          '<button onclick="storyAudioPlay()" id="story-audio-play-btn" style="padding:8px 16px;background:#0a0800;border:1px solid var(--gold);color:var(--gold);font-family:Cinzel,serif;font-size:0.72rem;cursor:pointer;" aria-label="Play narration">▶ Listen</button>' +
+          '<button onclick="storyAudioStop()" style="padding:8px 12px;background:#0a0800;border:1px solid #444;color:#666;font-family:Cinzel,serif;font-size:0.72rem;cursor:pointer;" aria-label="Stop narration">■ Stop</button>' +
+          '<span id="story-audio-status" style="font-family:Cinzel,serif;font-size:0.62rem;color:#555;"></span>' +
+        '</div>';
+      window._storyAudioUrl = _audioUrl(story.audio);
+      window._storyAudioEl = null;
+    } else {
+      audioSection.style.display = 'none';
+      window._storyAudioUrl = null;
+    }
+  }
+
   document.getElementById('story-overlay').classList.add('open');
-  say('Reading: ' + story.title + '. ' + story.body[0] + ' Press Back to Library when done.');
-  setTimeout(function(){ document.querySelector('#story-overlay .btn-close').focus(); },60);
+  say('Reading: ' + story.title + (story.audio ? '. Audio narration available — press Listen to hear Brian read this story.' : '') + '. ' + story.body[0] + ' Press Back to Library when done.');
+  setTimeout(function(){ document.querySelector('#story-overlay .btn-close').focus(); }, 60);
   // Track story read for achievements
   var readKey = 'dd_story_' + story.id;
   if (!DDStore.getItem(readKey)) {
     DDStore.setItem(readKey, '1');
     incrementAchievementStat('storiesRead', 1);
-    // Track individual story for specific achievements
     var statKey = 'storyRead_' + story.id;
     updateAchievementStat(statKey, 1);
     checkAchievements();
   }
 }
 
+function storyAudioPlay() {
+  try {
+    if (window._storyAudioEl) { window._storyAudioEl.pause(); window._storyAudioEl.currentTime = 0; }
+    window._storyAudioEl = new Audio(window._storyAudioUrl);
+    window._storyAudioEl.volume = AUD ? (AUD.sfxVol || 0.8) : 0.8;
+    var status = document.getElementById('story-audio-status');
+    var btn = document.getElementById('story-audio-play-btn');
+    if (status) status.textContent = 'Playing...';
+    if (btn) btn.textContent = '▶ Playing';
+    window._storyAudioEl.onended = function() {
+      if (status) status.textContent = 'Done';
+      if (btn) btn.textContent = '▶ Listen';
+    };
+    window._storyAudioEl.play().catch(function(e){ if (status) status.textContent = 'Could not play.'; });
+  } catch(e) { console.warn('[DD] Story audio error:', e); }
+}
+
+function storyAudioStop() {
+  if (window._storyAudioEl) {
+    window._storyAudioEl.pause();
+    window._storyAudioEl.currentTime = 0;
+  }
+  var status = document.getElementById('story-audio-status');
+  var btn = document.getElementById('story-audio-play-btn');
+  if (status) status.textContent = '';
+  if (btn) btn.textContent = '▶ Listen';
+  say('Narration stopped.');
+}
+
 function closeStoryReader() {
   document.getElementById('story-overlay').classList.remove('open');
+  // Stop narration if playing
+  if (window._storyAudioEl) { window._storyAudioEl.pause(); window._storyAudioEl = null; }
   say('Story closed. Back to library.');
 }
 
@@ -31775,6 +31859,8 @@ var BOSS_INTROS = {
   'The Drowned God':        'It was worshipped once. Then the sea rose. It is still waiting for the prayers to resume.',
   'The Abyssal Crown':      'Something at the bottom of everything decided it wanted to be in charge.',
   'The Deep Archivist':     'It has catalogued every creature that ever drowned. You are about to become an entry.',
+  'The Echo':               'A perfect copy of something you already killed this run. It remembers every mistake you made. It will not repeat them.',
+  'The Shapeshifter':       'It has waited 3000 years for someone worth copying. It wears your face now. Uses your weapon. Knows every move before you make it. You are fighting yourself. And yourself is very good at this.',
 };
 
 function showBossPreview(bossTemplate) {
@@ -31812,7 +31898,8 @@ function showBossPreview(bossTemplate) {
   }
   var lvl = DS.level || 1;
   var bossHp = Math.round(bossTemplate.hp * (1 + (lvl-1) * 0.15));
-  bpExtra.innerHTML = '<div style="font-family:Cinzel,serif;font-size:0.68rem;color:#cc4444;margin-bottom:14px;">HP: ' + bossHp + ' — 3 Phases — Grows stronger each phase</div>' +
+  var phaseCount = (bossTemplate.isShapeshifter || bossTemplate.fourPhase) ? '4 Phases' : '3 Phases';
+  bpExtra.innerHTML = '<div style="font-family:Cinzel,serif;font-size:0.68rem;color:#cc4444;margin-bottom:14px;">HP: ' + bossHp + ' — ' + phaseCount + ' — Grows stronger each phase</div>' +
     '<button type="button" onclick="dismissBossPreview()" style="padding:12px 28px;background:#1a0000;border:2px solid #cc0000;color:#ff6644;font-family:Cinzel,serif;font-size:0.8rem;cursor:pointer;" aria-label="Face the boss">⚔ Face It</button>';
 
   overlay.classList.add('open');
@@ -39189,12 +39276,25 @@ function renderMusicPlayer() {
   var player = document.createElement('div');
   player.className = 'music-player';
   player.innerHTML =
-    '<div class="mp-now-playing">NOW PLAYING</div>' +
-    '<div class="mp-track-name" id="mp-track-name">Select a track below</div>' +
+    '<div class="mp-now-playing" aria-live="polite">NOW PLAYING</div>' +
+    '<div class="mp-track-name" id="mp-track-name" aria-live="polite">Select a track below</div>' +
     '<div class="mp-controls">' +
+      '<button class="mp-btn" onclick="mpPrev()" aria-label="Previous track">⏮</button>' +
       '<button class="mp-btn" onclick="mpPlay()" aria-label="Play selected track">▶ Play</button>' +
       '<button class="mp-btn" onclick="mpStop()" aria-label="Stop music">■ Stop</button>' +
-      '<button class="mp-btn" id="mp-loop-btn" onclick="toggleMusicLoop()" aria-label="Loop all songs, currently off" aria-pressed="false">🔁 Loop All: Off</button>' +
+      '<button class="mp-btn" onclick="mpNext()" aria-label="Next track">⏭</button>' +
+    '</div>' +
+    '<div class="mp-controls" style="margin-bottom:8px;">' +
+      '<button class="mp-btn" id="mp-loop-btn" onclick="toggleMusicLoop()" aria-label="Loop all songs, currently off" aria-pressed="false">🔁 Loop: Off</button>' +
+      '<button class="mp-btn" id="mp-shuffle-btn" onclick="toggleMpShuffle()" aria-label="Shuffle, currently off" aria-pressed="false">🔀 Shuffle: Off</button>' +
+    '</div>' +
+    '<div style="display:flex;align-items:center;gap:10px;padding:0 2px;margin-bottom:4px;">' +
+      '<span style="font-family:Cinzel,serif;font-size:0.6rem;color:var(--text-dim);">🔈</span>' +
+      '<input type="range" id="mp-volume-slider" min="0" max="100" value="' + Math.round((AUD.musicVol || 0.5) * 100) + '" ' +
+        'style="flex:1;accent-color:var(--gold);" aria-label="Music volume" ' +
+        'oninput="mpSetVolume(this.value)">' +
+      '<span style="font-family:Cinzel,serif;font-size:0.6rem;color:var(--text-dim);">🔊</span>' +
+      '<span id="mp-vol-pct" style="font-family:Cinzel,serif;font-size:0.6rem;color:var(--gold-dim);min-width:32px;">' + Math.round((AUD.musicVol || 0.5) * 100) + '%</span>' +
     '</div>';
   panel.appendChild(player);
 
@@ -39211,6 +39311,9 @@ function renderMusicPlayer() {
     section.className = 'mp-section';
     var title = document.createElement('div');
     title.className = 'mp-section-title';
+    title.setAttribute('role', 'heading');
+    title.setAttribute('aria-level', '2');
+    title.setAttribute('aria-label', dungeon + ' tracks');
     title.textContent = dungeon.toUpperCase();
     section.appendChild(title);
 
@@ -39233,6 +39336,8 @@ function renderMusicPlayer() {
   mySection.className = 'mp-section';
   var myTitle = document.createElement('div');
   myTitle.className = 'mp-section-title';
+  myTitle.setAttribute('role', 'heading');
+  myTitle.setAttribute('aria-level', '2');
   myTitle.textContent = 'MY TRACKS';
   mySection.appendChild(myTitle);
   var myTracksDiv = document.createElement('div');
@@ -39242,7 +39347,8 @@ function renderMusicPlayer() {
   panel.appendChild(mySection);
   renderMyTracks();
 
-  say('Music Player. ' + MUSIC_CATALOGUE.length + ' tracks available. Select a track then press Play. My Tracks section at the bottom shows your saved custom tracks.');
+  var sectionNames = order.join(', ');
+  say('Music Player. ' + MUSIC_CATALOGUE.length + ' tracks available across ' + order.length + ' sections: ' + sectionNames + '. Select a track then press Play.');
 }
 
 
@@ -39316,6 +39422,61 @@ function mpPlay() {
   } catch(e) {
     say('Audio error: ' + e.message);
   }
+}
+
+var _mpShuffle = false;
+
+function toggleMpShuffle() {
+  _mpShuffle = !_mpShuffle;
+  var btn = document.getElementById('mp-shuffle-btn');
+  if (btn) {
+    btn.textContent = '🔀 Shuffle: ' + (_mpShuffle ? 'On' : 'Off');
+    btn.classList.toggle('active', _mpShuffle);
+    btn.setAttribute('aria-pressed', String(_mpShuffle));
+  }
+  say('Shuffle ' + (_mpShuffle ? 'on' : 'off') + '.');
+}
+
+function mpNext() {
+  var keys = MUSIC_CATALOGUE.map(function(t){ return t.key; });
+  if (!keys.length) return;
+  if (_mpShuffle) {
+    var idx = Math.floor(Math.random() * keys.length);
+    mpSelect(keys[idx]);
+    return;
+  }
+  var cur = keys.indexOf(_mpCurrentKey);
+  var next = (cur + 1) % keys.length;
+  mpSelect(keys[next]);
+}
+
+function mpPrev() {
+  var keys = MUSIC_CATALOGUE.map(function(t){ return t.key; });
+  if (!keys.length) return;
+  var cur = keys.indexOf(_mpCurrentKey);
+  var prev = (cur - 1 + keys.length) % keys.length;
+  mpSelect(keys[prev]);
+}
+
+function mpSetVolume(val) {
+  var vol = parseInt(val) / 100;
+  if (AUD) {
+    AUD.musicVol = vol;
+    if (AUD.musicGain) AUD.musicGain.gain.setValueAtTime(vol, AUD.ctx ? AUD.ctx.currentTime : 0);
+    saveAudioPrefs();
+  }
+  var pct = document.getElementById('mp-vol-pct');
+  if (pct) pct.textContent = Math.round(vol * 100) + '%';
+}
+
+function mpUpdateNowPlaying() {
+  // Auto-update the now playing display when game music changes
+  var nameEl = document.getElementById('mp-track-name');
+  if (!nameEl) return;
+  var current = AUD && AUD.current;
+  if (!current || _mpPlaying) return; // don't overwrite if player is active
+  var track = MUSIC_CATALOGUE.find(function(t){ return t.key === current; });
+  if (track) nameEl.textContent = '♪ ' + track.label;
 }
 
 function mpStop() {
