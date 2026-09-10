@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Support — Dungeon Descent</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0008;
+      --bg2: #110010;
+      --border: #2a1a33;
+      --purple: #9966cc;
+      --purple-light: #cc88ff;
+      --purple-dim: #663399;
+      --text: #cbb8d8;
+      --text-dim: #7a6a88;
+      --gold: #c8a84b;
+      --good: #4a9a6a;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-weight: 300;
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+
+    /* NAV */
+    nav {
+      border-bottom: 1px solid var(--border);
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-logo {
+      font-family: 'Cinzel', serif;
+      font-size: 1rem;
+      color: var(--purple-light);
+      text-decoration: none;
+      letter-spacing: 0.05em;
+    }
+
+    .nav-back {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .nav-back:hover { color: var(--purple-light); }
+
+    /* HERO */
+    .hero {
+      text-align: center;
+      padding: 64px 24px 48px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .hero-icon {
+      font-size: 2.5rem;
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    h1 {
+      font-family: 'Cinzel', serif;
+      font-size: clamp(1.6rem, 5vw, 2.4rem);
+      color: var(--purple-light);
+      font-weight: 400;
+      margin-bottom: 12px;
+      letter-spacing: 0.03em;
+    }
+
+    .hero p {
+      color: var(--text-dim);
+      font-size: 0.95rem;
+      max-width: 440px;
+      margin: 0 auto;
+    }
+
+    /* LAYOUT */
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* SECTION TITLES */
+    .section-title {
+      font-family: 'Cinzel', serif;
+      font-size: 0.85rem;
+      color: var(--gold);
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      margin-bottom: 24px;
+      margin-top: 56px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* FAQ */
+    .faq-item {
+      border-bottom: 1px solid var(--border);
+    }
+
+    .faq-question {
+      width: 100%;
+      background: none;
+      border: none;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 500;
+      text-align: left;
+      padding: 18px 0;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .faq-question:hover { color: var(--purple-light); }
+
+    .faq-arrow {
+      color: var(--purple-dim);
+      font-size: 0.75rem;
+      transition: transform 0.25s;
+      flex-shrink: 0;
+    }
+
+    .faq-item.open .faq-arrow { transform: rotate(180deg); }
+
+    .faq-answer {
+      display: none;
+      padding-bottom: 18px;
+      color: var(--text-dim);
+      font-size: 0.875rem;
+      line-height: 1.75;
+    }
+
+    .faq-item.open .faq-answer { display: block; }
+
+    .faq-answer a {
+      color: var(--purple-light);
+      text-decoration: none;
+    }
+
+    .faq-answer a:hover { text-decoration: underline; }
+
+    /* CONTACT FORM */
+    .contact-form {
+      margin-bottom: 64px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+      letter-spacing: 0.02em;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.875rem;
+      padding: 12px 14px;
+      outline: none;
+      transition: border-color 0.2s;
+      -webkit-appearance: none;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--purple-dim);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 130px;
+    }
+
+    select option { background: #1a0a22; }
+
+    .submit-btn {
+      background: var(--purple-dim);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-family: 'Cinzel', serif;
+      font-size: 0.85rem;
+      letter-spacing: 0.06em;
+      padding: 14px 32px;
+      cursor: pointer;
+      transition: background 0.2s;
+      width: 100%;
+      margin-top: 4px;
+    }
+
+    .submit-btn:hover { background: var(--purple); }
+
+    .success-msg {
+      display: none;
+      background: #0a1f12;
+      border: 1px solid var(--good);
+      border-radius: 6px;
+      color: #6dd49a;
+      padding: 16px;
+      font-size: 0.875rem;
+      margin-top: 16px;
+      text-align: center;
+    }
+
+    .error-msg {
+      display: none;
+      background: #1a0a0a;
+      border: 1px solid #663333;
+      border-radius: 6px;
+      color: #cc6666;
+      padding: 16px;
+      font-size: 0.875rem;
+      margin-top: 16px;
+      text-align: center;
+    }
+
+    /* FOOTER */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 24px;
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--text-dim);
+    }
+
+    footer a { color: var(--purple-dim); text-decoration: none; }
+    footer a:hover { color: var(--purple-light); }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a href="https://dungeon-descent.org" class="nav-logo">Dungeon Descent</a>
+    <a href="https://dungeon-descent.org" class="nav-back">← Back to game</a>
+  </nav>
+
+  <div class="hero">
+    <span class="hero-icon">⚔️</span>
+    <h1>Support</h1>
+    <p>Running into something? Check the FAQ below or send a message and we'll get back to you.</p>
+  </div>
+
+  <div class="container">
+
+    <p class="section-title">Frequently Asked Questions</p>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)" aria-expanded="false">
+        My progress disappeared. What happened?
+        <span class="faq-arrow">▼</span>
+      </button>
+      <div class="faq-answer">
+        Progress is saved to your device and your Google account if you're signed in. If you cleared your browser data or reinstalled the app, local saves may be lost. Sign in with Google before starting a run to keep your progress backed up across devices.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)" aria-expanded="false">
+        The game isn't loading or is stuck on the loading screen.
+        <span class="faq-arrow">▼</span>
+      </button>
+      <div class="faq-answer">
+        Try refreshing the page or restarting the app. If you're on the web version, clearing your browser cache usually fixes loading issues. Make sure you have a stable internet connection — some game assets load from the server on first launch.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)" aria-expanded="false">
+        Sound or music isn't playing.
+        <span class="faq-arrow">▼</span>
+      </button>
+      <div class="faq-answer">
+        Check that your device isn't on silent mode and that volume is turned up. On iOS, make sure the mute switch on the side of your phone is off. In-game, tap the music icon in the top bar to open the music player and make sure a track is selected.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)" aria-expanded="false">
+        Achievements aren't unlocking or syncing.
+        <span class="faq-arrow">▼</span>
+      </button>
+      <div class="faq-answer">
+        Achievements require an active internet connection to sync. Make sure you're signed in with Google. On iOS, Game Center must be enabled in your device settings. If an achievement still doesn't unlock after meeting the requirement, try restarting the app — it will re-check your progress on next launch.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)" aria-expanded="false">
+        I made a purchase but didn't receive the gems.
+        <span class="faq-arrow">▼</span>
+      </button>
+      <div class="faq-answer">
+        If your purchase went through but gems didn't appear, go to the shop and tap "Restore Purchases." This re-applies any completed transactions. If the problem persists, contact us below with your order confirmation number and we'll sort it out.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)" aria-expanded="false">
+        How does VoiceOver / TalkBack accessibility work?
+        <span class="faq-arrow">▼</span>
+      </button>
+      <div class="faq-answer">
+        Dungeon Descent is built with accessibility as a core feature, not an afterthought. Every button, combat action, enemy stat, and inventory item is labeled for screen readers. On iOS, VoiceOver is automatically detected and the game switches to native speech output. On Android, TalkBack works through the standard accessibility layer. If something isn't reading correctly, let us know exactly what it is and we'll fix it.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)" aria-expanded="false">
+        How do I unlock The Shadow World?
+        <span class="faq-arrow">▼</span>
+      </button>
+      <div class="faq-answer">
+        The Shadow World is the 9th dungeon and unlocks after completing The Abyssal Deep. Reach the final floor of The Abyssal Deep and defeat its boss — The Shadow World will appear on the dungeon selection screen after that run ends.
+      </div>
+    </div>
+
+    <div class="faq-item" style="border-bottom:none;">
+      <button class="faq-question" onclick="toggleFaq(this)" aria-expanded="false">
+        I found a bug or want to suggest a feature.
+        <span class="faq-arrow">▼</span>
+      </button>
+      <div class="faq-answer">
+        Use the contact form below! Bug reports are especially helpful when you include what dungeon you were in, what floor, and what happened. Feature suggestions are always welcome — this game is built by one developer and player feedback genuinely shapes what gets added.
+      </div>
+    </div>
+
+    <p class="section-title">Contact Us</p>
+
+    <div class="contact-form">
+      <form id="support-form" action="https://formspree.io/f/mkjnkenn" method="POST">
+        <div class="form-group">
+          <label for="name">Your name</label>
+          <input type="text" id="name" name="name" placeholder="What should we call you?" required>
+        </div>
+        <div class="form-group">
+          <label for="email">Your email</label>
+          <input type="email" id="email" name="email" placeholder="So we can reply" required>
+        </div>
+        <div class="form-group">
+          <label for="platform">Platform</label>
+          <select id="platform" name="platform">
+            <option value="">Select platform</option>
+            <option>iOS (App Store)</option>
+            <option>Android (Google Play)</option>
+            <option>Android (Galaxy Store)</option>
+            <option>Web browser</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="subject">What's the issue?</label>
+          <select id="subject" name="subject">
+            <option value="">Select a topic</option>
+            <option>Progress / save data</option>
+            <option>Purchase / gems</option>
+            <option>Bug report</option>
+            <option>Accessibility issue</option>
+            <option>Feature suggestion</option>
+            <option>Something else</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="message">Details</label>
+          <textarea id="message" name="message" placeholder="Describe what happened. The more detail the better — dungeon, floor, what you were doing." required></textarea>
+        </div>
+        <input type="hidden" name="_replyto" value="support@dungen-descent.org">
+        <button type="submit" class="submit-btn">Send Message</button>
+      </form>
+      <div class="success-msg" id="success-msg">✅ Message sent. We'll get back to you as soon as possible.</div>
+      <div class="error-msg" id="error-msg">Something went wrong. Try emailing us directly at <a href="mailto:support@dungen-descent.org">support@dungen-descent.org</a></div>
+    </div>
+
+  </div>
+
+  <footer>
+    <p>Dungeon Descent · Built by <a href="https://dungeon-descent.org">Leo Productions</a> · <a href="mailto:support@dungen-descent.org">support@dungen-descent.org</a></p>
+  </footer>
+
+  <script>
+    function toggleFaq(btn) {
+      var item = btn.closest('.faq-item');
+      var isOpen = item.classList.contains('open');
+      document.querySelectorAll('.faq-item.open').forEach(function(el) {
+        el.classList.remove('open');
+        el.querySelector('.faq-question').setAttribute('aria-expanded', 'false');
+      });
+      if (!isOpen) {
+        item.classList.add('open');
+        btn.setAttribute('aria-expanded', 'true');
+      }
+    }
+
+    var form = document.getElementById('support-form');
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      var btn = form.querySelector('.submit-btn');
+      btn.textContent = 'Sending...';
+      btn.disabled = true;
+      fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form),
+        headers: { 'Accept': 'application/json' }
+      }).then(function(r) {
+        if (r.ok) {
+          form.style.display = 'none';
+          document.getElementById('success-msg').style.display = 'block';
+        } else {
+          btn.textContent = 'Send Message';
+          btn.disabled = false;
+          document.getElementById('error-msg').style.display = 'block';
+        }
+      }).catch(function() {
+        btn.textContent = 'Send Message';
+        btn.disabled = false;
+        document.getElementById('error-msg').style.display = 'block';
+      });
+    });
+  </script>
+
+</body>
+</html>
