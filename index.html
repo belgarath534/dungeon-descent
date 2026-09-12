@@ -15893,18 +15893,33 @@ function initStalkerFloor() {
   _stalkerActive = true;
   _stalkerEscapes = 0;
   _stalkerCaught = false;
+  DS.inCombat = false; // prevent enemy attacks during stalker
   _stalkerGrid.playerX = 2;
   _stalkerGrid.playerY = 2;
   var edges = [{x:0,y:0},{x:4,y:0},{x:0,y:4},{x:4,y:4},{x:2,y:0},{x:2,y:4},{x:0,y:2},{x:4,y:2}];
   var startEdge = edges[Math.floor(Math.random() * edges.length)];
   _stalkerGrid.enemyX = startEdge.x;
   _stalkerGrid.enemyY = startEdge.y;
+  // Stop ALL audio — current source, ambient, howler, HTML audio
   if (AUD && AUD.currentSource) { try { AUD.currentSource.stop(); } catch(e) {} AUD.currentSource = null; }
-  setTimeout(function() { playTrack('shadow-stalker'); }, 600);
+  if (AUD && AUD.ambientSource) { try { AUD.ambientSource.stop(); } catch(e) {} AUD.ambientSource = null; }
+  if (typeof _howlMusic !== 'undefined' && _howlMusic) { try { _howlMusic.stop(); } catch(e) {} _howlMusic = null; }
+  if (AUD && AUD.current && AUD.tracks && AUD.tracks[AUD.current]) {
+    try { AUD.tracks[AUD.current].pause(); AUD.tracks[AUD.current].currentTime = 0; } catch(e) {}
+  }
+  // Force AUD.current to a different value so playTrack doesn't skip it
+  AUD.current = '__stalker_reset__';
+  // Hide dungeon panels so no enemies can spawn
+  showDgPanels(false, false, false);
+  // Start stalker music after short delay
+  setTimeout(function() {
+    AUD.current = null; // clear so playTrack runs fresh
+    playTrack('shadow-stalker');
+  }, 800);
   showStalkerUI();
   updateStalkerDisplay();
-  // Start looping growl
-  setTimeout(function() { startGrowlLoop(); }, 1000);
+  // Start looping growl after music starts
+  setTimeout(function() { startGrowlLoop(); }, 1500);
   say('Something stirs in the darkness. The music shifts. Move carefully — the Darkness Swallower is somewhere in this room with you. It is ' + getStalkerDistance() + ' step' + (getStalkerDistance() !== 1 ? 's' : '') + ' away. Move north, south, east, or west to reach the exit.');
 }
 
@@ -15916,26 +15931,29 @@ function playSwallowerFootstep() {
     var dir = getStalkerDirection();
     var dist = getStalkerDistance();
     var vol = Math.max(0.1, 1 - (dist * 0.12));
-    var panner = AUD.ctx.createPanner();
-    panner.panningModel = 'equalpower';
+    var panValue = 0;
     switch(dir) {
-      case 'left':   panner.setPosition(-3, 0, -1); break;
-      case 'right':  panner.setPosition(3, 0, -1);  break;
-      case 'ahead':  panner.setPosition(0, 0, -3);  break;
-      case 'behind': panner.setPosition(0, 0, 3);   break;
-      default:       panner.setPosition(0, 0, -2);  break;
+      case 'left':   panValue = -0.8; break;
+      case 'right':  panValue = 0.8;  break;
+      default:       panValue = 0;    break;
     }
     var gainNode = AUD.ctx.createGain();
     gainNode.gain.value = vol * (AUD.sfxVol || 0.8);
-    panner.connect(gainNode);
-    gainNode.connect(AUD.ctx.destination);
+    if (AUD.ctx.createStereoPanner) {
+      var panner = AUD.ctx.createStereoPanner();
+      panner.pan.value = panValue;
+      gainNode.connect(panner);
+      panner.connect(AUD.ctx.destination);
+    } else {
+      gainNode.connect(AUD.ctx.destination);
+    }
     fetch(_audioUrl('monster-footstep.mp3')).then(function(r){ return r.arrayBuffer(); }).then(function(buf){
       return AUD.ctx.decodeAudioData(buf);
     }).then(function(buffer){
       if (!_stalkerActive) return;
       var source = AUD.ctx.createBufferSource();
       source.buffer = buffer;
-      source.connect(panner);
+      source.connect(gainNode);
       source.start(0);
     }).catch(function(e){ console.warn('[DD] Swallower footstep failed:', e); });
   } catch(e) { console.warn('[DD] playSwallowerFootstep error:', e); }
@@ -15948,32 +15966,36 @@ function startGrowlLoop() {
     if (AUD.ctx.state === 'suspended') AUD.ctx.resume();
     var dir = getStalkerDirection();
     var dist = getStalkerDistance();
-    var vol = Math.max(0.15, 1 - (dist * 0.15));
-    // Create nodes
-    var panner = AUD.ctx.createPanner();
-    panner.panningModel = 'equalpower';
+    var vol = Math.max(0.2, 1 - (dist * 0.15));
+    // Use StereoPannerNode — works reliably on iOS with headphones
+    var panner = AUD.ctx.createStereoPanner ? AUD.ctx.createStereoPanner() : null;
+    var panValue = 0;
     switch(dir) {
-      case 'left':   panner.setPosition(-3, 0, -1); break;
-      case 'right':  panner.setPosition(3, 0, -1);  break;
-      case 'ahead':  panner.setPosition(0, 0, -3);  break;
-      case 'behind': panner.setPosition(0, 0, 3);   break;
-      default:       panner.setPosition(0, 0, -2);  break;
+      case 'left':   panValue = -0.8; break;
+      case 'right':  panValue = 0.8;  break;
+      case 'ahead':  panValue = 0;    break;
+      case 'behind': panValue = 0;    break;
+      default:       panValue = 0;    break;
     }
+    if (panner) panner.pan.value = panValue;
     var gainNode = AUD.ctx.createGain();
     gainNode.gain.value = vol * (AUD.sfxVol || 0.8);
-    panner.connect(gainNode);
-    gainNode.connect(AUD.ctx.destination);
-    _stalkerGrowlPanner = panner;
+    if (panner) {
+      gainNode.connect(panner);
+      panner.connect(AUD.ctx.destination);
+    } else {
+      gainNode.connect(AUD.ctx.destination);
+    }
     _stalkerGrowlGain = gainNode;
-    var growlUrl = _audioUrl('monster-growl.mp3');
-    fetch(growlUrl).then(function(r){ return r.arrayBuffer(); }).then(function(buf){
+    _stalkerGrowlPanner = panner;
+    fetch(_audioUrl('monster-growl.mp3')).then(function(r){ return r.arrayBuffer(); }).then(function(buf){
       return AUD.ctx.decodeAudioData(buf);
     }).then(function(buffer){
       if (!_stalkerActive) return;
       var source = AUD.ctx.createBufferSource();
       source.buffer = buffer;
       source.loop = true;
-      source.connect(panner);
+      source.connect(gainNode);
       source.start(0);
       _stalkerGrowlSource = source;
     }).catch(function(e){ console.warn('[DD] Growl loop failed:', e); });
@@ -15981,17 +16003,17 @@ function startGrowlLoop() {
 }
 
 function updateGrowlPosition() {
-  if (!_stalkerActive || !_stalkerGrowlPanner) return;
+  if (!_stalkerActive) return;
   var dir = getStalkerDirection();
   var dist = getStalkerDistance();
-  var vol = Math.max(0.15, 1 - (dist * 0.15));
+  var vol = Math.max(0.2, 1 - (dist * 0.15));
   try {
-    switch(dir) {
-      case 'left':   _stalkerGrowlPanner.setPosition(-3, 0, -1); break;
-      case 'right':  _stalkerGrowlPanner.setPosition(3, 0, -1);  break;
-      case 'ahead':  _stalkerGrowlPanner.setPosition(0, 0, -3);  break;
-      case 'behind': _stalkerGrowlPanner.setPosition(0, 0, 3);   break;
-      default:       _stalkerGrowlPanner.setPosition(0, 0, -2);  break;
+    if (_stalkerGrowlPanner && _stalkerGrowlPanner.pan) {
+      switch(dir) {
+        case 'left':   _stalkerGrowlPanner.pan.value = -0.8; break;
+        case 'right':  _stalkerGrowlPanner.pan.value = 0.8;  break;
+        default:       _stalkerGrowlPanner.pan.value = 0;     break;
+      }
     }
     if (_stalkerGrowlGain) _stalkerGrowlGain.gain.value = vol * (AUD.sfxVol || 0.8);
   } catch(e) {}
@@ -51253,24 +51275,7 @@ function spireReturnToMenu() {
     <button type="button" onclick="dismissV112Popup()" style="width:100%;padding:14px;background:#0a0008;border:2px solid #9966cc;color:#cc88ff;font-family:Cinzel,serif;font-size:0.8rem;cursor:pointer;letter-spacing:0.1em;" aria-label="Got it — enter the Shadow World">🌑 Enter the Shadow. Descend.</button>
   </div>
 </div>
-  <div style="max-width:420px;width:100%;background:#080808;border:2px solid #9966cc;padding:28px;text-align:center;max-height:90vh;overflow-y:auto;">
-    <div style="font-size:1.6rem;margin-bottom:12px;" aria-hidden="true">🌑</div>
-    <div style="font-family:Cinzel,serif;font-size:0.6rem;letter-spacing:0.4em;color:#9966cc;text-transform:uppercase;margin-bottom:8px;">Version 11.1</div>
-    <h2 style="font-family:Cinzel,serif;font-size:1.1rem;color:#cc88ff;margin-bottom:6px;">The Shadow World Update</h2>
-    <div style="width:50px;height:1px;background:linear-gradient(90deg,transparent,#9966cc,transparent);margin:0 auto 20px;"></div>
-    <div style="text-align:left;font-family:Cinzel,serif;font-size:0.7rem;color:#888;line-height:1.9;margin-bottom:20px;">
-      <div style="color:#9966cc;margin-bottom:6px;">🌑 The Shadow World — 9th Dungeon</div>
-      It has existed for 3000 years beneath a cursed forest. 14 enemies. Shadow corruption mechanic. The Shapeshifter boss — wearing your face, using your skills. Unlocks after The Abyssal Deep.<br><br>
-      <div style="color:#9966cc;margin-bottom:6px;">🌑 The Void Reaper — Now on RTDB</div>
-      The Global Void Reaper is now fully rebuilt on Firebase Realtime Database. Shared HP pool. All players worldwide chip away at the same boss. Persistent across sessions.<br><br>
-      <div style="color:#9966cc;margin-bottom:6px;">📱 iOS — Major Improvements</div>
-      Audio overlap fixed. Startup audio unlocks on first touch. Screen transitions faster. VoiceOver detection via native plugin. Shake to attack fixed. Notifications overhauled with proper scheduling. Custom notification sound.<br><br>
-      <div style="color:#9966cc;margin-bottom:6px;">🔔 Notification Preferences</div>
-      New Notifications tab in Settings. Choose exactly what the game notifies you about — daily dungeon, streak, night mode, weekly events, seasonal events, and more.<br><br>
-      <div style="color:#555;font-size:0.62rem;">+ Corruption stack system, Shadow World ambush (echoes of the dead), Shapeshifter 4-phase boss, Void Weaver web mechanic, Twice Dead, Lurker, Mimic surprise, Sorrow Hound fear, duplicate weapon prevention, scroll use fix, Void Reaper date persistence fix, and many more bug fixes.</div>
-    </div>
-    <button type="button" onclick="dismissV111Popup()" style="width:100%;padding:14px;background:#0a0008;border:2px solid #9966cc;color:#cc88ff;font-family:Cinzel,serif;font-size:0.8rem;cursor:pointer;letter-spacing:0.1em;" aria-label="Got it — enter the Shadow World">🌑 Enter the Shadow. Descend.</button>
-  </div>
+<!-- v11.1 popup removed - superseded by v11.2 popup -->
 </div>
 
 <div id="v110-popup" role="dialog" aria-modal="true" aria-label="Version 11.0 update" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:99005;align-items:center;justify-content:center;padding:20px;">
