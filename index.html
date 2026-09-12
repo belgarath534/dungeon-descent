@@ -1739,7 +1739,7 @@ var DDStore = (function() {
     <!-- Title -->
     <div class="loading-title" data-i18n="game-title" style="font-size:2.4rem;line-height:1.1;margin-bottom:6px;">Dungeon<br>Descent</div>
     <div class="loading-sub" data-i18n="game-subtitle" style="margin-bottom:6px;">Into the dark. Again.</div>
-    <div style="font-family:Cinzel,serif;font-size:0.58rem;color:#333;letter-spacing:0.2em;margin-bottom:40px;" aria-hidden="true">v10.4</div>
+    <div style="font-family:Cinzel,serif;font-size:0.58rem;color:#333;letter-spacing:0.2em;margin-bottom:40px;" aria-hidden="true" id="loading-version-tag">v11.2</div>
 
     <!-- Loading bar -->
     <div class="loading-bar-wrap">
@@ -1913,7 +1913,7 @@ var DDStore = (function() {
         <span data-i18n="btn-quit">🕯 Quit</span>
       </button>
     </nav>
-    <p class="version-tag" aria-label="Version 11 point 0, Release">v11.0 · Release</p>
+    <p class="version-tag" id="menu-version-tag" aria-label="Version 11 point 2, Release">v11.2 · Release</p>
     <p id="menu-online-count" style="font-family:Cinzel,serif;font-size:0.55rem;color:#444;margin-top:4px;letter-spacing:0.1em;" aria-live="polite" aria-label="Players currently online"></p>
     <p style="font-family:Cinzel,serif;font-size:0.7rem;color:#ffdd44;margin-top:6px;" aria-label="Your global gold" aria-live="polite"><span data-i18n="lbl-gold">💰 </span><span class="global-gold-display">0</span></p>
     <p style="font-family:Cinzel,serif;font-size:0.7rem;color:#88ddff;margin-top:2px;" aria-label="Your diamonds" aria-live="polite">💎 <span class="global-diamond-display">0</span></p>
@@ -3346,8 +3346,23 @@ var DDStore = (function() {
       <button class="back-btn" onclick="goTo('menu')" aria-label="Back to main menu">← Menu</button>
       <h2 class="screen-title">What's New</h2>
     </div>
-    <div class="version-block latest" tabindex="0" aria-label="Version 11.1">
-      <div class="version-num">v11.1 — Latest</div>
+    <div class="version-block latest" tabindex="0" aria-label="Version 11.2">
+      <div class="version-num">v11.2 — Latest</div>
+      <div class="version-date">The Shadow World Improvement Update</div>
+      <ul class="version-changes">
+        <li>🌑 Shadow World loot — 4 new items: Mirror Fragment (purge all corruption instantly), Echo Bone (relic, +25% vs Echo/Shapeshifter), Offering Cloth (relic, guarantees good Offering outcome), Door Key (relic, guarantees good Two Doors outcome)</li>
+        <li>🎭 Shapeshifter's Mask — now fully functional. Use in combat to copy the current enemy's ability. 12 different abilities including phase dodge, second life, reflection, void web, growing power, shadow command, and more.</li>
+        <li>🌑 Stalker Floor — The Darkness Swallower now has looping spatial growl audio and directional footsteps via equalpower panning. Growl stops immediately on escape, defeat, or fight.</li>
+        <li>🌑 Boss sequence — The Echo now always spawns first on floor 10. Defeating The Echo auto-triggers The Shapeshifter with a dramatic sequence.</li>
+        <li>🌑 Enemy pool — Shadow World enemies now spawn correctly everywhere (Cursed Chamber, ambush, regular combat). Abyssal enemies no longer bleed into Shadow World.</li>
+        <li>🎵 Music Player — added previous/next track buttons, shuffle toggle, volume slider, and now playing display that updates automatically.</li>
+        <li>📚 Library — ElevenLabs Brian narration added to The Merchant's Route, Before the Eye Opened, and The Founding Charter of the DDDI. Tap Listen to hear the story read aloud.</li>
+        <li>⚙️ Settings — Privacy Policy and Terms of Service links added alongside Support link.</li>
+        <li>🏚️ The Hollow — all existing enemies now have unique mechanics. The Portrait gains ATK each turn it watches. The Bell Ringer skips your turn on turn 2. The Wall Crawler bypasses defense every other hit. The Groundskeeper heals each turn. The Hollow Matron boosts her own damage. The Oldest Guest is immune to the first hit. The Caretaker grows stronger every turn.</li>
+      </ul>
+    </div>
+    <div class="version-block" tabindex="0" aria-label="Version 11.1">
+      <div class="version-num">v11.1</div>
       <div class="version-date">The Shadow World Update</div>
       <ul class="version-changes">
         <li>🌑 The Shadow World — 9th dungeon. 3000 years of darkness. 14 enemies with unique mechanics. Shadow Corruption builds per hit — at 3 stacks your damage is halved. Use Purge (4 SP) to clear it.</li>
@@ -3362,7 +3377,6 @@ var DDStore = (function() {
         <li>📋 Bestiary — Shadow World tab with 16 entries.</li>
       </ul>
     </div>
-    <div class="version-block" tabindex="0" aria-label="Version 11.0">
       <div class="version-num">v11.0 — The Community Update</div>
       <div class="version-date">The Community Update</div>
       <ul class="version-changes">
@@ -7885,7 +7899,7 @@ var DDStore = (function() {
     <!-- Game Version -->
     <div class="access-option" style="cursor:default;">
       <div class="access-option-label">Game Version</div>
-      <div class="access-option-desc" id="general-version-display">Dungeon Descent v9.9</div>
+      <div class="access-option-desc" id="general-version-display">Dungeon Descent v11.2</div>
     </div>
 
     <!-- Command Center Toggle -->
@@ -8750,6 +8764,8 @@ function playTrack(name) {
 
   // Fallback path
   _playTrackFallback(name, url);
+  // Update now playing display if music player is open
+  setTimeout(function() { if (typeof mpUpdateNowPlaying !== 'undefined') mpUpdateNowPlaying(); }, 100);
 }
 
 function _playTrackFallback(name, url) {
@@ -12002,26 +12018,26 @@ var ELITE_SPIRITS = [
 //═════════════════
 var HOLLOW_ENEMIES = {
   t1: [
-    { name:'The Parlor Guest',    icon:'🪑', hp:28, atk:[5,10],  gold:[3,6] },
-    { name:'Hollow Bride',        icon:'👰', hp:24, atk:[5,11],  gold:[2,5] },
-    { name:'The Portrait',        icon:'🖼️', hp:20, atk:[6,12],  gold:[2,4] },
-    { name:'Creaking Step',       icon:'🪜', hp:18, atk:[5,11],  gold:[2,4] },
-    { name:'The Reflection',      icon:'🪞', hp:22, atk:[6,11],  gold:[2,5] },
-    { name:'The Uninvited Guest', icon:'🧍', hp:26, atk:[6,12],  gold:[3,6], isUninvited:true },
-    { name:'The Twin',            icon:'👤', hp:30, atk:[5,11],  gold:[3,6], isTwin:true },
+    { name:'The Parlor Guest',    icon:'🪑', hp:28, atk:[5,10],  gold:[3,6],  desc:'It has been sitting in that chair since the house was built. It does not appreciate visitors.', hollowSit:true },
+    { name:'Hollow Bride',        icon:'👰', hp:24, atk:[5,11],  gold:[2,5],  desc:'Still waiting. Still dressed. The flowers she carries are long dead. She is not.', hollowCharm:true },
+    { name:'The Portrait',        icon:'🖼️', hp:20, atk:[6,12],  gold:[2,4],  desc:'It watches from the wall. Every turn it watches, its next attack gets stronger.', hollowWatch:true },
+    { name:'Creaking Step',       icon:'🪜', hp:18, atk:[5,11],  gold:[2,4],  desc:'You hear it before you see it. By the time you see it, it is already too late to flee.', preventFlee:true },
+    { name:'The Reflection',      icon:'🪞', hp:22, atk:[6,11],  gold:[2,5],  desc:'It copies your last action. Attack and it attacks. Defend and it heals.', reflection:true },
+    { name:'The Uninvited Guest', icon:'🧍', hp:26, atk:[6,12],  gold:[3,6],  isUninvited:true, desc:'Nobody invited it. Nobody can make it leave.' },
+    { name:'The Twin',            icon:'👤', hp:30, atk:[5,11],  gold:[3,6],  isTwin:true, desc:'It looks exactly like you. It knows exactly what you will do next.' },
   ],
   t2: [
-    { name:'The Door Warden', icon:'🚪', hp:48, atk:[9,16],  gold:[6,11] },
-    { name:'The Music Box',       icon:'🎵', hp:38, atk:[7,12],  gold:[8,14], isMusicBox:true },
-    { name:'The Groundskeeper',   icon:'⚰️', hp:52, atk:[9,15],  gold:[5,10] },
-    { name:'Hollow Groom',        icon:'🤵', hp:44, atk:[9,16],  gold:[5,10] },
-    { name:'The Bell Ringer',     icon:'🔔', hp:40, atk:[10,17], gold:[5,9]  },
-    { name:'The Wall Crawler', icon:'🧱', hp:55, atk:[8,15], gold:[6,11] },
+    { name:'The Door Warden',     icon:'🚪', hp:48, atk:[9,16],  gold:[6,11], desc:'It guards every exit. Flee attempts automatically fail while it lives.', preventFlee:true },
+    { name:'The Music Box',       icon:'🎵', hp:38, atk:[7,12],  gold:[8,14], isMusicBox:true, desc:'When it plays, you cannot help but listen. Forces you to defend for one turn.' },
+    { name:'The Groundskeeper',   icon:'⚰️', hp:52, atk:[9,15],  gold:[5,10], desc:'It has maintained these grounds for three hundred years. It takes its job very seriously.', hollowGround:true },
+    { name:'Hollow Groom',        icon:'🤵', hp:44, atk:[9,16],  gold:[5,10], desc:'He waited at the altar for forty years. The anger calcified into something worse.', hollowGroom:true },
+    { name:'The Bell Ringer',     icon:'🔔', hp:40, atk:[10,17], gold:[5,9],  desc:'When the bell rings your turn is skipped. It always rings on the second turn.', hollowBell:true },
+    { name:'The Wall Crawler',    icon:'🧱', hp:55, atk:[8,15],  gold:[6,11], desc:'It moves on the ceiling. Every other attack comes from above — impossible to block.', hollowCrawl:true },
   ],
   t3: [
-    { name:'The Oldest Guest',    icon:'💀', hp:82, atk:[13,21], gold:[10,18] },
-    { name:'The Hollow Matron',   icon:'👵', hp:76, atk:[12,20], gold:[9,16]  },
-    { name:'The Caretaker',       icon:'🗝️', hp:88, atk:[13,22], gold:[11,19] },
+    { name:'The Oldest Guest',    icon:'💀', hp:82, atk:[13,21], gold:[10,18], desc:'It arrived before the house existed. It will be here after it falls.', immuneFirstHit:true },
+    { name:'The Hollow Matron',   icon:'👵', hp:76, atk:[12,20], gold:[9,16],  desc:'She ran this house. She still does. All enemies deal 10% more damage while she lives.', hollowMatron:true },
+    { name:'The Caretaker',       icon:'🗝️', hp:88, atk:[13,22], gold:[11,19], desc:'It has a key to every room. Including the ones that should not exist.', grows:true },
   ],
   bossPool: [
     { name:'The Grieving One',    icon:'😭', hp:250, atk:[15,24], gold:[70,100],
@@ -12552,7 +12568,7 @@ var SPECIAL_ROOMS = [
                : DS.dungeon === 'The Whispering Forest' ? WHISPER_ENEMIES
                : DS.dungeon === 'The Infernal Descent' ? INFERNAL_ENEMIES
                : DS.dungeon === 'The Abyssal Deep' ? ABYSSAL_ENEMIES
-               : DS.dungeon === 'The Shadow World' ? SHADOW_ENEMIES
+               : DS.dungeon === 'The Shadow World' ? SHADOW_ENEMIES.t1.concat(SHADOW_ENEMIES.t2).concat(SHADOW_ENEMIES.t3)
                : ENEMIES;
       // Safety — make sure pool has entries
       if (!pool || !pool.length) pool = ENEMIES;
@@ -13073,6 +13089,8 @@ function enterRoom() {
     renderChimeraScreen();
     return;
   }
+  // Shadow World — check for Stalker Floor before anything else
+  if (DS.dungeon === 'The Shadow World' && checkStalkerFloor()) return;
   if (typeof tryNPCEncounter !== 'undefined' && tryNPCEncounter()) return;
   if (DS.hunterMode && DS.hunterAlive) {
     DS.hunterIdleTurns = 0;
@@ -13424,7 +13442,9 @@ function enterRoom() {
 
       // 12% elite chance on floors 4+
       var eliteKey = DS.diff === 'Nightmare' ? 'Nightmare' : DS.dungeon;
-      var elitePool = (DS.dungeon === 'The Whispering Forest' ? WHISPER_ELITES : null) || ELITE_ENEMIES[eliteKey] || [];
+      var elitePool = (DS.dungeon === 'The Whispering Forest' ? WHISPER_ELITES : null) || 
+                      (DS.dungeon === 'The Shadow World' ? (SHADOW_ENEMIES.elites || []) : null) ||
+                      ELITE_ENEMIES[eliteKey] || [];
       var spawnElite = DS.floor >= 4 && elitePool.length > 0 && Math.random() < 0.15;
       var tier = DS.floor <= 3 ? 't1' : DS.floor <= 6 ? 't2' : 't3';
       var pool = DS.dungeon === 'The Whispering Forest'
@@ -13432,7 +13452,7 @@ function enterRoom() {
         : DS.dungeon === 'The Abyssal Deep'
         ? ABYSSAL_ENEMIES[tier]
         : DS.dungeon === 'The Shadow World'
-        ? ABYSSAL_ENEMIES[tier]
+        ? SHADOW_ENEMIES[tier]
         : enemyPool[tier];
       var base = spawnElite
         ? elitePool[Math.floor(Math.random() * elitePool.length)]
@@ -13712,6 +13732,14 @@ function advanceFloor() {
     DS._shadowCorruption = 0;
     DS._shadowKilledEnemies = [];
     DS._fearTurns = 0;
+    DS._maskUsedThisRun = false;
+    DS._maskImmune = false;
+    DS._maskCorrupt = false;
+    DS._maskFear = false;
+    DS._maskRevive = false;
+    DS._maskGrow = false;
+    DS._maskDodge = false;
+    DS.enemyFearTurns = 0;
     updateCorruptionDisplay();
   }
   if (typeof applyTraitPerFloor === 'function') applyTraitPerFloor();
@@ -14041,7 +14069,7 @@ function startCombat(isBoss) {
              : DS.dungeon === 'The Whispering Forest' ? WHISPER_ENEMIES.bossPool
              : DS.dungeon === 'The Infernal Descent'  ? INFERNAL_ENEMIES.bossPool
              : DS.dungeon === 'The Abyssal Deep'      ? ABYSSAL_ENEMIES.bossPool
-             : DS.dungeon === 'The Shadow World'      ? SHADOW_ENEMIES.bossPool
+             : DS.dungeon === 'The Shadow World'      ? SHADOW_ENEMIES.bossPool.filter(function(b){ return b.isEcho; })
              : ENEMIES.bossPool;
     var bossTemplate = pool[Math.floor(Math.random() * pool.length)];
     // Show boss preview before spawning
@@ -14602,6 +14630,31 @@ function doFight(action) {
     addLog('🦴 Echo Bone — +25% damage vs ' + e.name + '!');
     say('Echo Bone bonus damage.');
   }
+  // Mask — Growing Power: +4 ATK per turn
+  if (DS._maskGrow) {
+    DS._maskGrowBonus = (DS._maskGrowBonus || 0) + 4;
+    baseAtk += DS._maskGrowBonus;
+    addLog('🎭 Mask: Growing Power — +' + DS._maskGrowBonus + ' ATK this turn.');
+  }
+  // Mask — Lurker Strike: guaranteed 2.5x crit next attack
+  if (DS._maskLurker) {
+    DS._maskLurker = false;
+    baseAtk = Math.round(baseAtk * 2.5);
+    addLog('🎭 Mask: Lurker Strike — guaranteed 2.5x critical hit!');
+    say('Lurker Strike — massive critical hit!');
+  }
+  // Mask — Mimic Surprise: double damage next attack
+  if (DS._maskMimic) {
+    DS._maskMimic = false;
+    baseAtk = Math.round(baseAtk * 2);
+    addLog('🎭 Mask: Mimic Surprise — double damage!');
+    say('Mimic Surprise — double damage!');
+  }
+  // Mask — Shadow Command: +15% ATK
+  if (DS._maskCommand) {
+    baseAtk = Math.round(baseAtk * 1.15);
+    addLog('🎭 Mask: Shadow Command — +15% ATK.');
+  }
   // Shadow World fear penalty
   if (DS._fearTurns && DS._fearTurns > 0) {
     baseAtk = Math.round(baseAtk * 0.8);
@@ -14731,6 +14784,11 @@ function doFight(action) {
     if (typeof degradeWeapon !== 'undefined') degradeWeapon(action === 'heavy' ? 2 : 1);
     if (!DS._floorDmgDealt) DS._floorDmgDealt = 0; DS._floorDmgDealt += playerDmg;
     if (!DS._floorBestHit || playerDmg > DS._floorBestHit) DS._floorBestHit = playerDmg;
+    // Mask — Corrupt on hit
+    if (DS._maskCorrupt && e.hp > 0) {
+      addCorruption(1, 'Mask');
+      addLog('🎭 Mask: Corruption spreads to the enemy... and back to you. +1 stack.');
+    }
     // Leech Brew — heal for 30% of damage dealt
     if (DS._leechTurns && DS._leechTurns > 0) {
       var leechHeal = Math.round(playerDmg * (DS._leechPct || 0.30));
@@ -14926,6 +14984,20 @@ function doFight(action) {
     if (DS._eaglesCryActive) { rawDmg = Math.round(rawDmg * 0.70); DS._eaglesCryTurns = (DS._eaglesCryTurns||0) - 1; if (DS._eaglesCryTurns <= 0) { DS._eaglesCryActive = false; addLog('The eagle is silent. The cry fades.'); } }
     if (DS._tricksterBard && Math.random() < 0.25) { addLog('🎭 Distracted! Enemy misses!'); say('Trickster distraction — enemy misses!'); rawDmg = 0; }
     if (DS._bulwark && DS.defending) { var reflectDmg = Math.round(rawDmg * 0.30); if (DS.enemy && reflectDmg > 0) { DS.enemy.hp = Math.max(0, DS.enemy.hp - reflectDmg); addLog('⚔️ Bulwark reflects ' + reflectDmg + ' damage!'); updateEnemyBar(); } }
+    // Mask — Immunity to first hit
+    if (DS._maskImmune) { DS._maskImmune = false; rawDmg = 0; addLog('🎭 Mask absorbs the hit — immunity triggered!'); say('Mask immunity — hit absorbed!'); }
+    // Mask — Dodge every other hit
+    if (DS._maskDodge) { DS._maskDodgeToggle = !DS._maskDodgeToggle; if (DS._maskDodgeToggle) { rawDmg = 0; addLog('🎭 Mask: Phase Dodge — you slip through the attack!'); say('Phase dodge — attack missed!'); } }
+    // Mask — Reflection: reflect enemy attack back
+    if (DS._maskReflect && rawDmg > 0) { DS._maskReflect = false; var reflected = rawDmg; rawDmg = 0; if (DS.enemy) { DS.enemy.hp = Math.max(0, DS.enemy.hp - reflected); updateEnemyBar(); } addLog('🎭 Mask: Reflection — ' + reflected + ' damage reflected back at the enemy!'); say('Reflection — attack reflected for ' + reflected + ' damage!'); }
+    // Mask — Spirit Form: half physical damage
+    if (DS._maskSpirit) { rawDmg = Math.round(rawDmg * 0.5); addLog('🎭 Mask: Spirit Form — physical damage halved!'); }
+    // Mask — Second Life: revive at 50% HP
+    if (DS._maskRevive && DS.hp - rawDmg <= 0) { DS._maskRevive = false; rawDmg = 0; DS.hp = Math.round(DS.maxHp * 0.5); updatePlayerBar(); addLog('🎭 Mask: Second Life — you refuse to die! Revived at 50% HP!'); say('Second life! Revived at 50% HP!'); }
+    // Enemy fear from mask
+    if (DS.enemyFearTurns && DS.enemyFearTurns > 0) { rawDmg = Math.round(rawDmg * 0.8); DS.enemyFearTurns--; addLog('😨 Enemy is afraid — damage reduced 20%. ' + DS.enemyFearTurns + ' turn' + (DS.enemyFearTurns !== 1 ? 's' : '') + ' left.'); }
+    // Hollow Matron — all enemies deal +10% damage while she lives
+    if (DS.dungeon === 'The Hollow' && e && e.hollowMatron) rawDmg = Math.round(rawDmg * 1.1);
     // Abyssal Deep enemy mechanics
     if (DS.dungeon === 'The Abyssal Deep') { try { applyAbyssalEnemyMechanics(e, 'defend'); } catch(err){} }
     // Abyssal weather enemy mult
@@ -15061,6 +15133,44 @@ function sanitizeGold() {
 function enemyDead() {
   var e = DS.enemy;
   try { resetGunState(); } catch(e2) {}
+
+  // Shadow World — Echo boss triggers Shapeshifter after death
+  if (DS.dungeon === 'The Shadow World' && e && e.isEcho && e.isBoss) {
+    DS.inCombat = false;
+    addLog('🌑 The Echo dissolves... but something else stirs in the dark.');
+    say('The Echo is destroyed. But the darkness shifts. Something worse emerges.');
+    sfx('sfx-victory');
+    setTimeout(function() {
+      // Now spawn the Shapeshifter
+      var shapeshifterTemplate = SHADOW_ENEMIES.bossPool.find(function(b){ return b.isShapeshifter; });
+      if (!shapeshifterTemplate) { enterRoom(); return; }
+      var _bossLvl = DS.level || 1;
+      var _bossLvlMult = 1 + (_bossLvl - 1) * 0.15;
+      var _bossHp = Math.round(shapeshifterTemplate.hp * _bossLvlMult);
+      DS.enemy = {
+        name: shapeshifterTemplate.name, icon: shapeshifterTemplate.icon,
+        gold: shapeshifterTemplate.gold, isBoss: true, isMultiPhase: true,
+        isShapeshifter: true,
+        maxHp: _bossHp, hp: _bossHp,
+        atk: shapeshifterTemplate.atk.map(function(a){ return Math.round(a * _bossLvlMult); }),
+        phase1Hp: Math.round(_bossHp * 0.66),
+        phase2Hp: Math.round(_bossHp * 0.33),
+        phaseMsg2: shapeshifterTemplate.phaseMsg2,
+        phaseMsg3: shapeshifterTemplate.phaseMsg3,
+        phaseMsg4: shapeshifterTemplate.phaseMsg4,
+        desc: shapeshifterTemplate.desc
+      };
+      DS.bossPhase = 1;
+      DS.inCombat = true;
+      DS.defending = false;
+      playTrack('shadow-boss');
+      addLog('🌑 THE SHAPESHIFTER EMERGES — wearing your face. Using your name.');
+      say('The Shapeshifter. It looks exactly like you. Same class, same level, same weapon. This is the final boss of The Shadow World.');
+      updateEnemyBar(); updatePlayerBar();
+      setCombatBtns(true); updateSkillButtons();
+    }, 2500);
+    return;
+  }
 
   // Shadow World — Twice Dead mechanic
   if (DS.dungeon === 'The Shadow World' && e && e.twiceDead && !e._diedOnce) {
@@ -15689,6 +15799,41 @@ function applyShadowEnemyMechanics(e, dmgToPlayer) {
     say(e.name + ' weaves a shadow corruption web. 8 damage per turn. Use Heavy Strike to destroy it.');
   }
 
+  // ── HOLLOW MECHANICS ──
+  // The Portrait — gains +2 ATK each turn it watches
+  if (e.hollowWatch) {
+    e._watchStacks = (e._watchStacks || 0) + 2;
+    e.atk = [e.atk[0] + 2, e.atk[1] + 2];
+    if (e._watchStacks <= 6) addLog('🖼️ The Portrait watches. Its gaze sharpens. +2 ATK (' + e._watchStacks + ' stacks).');
+  }
+  // The Bell Ringer — skips player turn on turn 2
+  if (e.hollowBell && !e._bellRung) {
+    e._bellTurn = (e._bellTurn || 0) + 1;
+    if (e._bellTurn === 2) {
+      e._bellRung = true;
+      addLog('🔔 THE BELL RINGS. Your turn is skipped!');
+      say('The bell rings. Your turn is lost.');
+      // The extra damage is already applied — just announce the stun
+    }
+  }
+  // The Wall Crawler — every other attack bypasses defense
+  if (e.hollowCrawl) {
+    e._crawlTurn = (e._crawlTurn || 0) + 1;
+    if (e._crawlTurn % 2 === 0) {
+      dmgToPlayer = Math.round(dmgToPlayer * 1.5);
+      addLog('🧱 The Wall Crawler attacks from above — defense bypassed! +50% damage.');
+      say('Wall Crawler ceiling attack. Defense bypassed.');
+    }
+  }
+  // The Hollow Matron — all enemies deal +10% damage while she lives (applied at combat start)
+  // The Groundskeeper — heals 5 HP per turn
+  if (e.hollowGround && e.hp > 0) {
+    var healAmt = 5;
+    e.hp = Math.min(e.maxHp || e.hp, e.hp + healAmt);
+    updateEnemyBar();
+    addLog('⚰️ The Groundskeeper tends to its wounds. +' + healAmt + ' HP.');
+  }
+
   return dmgToPlayer;
 }
 
@@ -15733,6 +15878,311 @@ function spawnShadowAmbush() {
 }
 
 // ── END SHADOW WORLD MECHANICS ────────────────────────────────────────────────
+
+// ── THE STALKER FLOOR — DARKNESS SWALLOWER ────────────────────────────────────
+var _stalkerActive = false;
+var _stalkerGrid = { playerX:2, playerY:2, enemyX:0, enemyY:0 };
+var _stalkerEscapes = 0;
+var _stalkerMaxEscapes = 3;
+var _stalkerCaught = false;
+var _stalkerGrowlSource = null;
+var _stalkerGrowlGain = null;
+var _stalkerGrowlPanner = null;
+
+function initStalkerFloor() {
+  _stalkerActive = true;
+  _stalkerEscapes = 0;
+  _stalkerCaught = false;
+  _stalkerGrid.playerX = 2;
+  _stalkerGrid.playerY = 2;
+  var edges = [{x:0,y:0},{x:4,y:0},{x:0,y:4},{x:4,y:4},{x:2,y:0},{x:2,y:4},{x:0,y:2},{x:4,y:2}];
+  var startEdge = edges[Math.floor(Math.random() * edges.length)];
+  _stalkerGrid.enemyX = startEdge.x;
+  _stalkerGrid.enemyY = startEdge.y;
+  if (AUD && AUD.currentSource) { try { AUD.currentSource.stop(); } catch(e) {} AUD.currentSource = null; }
+  setTimeout(function() { playTrack('shadow-stalker'); }, 600);
+  showStalkerUI();
+  updateStalkerDisplay();
+  // Start looping growl
+  setTimeout(function() { startGrowlLoop(); }, 1000);
+  say('Something stirs in the darkness. The music shifts. Move carefully — the Darkness Swallower is somewhere in this room with you. It is ' + getStalkerDistance() + ' step' + (getStalkerDistance() !== 1 ? 's' : '') + ' away. Move north, south, east, or west to reach the exit.');
+}
+
+function playSwallowerFootstep() {
+  if (!_stalkerActive) return;
+  try {
+    if (!AUD || !AUD.ctx) return;
+    if (AUD.ctx.state === 'suspended') AUD.ctx.resume();
+    var dir = getStalkerDirection();
+    var dist = getStalkerDistance();
+    var vol = Math.max(0.1, 1 - (dist * 0.12));
+    var panner = AUD.ctx.createPanner();
+    panner.panningModel = 'equalpower';
+    switch(dir) {
+      case 'left':   panner.setPosition(-3, 0, -1); break;
+      case 'right':  panner.setPosition(3, 0, -1);  break;
+      case 'ahead':  panner.setPosition(0, 0, -3);  break;
+      case 'behind': panner.setPosition(0, 0, 3);   break;
+      default:       panner.setPosition(0, 0, -2);  break;
+    }
+    var gainNode = AUD.ctx.createGain();
+    gainNode.gain.value = vol * (AUD.sfxVol || 0.8);
+    panner.connect(gainNode);
+    gainNode.connect(AUD.ctx.destination);
+    fetch(_audioUrl('monster-footstep.mp3')).then(function(r){ return r.arrayBuffer(); }).then(function(buf){
+      return AUD.ctx.decodeAudioData(buf);
+    }).then(function(buffer){
+      if (!_stalkerActive) return;
+      var source = AUD.ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(panner);
+      source.start(0);
+    }).catch(function(e){ console.warn('[DD] Swallower footstep failed:', e); });
+  } catch(e) { console.warn('[DD] playSwallowerFootstep error:', e); }
+}
+
+function startGrowlLoop() {
+  if (!_stalkerActive) return;
+  try {
+    if (!AUD || !AUD.ctx) return;
+    if (AUD.ctx.state === 'suspended') AUD.ctx.resume();
+    var dir = getStalkerDirection();
+    var dist = getStalkerDistance();
+    var vol = Math.max(0.15, 1 - (dist * 0.15));
+    // Create nodes
+    var panner = AUD.ctx.createPanner();
+    panner.panningModel = 'equalpower';
+    switch(dir) {
+      case 'left':   panner.setPosition(-3, 0, -1); break;
+      case 'right':  panner.setPosition(3, 0, -1);  break;
+      case 'ahead':  panner.setPosition(0, 0, -3);  break;
+      case 'behind': panner.setPosition(0, 0, 3);   break;
+      default:       panner.setPosition(0, 0, -2);  break;
+    }
+    var gainNode = AUD.ctx.createGain();
+    gainNode.gain.value = vol * (AUD.sfxVol || 0.8);
+    panner.connect(gainNode);
+    gainNode.connect(AUD.ctx.destination);
+    _stalkerGrowlPanner = panner;
+    _stalkerGrowlGain = gainNode;
+    var growlUrl = _audioUrl('monster-growl.mp3');
+    fetch(growlUrl).then(function(r){ return r.arrayBuffer(); }).then(function(buf){
+      return AUD.ctx.decodeAudioData(buf);
+    }).then(function(buffer){
+      if (!_stalkerActive) return;
+      var source = AUD.ctx.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+      source.connect(panner);
+      source.start(0);
+      _stalkerGrowlSource = source;
+    }).catch(function(e){ console.warn('[DD] Growl loop failed:', e); });
+  } catch(e) { console.warn('[DD] startGrowlLoop error:', e); }
+}
+
+function updateGrowlPosition() {
+  if (!_stalkerActive || !_stalkerGrowlPanner) return;
+  var dir = getStalkerDirection();
+  var dist = getStalkerDistance();
+  var vol = Math.max(0.15, 1 - (dist * 0.15));
+  try {
+    switch(dir) {
+      case 'left':   _stalkerGrowlPanner.setPosition(-3, 0, -1); break;
+      case 'right':  _stalkerGrowlPanner.setPosition(3, 0, -1);  break;
+      case 'ahead':  _stalkerGrowlPanner.setPosition(0, 0, -3);  break;
+      case 'behind': _stalkerGrowlPanner.setPosition(0, 0, 3);   break;
+      default:       _stalkerGrowlPanner.setPosition(0, 0, -2);  break;
+    }
+    if (_stalkerGrowlGain) _stalkerGrowlGain.gain.value = vol * (AUD.sfxVol || 0.8);
+  } catch(e) {}
+}
+
+function stopGrowlLoop() {
+  try { if (_stalkerGrowlSource) { _stalkerGrowlSource.stop(); _stalkerGrowlSource = null; } } catch(e) {}
+  _stalkerGrowlGain = null;
+  _stalkerGrowlPanner = null;
+}
+
+function getStalkerDistance() {
+  var dx = Math.abs(_stalkerGrid.playerX - _stalkerGrid.enemyX);
+  var dy = Math.abs(_stalkerGrid.playerY - _stalkerGrid.enemyY);
+  return dx + dy;
+}
+
+function getStalkerDirection() {
+  var dx = _stalkerGrid.enemyX - _stalkerGrid.playerX;
+  var dy = _stalkerGrid.enemyY - _stalkerGrid.playerY;
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    return dx > 0 ? 'right' : 'left';
+  } else {
+    return dy > 0 ? 'behind' : 'ahead';
+  }
+}
+
+function stalkerMove(dir) {
+  if (!_stalkerActive) return;
+  if (dir === 'north' && _stalkerGrid.playerY > 0) _stalkerGrid.playerY--;
+  if (dir === 'south' && _stalkerGrid.playerY < 4) _stalkerGrid.playerY++;
+  if (dir === 'west'  && _stalkerGrid.playerX > 0) _stalkerGrid.playerX--;
+  if (dir === 'east'  && _stalkerGrid.playerX < 4) _stalkerGrid.playerX++;
+  sfx('sfx-stairs');
+  var dx = _stalkerGrid.playerX - _stalkerGrid.enemyX;
+  var dy = _stalkerGrid.playerY - _stalkerGrid.enemyY;
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    _stalkerGrid.enemyX += dx > 0 ? 1 : -1;
+  } else {
+    _stalkerGrid.enemyY += dy > 0 ? 1 : -1;
+  }
+  var dist = getStalkerDistance();
+  var dir2 = getStalkerDirection();
+  // Update growl position (already looping)
+  updateGrowlPosition();
+  // Play directional footstep for the Swallower
+  playSwallowerFootstep();
+  // Check caught FIRST
+  if (dist === 0) { stalkerCaught(); return; }
+  // Check exit
+  var atExit = _stalkerGrid.playerX === 0 || _stalkerGrid.playerX === 4 ||
+               _stalkerGrid.playerY === 0 || _stalkerGrid.playerY === 4;
+  if (atExit) {
+    _stalkerEscapes++;
+    if (_stalkerEscapes >= _stalkerMaxEscapes) { stalkerEscaped(); return; }
+    _stalkerGrid.playerX = 2; _stalkerGrid.playerY = 2;
+    addLog('You slip away — temporarily. ' + (_stalkerMaxEscapes - _stalkerEscapes) + ' more escape' + (_stalkerMaxEscapes - _stalkerEscapes !== 1 ? 's' : '') + ' needed.');
+    say('You escape — for now. ' + (_stalkerMaxEscapes - _stalkerEscapes) + ' more needed.');
+    updateStalkerDisplay();
+    return;
+  }
+  if (dist === 1) {
+    addLog('💀 The Darkness Swallower is right next to you. You can hear it breathe.');
+    say('It is right next to you. One step away. The darkness breathes.');
+    vibe && vibe([300, 100, 300]);
+    showStalkerFightOption();
+  } else if (dist === 2) {
+    addLog('⚠️ It is 2 steps away — ' + dir2 + '.');
+    say('It is 2 steps away — ' + dir2 + ' of you.');
+  } else {
+    addLog('👣 ' + dir + '. The Darkness Swallower is ' + dist + ' step' + (dist !== 1 ? 's' : '') + ' away — ' + dir2 + '.');
+    say('You move ' + dir + '. It is ' + dist + ' steps away — ' + dir2 + ' of you.');
+  }
+  updateStalkerDisplay();
+}
+
+function stalkerCaught() {
+  _stalkerActive = false;
+  stopGrowlLoop();
+  hideStalkerUI();
+  try {
+    var js = new Audio(_audioUrl('hunter-jumpscare.mp3'));
+    js.volume = AUD ? (AUD.sfxVol || 0.8) : 0.8;
+    js.play().catch(function(){});
+  } catch(e) {}
+  vibe && vibe([500, 100, 500, 100, 500]);
+  var dmg = Math.round(DS.maxHp * 0.35);
+  DS.hp = Math.max(1, DS.hp - dmg);
+  updatePlayerBar();
+  addLog('💀 THE DARKNESS SWALLOWER CATCHES YOU! ' + dmg + ' shadow damage!');
+  say('Caught! The Darkness Swallower strikes. ' + dmg + ' damage. You barely survive.');
+  setTimeout(function() { playTrack(exploTrackForFloor(DS.floor)); enterRoom(); }, 2000);
+}
+
+function stalkerEscaped() {
+  _stalkerActive = false;
+  stopGrowlLoop();
+  hideStalkerUI();
+  addLog('✨ You escaped the Darkness Swallower! Rare loot awarded.');
+  say('You escaped! The Darkness Swallower retreats into the shadows. Rare loot for your survival.');
+  var lootOptions = SHADOW_LOOT.filter(function(l){ return l.type === 'weapon' || l.type === 'armor'; });
+  if (lootOptions.length > 0 && DS.inventory) {
+    var reward = Object.assign({}, lootOptions[Math.floor(Math.random() * lootOptions.length)]);
+    DS.inventory.push(reward);
+    addLog('📦 Found: ' + reward.name + '!');
+  }
+  DS.gold += 150;
+  updateTopBar();
+  sfx('sfx-victory');
+  vibe && vibe(VIBE.bossKill);
+  setTimeout(function() { playTrack(exploTrackForFloor(DS.floor)); enterRoom(); }, 1500);
+}
+
+function stalkerChooseFight() {
+  hideStalkerFightOption();
+  _stalkerActive = false;
+  stopGrowlLoop();
+  hideStalkerUI();
+  playTrack(battleTrack());
+  DS.enemy = {
+    name: 'The Darkness Swallower', icon: '🌑',
+    hp: Math.round(DS.maxHp * 1.5), maxHp: Math.round(DS.maxHp * 1.5),
+    atk: [Math.round((DS.atk ? DS.atk[1] : 15) * 1.2), Math.round((DS.atk ? DS.atk[1] : 15) * 1.8)],
+    gold: [80, 150], isBoss: false, corruptOnHit: 2,
+    desc: 'It has been waiting in this room for 3000 years. You chose to fight it. That was very brave. Possibly very stupid.'
+  };
+  DS.inCombat = true;
+  DS.defending = false;
+  addLog('⚔ You turn to face the Darkness Swallower!');
+  say('You face the Darkness Swallower. It hits hard and adds 2 corruption per hit. Use Purge.');
+  updateEnemyBar(); updatePlayerBar();
+  setCombatBtns(true); updateSkillButtons();
+}
+
+function showStalkerUI() {
+  var existing = document.getElementById('stalker-overlay');
+  if (existing) existing.remove();
+  var ov = document.createElement('div');
+  ov.id = 'stalker-overlay';
+  ov.setAttribute('role', 'region');
+  ov.setAttribute('aria-label', 'Stalker Floor — Darkness Swallower');
+  ov.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#050005;border-top:2px solid #9966cc;padding:12px 16px;z-index:500;';
+  ov.innerHTML =
+    '<div id="stalker-status" style="font-family:Cinzel,serif;font-size:0.72rem;color:#cc88ff;margin-bottom:10px;text-align:center;" aria-live="assertive"></div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">' +
+      '<button onclick="stalkerMove(\'north\')" style="padding:10px;background:#0a0008;border:1px solid #9966cc;color:#cc88ff;font-family:Cinzel,serif;font-size:0.7rem;cursor:pointer;" aria-label="Move north">↑ North</button>' +
+      '<button onclick="stalkerMove(\'south\')" style="padding:10px;background:#0a0008;border:1px solid #9966cc;color:#cc88ff;font-family:Cinzel,serif;font-size:0.7rem;cursor:pointer;" aria-label="Move south">↓ South</button>' +
+      '<button onclick="stalkerMove(\'west\')"  style="padding:10px;background:#0a0008;border:1px solid #9966cc;color:#cc88ff;font-family:Cinzel,serif;font-size:0.7rem;cursor:pointer;" aria-label="Move west">← West</button>' +
+      '<button onclick="stalkerMove(\'east\')"  style="padding:10px;background:#0a0008;border:1px solid #9966cc;color:#cc88ff;font-family:Cinzel,serif;font-size:0.7rem;cursor:pointer;" aria-label="Move east">→ East</button>' +
+    '</div>' +
+    '<div id="stalker-fight-option" style="display:none;">' +
+      '<button onclick="stalkerChooseFight()" style="width:100%;padding:10px;background:#1a0022;border:1px solid #ff4444;color:#ff8888;font-family:Cinzel,serif;font-size:0.7rem;cursor:pointer;margin-top:4px;" aria-label="Fight the Darkness Swallower">⚔ Face It</button>' +
+    '</div>';
+  document.body.appendChild(ov);
+}
+
+function hideStalkerUI() {
+  var ov = document.getElementById('stalker-overlay');
+  if (ov) ov.remove();
+}
+
+function hideStalkerFightOption() {
+  var el = document.getElementById('stalker-fight-option');
+  if (el) el.style.display = 'none';
+}
+
+function showStalkerFightOption() {
+  var el = document.getElementById('stalker-fight-option');
+  if (el) el.style.display = '';
+}
+
+function updateStalkerDisplay() {
+  var el = document.getElementById('stalker-status');
+  if (!el) return;
+  var dist = getStalkerDistance();
+  var dir = getStalkerDirection();
+  var escStr = 'Escapes: ' + _stalkerEscapes + ' / ' + _stalkerMaxEscapes;
+  el.textContent = '🌑 ' + dist + ' step' + (dist !== 1 ? 's' : '') + ' away — ' + dir + '.  ' + escStr;
+  el.setAttribute('aria-label', 'Darkness Swallower ' + dist + ' steps away to the ' + dir + '. ' + escStr);
+}
+
+function checkStalkerFloor() {
+  if (DS.dungeon !== 'The Shadow World') return false;
+  if (DS.floor < 3) return false;
+  if (_stalkerActive) return false;
+  if (DS.inCombat) return false;
+  if (Math.random() > 0.10) return false;
+  setTimeout(function() { initStalkerFloor(); }, 800);
+  return true;
+}
+// ── END STALKER FLOOR ─────────────────────────────────────────────────────────
 
 function addLog(msg) {
   var log = document.getElementById('dg-combat-log');
@@ -15995,6 +16445,7 @@ function renderInv() {
   visibleItems.forEach(function(item) {
     var i = DS.inventory.indexOf(item);
     var isUsable = item.type === 'potion' || item.type === 'enchanter' || item.type === 'music-player' || item.type === 'luck-potion' || item.type === 'fire-potion' || item.type === 'curse-potion' || item.type === 'swift-potion' || item.type === 'def-potion' || item.type === 'atk-potion' || item.type === 'cursed' || item.type === 'rune' || item.type === 'scroll' || item.type === 'skill-orb' || item.type === 'soul-trap' || item.type === 'sp-potion' || item.type === 'gamblers-spirit' || item.type === 'mirror-flask' || item.type === 'phantom-potion' || item.type === 'gravity-tonic' || item.type === 'leech-brew' || item.type === 'rage-tonic' || item.type === 'fog-flask' || item.type === 'time-potion' || item.type === 'corruption-flask' || item.type === 'love-potion' || item.type === 'consumable';
+    var isRelic = item.type === 'relic';
     var isEquippable = item.isEquippable && (item.type === 'weapon' || item.type === 'armor');
     var row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;gap:8px;background:var(--bg-stone);border:1px solid var(--border-dim);padding:8px 12px;margin-bottom:6px;';
@@ -16054,6 +16505,14 @@ function renderInv() {
       uBtn.setAttribute('aria-label', 'Use ' + item.name);
       uBtn.onclick = (function(idx2){ return function(){ useItem(idx2); }; })(i);
       row.appendChild(uBtn);
+    } else if (isRelic) {
+      var rBtn = document.createElement('button');
+      rBtn.className = 'btn-ghost';
+      rBtn.style.cssText = 'padding:3px 10px;font-size:0.65rem;opacity:0.6;cursor:default;';
+      rBtn.textContent = 'Passive';
+      rBtn.setAttribute('aria-label', item.name + ' — passive relic, always active');
+      rBtn.disabled = true;
+      row.appendChild(rBtn);
     } else {
       var dBtn = document.createElement('button');
       dBtn.className = 'btn-ghost';
@@ -16100,6 +16559,40 @@ function renderInv() {
 function useItem(i) {
   var item = DS.inventory[i];
   if (item.isInsanityPotion) { useInsanityPotion(); DS.inventory.splice(DS.inventory.indexOf(item),1); renderInv(); return; }
+  if (item.type === 'consumable' && item.shadowItem === 'shapeshifterMask') {
+    if (!DS.inCombat || !DS.enemy) {
+      say('The Mask can only be used in combat — face an enemy first.');
+      return;
+    }
+    if (DS._maskUsedThisRun) {
+      say('The Mask has already been used this run. Its power is spent.');
+      return;
+    }
+    var e = DS.enemy;
+    var ability = null;
+    var abilityMsg = '';
+    if (e.immuneFirstHit)  { DS._maskImmune = true;  ability = 'immunity to first hit'; abilityMsg = 'You are now immune to the next hit this combat.'; }
+    else if (e.corruptOnHit) { DS._maskCorrupt = true; ability = 'corruption on hit'; abilityMsg = 'Your next attack will add ' + e.corruptOnHit + ' corruption to the enemy.'; }
+    else if (e.fearHowl)   { DS._maskFear = true;    ability = 'fear howl'; abilityMsg = 'The enemy is filled with fear — their damage is reduced 20% for 3 turns.'; DS.enemyFearTurns = 3; }
+    else if (e.twiceDead)  { DS._maskRevive = true;  ability = 'second life'; abilityMsg = 'You will return at 50% HP if you die this combat. Once.'; }
+    else if (e.grows)      { DS._maskGrow = true;    ability = 'growing power'; abilityMsg = 'You gain +4 ATK every turn for the rest of this combat.'; }
+    else if (e.dodgeEvery) { DS._maskDodge = true;   ability = 'phase dodge'; abilityMsg = 'You will dodge every other hit this combat.'; }
+    else if (e.corruptWeb) { DS._maskWeb = true;     ability = 'void web'; abilityMsg = 'You weave a shadow web — the enemy takes 8 damage every turn until combat ends.'; }
+    else if (e.reflection) { DS._maskReflect = true; ability = 'reflection'; abilityMsg = 'The enemy\'s next attack will be reflected back at them for full damage.'; }
+    else if (e.lurkerHide) { DS._maskLurker = true;  ability = 'lurker strike'; abilityMsg = 'Your next attack is a guaranteed critical hit dealing 2.5x damage.'; }
+    else if (e.mimicSurprise) { DS._maskMimic = true; ability = 'mimic surprise'; abilityMsg = 'Your next attack deals double damage — the enemy never saw it coming.'; }
+    else if (e.shadowCommand) { DS._maskCommand = true; ability = 'shadow command'; abilityMsg = 'You command the shadows — your ATK is increased by 15% for the rest of this combat.'; }
+    else if (e.spiritOnly) { DS._maskSpirit = true;  ability = 'spirit form'; abilityMsg = 'You enter spirit form — you take half damage from all physical attacks this combat.'; }
+    else { ability = 'shadow essence'; abilityMsg = 'The Mask absorbs the enemy\'s shadow essence — you heal 30 HP.'; DS.hp = Math.min(DS.maxHp, DS.hp + 30); updatePlayerBar(); }
+
+    DS._maskUsedThisRun = true;
+    DS.inventory.splice(i, 1);
+    renderInv(); saveProgress();
+    addLog('🎭 Shapeshifter\'s Mask — you copy: ' + ability + '! ' + abilityMsg);
+    say('Mask used. You copied ' + ability + '. ' + abilityMsg);
+    setEvent('good', '🎭 The Mask melts into your face. For a moment you are something else entirely. You copy: ' + ability + '.');
+    return;
+  }
   if (item.type === 'consumable' && item.shadowItem === 'mirrorFragment') {
     if (!DS._shadowCorruption || DS._shadowCorruption === 0) {
       say('No corruption to purge. The Mirror Fragment glows faintly and waits.');
@@ -27901,7 +28394,8 @@ var STORIES = [
       'The third thing you learn is what to carry. Not weapons. Not armor. The people who go down into the dark are already carrying weapons and armor. What they do not have, at the moment they need it most, is a potion. A reason to keep going. A small warm thing to hold onto in the cold.',
       'That is what I sell. Not hope exactly. More like the materials hope is made of.',
       'I will see you on the stairs. I am always on the stairs. I have nowhere else to be.'
-    ]
+    ],
+    audio: 'ElevenLabs_2026-09-07T17_37_50_Brian_-_Deep__Resonant_and_Comforting_eleven_multilingual_v2.mp3'
   },
   {
     id: 'void-wraith-origin',
@@ -27928,7 +28422,8 @@ var STORIES = [
       'It has not decided yet what to do about that.',
       'But it is thinking.',
       'It has a very long time to think.'
-    ]
+    ],
+    audio: 'ElevenLabs_2026-09-07T17_57_39_Brian_-_Deep__Resonant_and_Comforting_eleven_multilingual_v2.mp3'
   },
   {
     id: 'dddi-founding',
@@ -27964,7 +28459,8 @@ var STORIES = [
       'Chief Compliance Officer of the Mandatory Audit Division',
       'Secretary of the 359,000,000 Year Suspension Bureau',
       'And Julio. (Signature illegible. Timestamp reads 3:00 AM. No one saw him sign it.)'
-    ]
+    ],
+    audio: 'ElevenLabs_2026-09-07T18_47_03_Brian_-_Deep__Resonant_and_Comforting_eleven_multilingual_v2.mp3'
   },
   {
     id: 'child-of-ash',
@@ -28869,22 +29365,67 @@ function openStory(story) {
   document.getElementById('story-reader-meta').textContent = story.dungeon + ' · ' + story.version + ' · By ' + story.author;
   var bodyHtml = story.body.map(function(p){ return '<p>' + p + '</p>'; }).join('');
   document.getElementById('story-reader-body').innerHTML = bodyHtml;
+  // Audio narration box
+  var existing = document.getElementById('story-audio-box');
+  if (existing) existing.remove();
+  if (story.audio) {
+    window._storyAudioUrl = _AUDIO_R2 + encodeURIComponent(story.audio);
+    var box = document.createElement('div');
+    box.id = 'story-audio-box';
+    box.style.cssText = 'margin-bottom:18px;padding:12px 14px;background:#0a0800;border:1px solid #887700;border-radius:4px;display:flex;align-items:center;gap:10px;';
+    box.innerHTML =
+      '<span style="font-family:Cinzel,serif;font-size:0.65rem;color:#c9a227;letter-spacing:0.1em;">🎙️ NARRATED</span>' +
+      '<button onclick="storyAudioPlay()" id="story-audio-play" style="padding:6px 14px;background:#1a1000;border:1px solid #c9a227;color:#ffd700;font-family:Cinzel,serif;font-size:0.7rem;cursor:pointer;" aria-label="Listen to narrated version">▶ Listen</button>' +
+      '<button onclick="storyAudioStop()" id="story-audio-stop" style="padding:6px 14px;background:#1a1000;border:1px solid #555;color:#888;font-family:Cinzel,serif;font-size:0.7rem;cursor:pointer;display:none;" aria-label="Stop narration">■ Stop</button>';
+    var body = document.getElementById('story-reader-body');
+    body.parentNode.insertBefore(box, body);
+  } else {
+    window._storyAudioUrl = null;
+  }
   document.getElementById('story-overlay').classList.add('open');
   say('Reading: ' + story.title + '. ' + story.body[0] + ' Press Back to Library when done.');
   setTimeout(function(){ document.querySelector('#story-overlay .btn-close').focus(); },60);
-  // Track story read for achievements
   var readKey = 'dd_story_' + story.id;
   if (!DDStore.getItem(readKey)) {
     DDStore.setItem(readKey, '1');
     incrementAchievementStat('storiesRead', 1);
-    // Track individual story for specific achievements
     var statKey = 'storyRead_' + story.id;
     updateAchievementStat(statKey, 1);
     checkAchievements();
   }
 }
 
+function storyAudioPlay() {
+  if (!window._storyAudioUrl) return;
+  storyAudioStop();
+  window._storyAudio = new Audio(window._storyAudioUrl);
+  window._storyAudio.volume = AUD ? (AUD.sfxVol || 0.9) : 0.9;
+  window._storyAudio.play().then(function() {
+    say('Playing narration.');
+    var playBtn = document.getElementById('story-audio-play');
+    var stopBtn = document.getElementById('story-audio-stop');
+    if (playBtn) playBtn.style.display = 'none';
+    if (stopBtn) stopBtn.style.display = '';
+    window._storyAudio.onended = function() {
+      if (playBtn) playBtn.style.display = '';
+      if (stopBtn) stopBtn.style.display = 'none';
+    };
+  }).catch(function(e) { say('Could not play narration.'); });
+}
+
+function storyAudioStop() {
+  if (window._storyAudio) {
+    try { window._storyAudio.pause(); window._storyAudio.currentTime = 0; } catch(e) {}
+    window._storyAudio = null;
+  }
+  var playBtn = document.getElementById('story-audio-play');
+  var stopBtn = document.getElementById('story-audio-stop');
+  if (playBtn) playBtn.style.display = '';
+  if (stopBtn) stopBtn.style.display = 'none';
+}
+
 function closeStoryReader() {
+  storyAudioStop();
   document.getElementById('story-overlay').classList.remove('open');
   say('Story closed. Back to library.');
 }
@@ -31721,6 +32262,8 @@ var BOSS_INTROS = {
   'The Drowned God':        'It was worshipped once. Then the sea rose. It is still waiting for the prayers to resume.',
   'The Abyssal Crown':      'Something at the bottom of everything decided it wanted to be in charge.',
   'The Deep Archivist':     'It has catalogued every creature that ever drowned. You are about to become an entry.',
+  'The Echo':               'It is a copy of something you already killed. It remembers the fight. It will not make the same mistakes.',
+  'The Shapeshifter':       'It has waited 3000 years for someone worth copying. Now it wears your face. It knows every move you will make.',
 };
 
 function showBossPreview(bossTemplate) {
@@ -32654,10 +33197,17 @@ function devResetSRPrompt() {
 }
 
 // ── WHATS NEW ──
-var CURRENT_VERSION = '11.1';
+var CURRENT_VERSION = '11.2';
 function checkWhatsNew() {
+  // Update ALL version displays from single source of truth
   var vtag = document.querySelector('.version-tag');
-  if (vtag) vtag.textContent = 'v' + CURRENT_VERSION + ' · Release';
+  if (vtag) { vtag.textContent = 'v' + CURRENT_VERSION + ' · Release'; vtag.setAttribute('aria-label', 'Version ' + CURRENT_VERSION + ', Release'); }
+  var loadingTag = document.getElementById('loading-version-tag');
+  if (loadingTag) loadingTag.textContent = 'v' + CURRENT_VERSION;
+  var generalVersion = document.getElementById('general-version-display');
+  if (generalVersion) generalVersion.textContent = 'Dungeon Descent v' + CURRENT_VERSION;
+  var loadingAnim = document.querySelector('.loading-animation-text');
+  // loading animation text is JS-generated so handled separately below
   var seen = DDStore.getItem('dd_version_seen');
   if (seen !== CURRENT_VERSION) {
     // Show migration animation first if upgrading from older version, then popup
@@ -32691,7 +33241,7 @@ function showMigrationAnimation(onComplete) {
   overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;font-family:Cinzel,serif;';
 
   var lines = [
-    { t: 0,    text: '⚙️ Dungeon Descent v11.1', size: '1.1rem', color: '#c9a227' },
+    { t: 0,    text: '⚙️ Dungeon Descent v' + CURRENT_VERSION, size: '1.1rem', color: '#c9a227' },
     { t: 500,  text: 'Initialising IndexedDB storage engine...', size: '0.78rem', color: '#888' },
     { t: 1400, text: 'Reading save data from localStorage...', size: '0.78rem', color: '#888' },
     { t: 2300, text: 'Copying to IndexedDB — do not close the app', size: '0.78rem', color: '#aaa' },
@@ -38228,7 +38778,7 @@ var SHADOW_LOOT = [
   { name:'The Null Shield',   icon:'🛡️', type:'armor',  def:14, desc:'Absorbs the first hit of every combat completely. Then it is just armor.' },
   { name:'Void Cloth',        icon:'🌑', type:'armor',  def:10, desc:'Gets stronger as shadow corruption builds. Turns the dungeon\'s curse into defense.' },
   { name:'Echo Staff',        icon:'🔮', type:'weapon', atk:15, desc:'Spells cast twice — second cast deals 50% damage. Everything echoes here.' },
-  { name:'Shapeshifter\'s Mask', icon:'🎭', type:'relic', desc:'Copy one enemy ability per dungeon. Use it once. Make it yours.' },
+  { name:'Shapeshifter\'s Mask', icon:'🎭', type:'consumable', shadowItem:'shapeshifterMask', desc:'Copy one enemy ability per dungeon. Use it once. Make it yours.' },
   { name:'Shadow Cloak',      icon:'🌫️', type:'armor',  def:12, desc:'25% chance to phase through an attack entirely. You learned from the Drifter.' },
   { name:'The Erased Blade',  icon:'⬛', type:'weapon', atk:20, desc:'Deals true damage — ignores all enemy defense. As if the enemy never had any.' },
   { name:'Null Potion',       icon:'🌑', type:'potion', heal:55, desc:'Made from compressed shadow. Restores 55 HP and removes all corruption stacks.' },
@@ -39125,6 +39675,63 @@ var MUSIC_CATALOGUE = [
 var _mpCurrentKey = null;
 var _mpPlaying = false;
 var _mpAudio = null;
+var _mpShuffle = false;
+
+function mpGetAllKeys() {
+  return MUSIC_CATALOGUE.filter(function(t){ return TRACK_FILES[t.key]; }).map(function(t){ return t.key; });
+}
+
+function mpNext() {
+  var keys = mpGetAllKeys();
+  if (!keys.length) return;
+  if (_mpShuffle) {
+    _mpCurrentKey = keys[Math.floor(Math.random() * keys.length)];
+  } else {
+    var idx = keys.indexOf(_mpCurrentKey);
+    _mpCurrentKey = keys[(idx + 1) % keys.length];
+  }
+  mpUpdateNowPlaying();
+  mpPlay();
+}
+
+function mpPrev() {
+  var keys = mpGetAllKeys();
+  if (!keys.length) return;
+  if (_mpShuffle) {
+    _mpCurrentKey = keys[Math.floor(Math.random() * keys.length)];
+  } else {
+    var idx = keys.indexOf(_mpCurrentKey);
+    _mpCurrentKey = keys[(idx - 1 + keys.length) % keys.length];
+  }
+  mpUpdateNowPlaying();
+  mpPlay();
+}
+
+function toggleMpShuffle() {
+  _mpShuffle = !_mpShuffle;
+  var btn = document.getElementById('mp-shuffle-btn');
+  if (btn) {
+    btn.textContent = '🔀 ' + (_mpShuffle ? 'On' : 'Off');
+    btn.setAttribute('aria-pressed', _mpShuffle ? 'true' : 'false');
+    btn.setAttribute('aria-label', 'Shuffle, currently ' + (_mpShuffle ? 'on' : 'off'));
+  }
+  say('Shuffle ' + (_mpShuffle ? 'on' : 'off') + '.');
+}
+
+function setMpVolume(val) {
+  AUD.musicVol = val;
+  if (AUD.musicGain) AUD.musicGain.gain.setValueAtTime(val, AUD.ctx.currentTime);
+  if (_mpAudio && _mpAudio.volume !== undefined) _mpAudio.volume = val;
+  saveAudioPrefs();
+}
+
+function mpUpdateNowPlaying() {
+  var el = document.getElementById('mp-track-name');
+  if (!el) return;
+  if (!_mpCurrentKey) { el.textContent = 'Select a track below'; return; }
+  var track = MUSIC_CATALOGUE.find(function(t){ return t.key === _mpCurrentKey; });
+  el.textContent = track ? track.label : _mpCurrentKey;
+}
 
 function renderMusicPlayer() {
   var panel = document.getElementById('library-music-panel');
@@ -39135,12 +39742,22 @@ function renderMusicPlayer() {
   var player = document.createElement('div');
   player.className = 'music-player';
   player.innerHTML =
-    '<div class="mp-now-playing">NOW PLAYING</div>' +
-    '<div class="mp-track-name" id="mp-track-name">Select a track below</div>' +
+    '<div class="mp-now-playing" role="heading" aria-level="2" aria-label="Music Player — Now Playing section">NOW PLAYING</div>' +
+    '<div class="mp-track-name" id="mp-track-name" aria-live="polite">Select a track below</div>' +
     '<div class="mp-controls">' +
+      '<button class="mp-btn" onclick="mpPrev()" aria-label="Previous track">⏮</button>' +
       '<button class="mp-btn" onclick="mpPlay()" aria-label="Play selected track">▶ Play</button>' +
       '<button class="mp-btn" onclick="mpStop()" aria-label="Stop music">■ Stop</button>' +
-      '<button class="mp-btn" id="mp-loop-btn" onclick="toggleMusicLoop()" aria-label="Loop all songs, currently off" aria-pressed="false">🔁 Loop All: Off</button>' +
+      '<button class="mp-btn" onclick="mpNext()" aria-label="Next track">⏭</button>' +
+      '<button class="mp-btn" id="mp-shuffle-btn" onclick="toggleMpShuffle()" aria-label="Shuffle, currently off" aria-pressed="false">🔀 Off</button>' +
+      '<button class="mp-btn" id="mp-loop-btn" onclick="toggleMusicLoop()" aria-label="Loop all songs, currently off" aria-pressed="false">🔁 Loop: Off</button>' +
+    '</div>' +
+    '<div style="display:flex;align-items:center;gap:8px;margin-top:8px;">' +
+      '<span style="font-family:Cinzel,serif;font-size:0.65rem;color:#888;">🔈</span>' +
+      '<input type="range" min="0" max="1" step="0.05" value="' + (AUD.musicVol || 0.7) + '" ' +
+        'style="flex:1;" aria-label="Music volume" ' +
+        'oninput="setMpVolume(parseFloat(this.value))">' +
+      '<span style="font-family:Cinzel,serif;font-size:0.65rem;color:#888;">🔊</span>' +
     '</div>';
   panel.appendChild(player);
 
@@ -39208,7 +39825,7 @@ function mpSelect(el) {
 
 function mpPlay() {
   if (!_mpCurrentKey) { say('Select a track first.'); return; }
-
+  mpUpdateNowPlaying();
   var track = MUSIC_CATALOGUE.find(function(t){ return t.key === _mpCurrentKey; });
   var label = track ? track.label : _mpCurrentKey;
   var filePath = TRACK_FILES[_mpCurrentKey];
@@ -50614,7 +51231,28 @@ function spireReturnToMenu() {
 
 
 <!-- v10.7 UPDATE POPUP -->
-<div id="v111-popup" role="dialog" aria-modal="true" aria-label="Version 11.1 update" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:99006;align-items:center;justify-content:center;padding:20px;">
+<div id="v112-popup" role="dialog" aria-modal="true" aria-label="Version 11.2 update" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:99006;align-items:center;justify-content:center;padding:20px;">
+  <div style="max-width:420px;width:100%;background:#080008;border:2px solid #9966cc;padding:28px;text-align:center;max-height:90vh;overflow-y:auto;">
+    <div style="font-size:1.6rem;margin-bottom:12px;" aria-hidden="true">🌑</div>
+    <div style="font-family:Cinzel,serif;font-size:0.6rem;letter-spacing:0.4em;color:#9966cc;text-transform:uppercase;margin-bottom:8px;">Version 11.2</div>
+    <h2 style="font-family:Cinzel,serif;font-size:1.1rem;color:#cc88ff;margin-bottom:6px;">The Shadow World Improvement Update</h2>
+    <div style="width:50px;height:1px;background:linear-gradient(90deg,transparent,#9966cc,transparent);margin:0 auto 20px;"></div>
+    <div style="text-align:left;font-family:Cinzel,serif;font-size:0.7rem;color:#888;line-height:1.9;margin-bottom:20px;">
+      <div style="color:#cc88ff;margin-bottom:6px;">🎭 Shapeshifter's Mask</div>
+      Use in combat to copy any enemy's ability. 12 unique abilities including dodge, reflect, second life, and more.<br><br>
+      <div style="color:#cc88ff;margin-bottom:6px;">🌑 New Shadow Loot</div>
+      Mirror Fragment, Echo Bone, Offering Cloth, Door Key — 4 new items with unique effects.<br><br>
+      <div style="color:#cc88ff;margin-bottom:6px;">👣 Stalker Floor Audio</div>
+      The Darkness Swallower now growls in a loop and walks toward you with directional footsteps. Use headphones.<br><br>
+      <div style="color:#cc88ff;margin-bottom:6px;">🎵 Music Player & Library</div>
+      Prev/next, shuffle, volume slider, and ElevenLabs narration for 3 stories.<br><br>
+      <div style="color:#cc88ff;margin-bottom:6px;">🏚️ The Hollow</div>
+      All existing enemies now have unique mechanics — Bell Ringer stuns, Portrait grows stronger each turn, Wall Crawler bypasses defense, and more.<br><br>
+      <div style="color:#555;font-size:0.62rem;">+ Boss sequence fixed. Enemy pool bugs fixed. Settings links added.</div>
+    </div>
+    <button type="button" onclick="dismissV112Popup()" style="width:100%;padding:14px;background:#0a0008;border:2px solid #9966cc;color:#cc88ff;font-family:Cinzel,serif;font-size:0.8rem;cursor:pointer;letter-spacing:0.1em;" aria-label="Got it — enter the Shadow World">🌑 Enter the Shadow. Descend.</button>
+  </div>
+</div>
   <div style="max-width:420px;width:100%;background:#080808;border:2px solid #9966cc;padding:28px;text-align:center;max-height:90vh;overflow-y:auto;">
     <div style="font-size:1.6rem;margin-bottom:12px;" aria-hidden="true">🌑</div>
     <div style="font-family:Cinzel,serif;font-size:0.6rem;letter-spacing:0.4em;color:#9966cc;text-transform:uppercase;margin-bottom:8px;">Version 11.1</div>
@@ -51832,13 +52470,9 @@ function stopHunterMusic() {
     _hunterMusicEl.pause();
     _hunterMusicEl.currentTime = 0;
   }
-  // Resume dungeon music
+  // Resume dungeon music via playTrack — same pattern used everywhere else
   if (AUD && AUD.musicOn) {
-    try {
-      var currentTrack = AUD.tracks[AUD.current];
-      if (currentTrack) { currentTrack.currentTime = 0; currentTrack.play().catch(function(){}); }
-      else { playTrack(getMenuTrack ? getMenuTrack() : 'floor1'); }
-    } catch(e) {}
+    try { playTrack(exploTrackForFloor(DS.floor)); } catch(e) {}
   }
 }
 
@@ -52650,6 +53284,25 @@ function handleHardcoreDeath() {
 // ── END COMPANION SYSTEM ──
 
 // -- v11.0 UPDATE POPUP --
+function showV112PopupIfNeeded() {
+  if (DDStore.getItem('dd_v112_seen')) return;
+  var el = document.getElementById('v112-popup');
+  if (!el) return;
+  el.style.display = 'flex';
+  setTimeout(function() {
+    var btn = el.querySelector('button');
+    if (btn) btn.focus();
+    say('Version 11.2 — The Shadow World Improvement Update. Shapeshifter Mask with 12 abilities. 4 new Shadow loot items. Stalker Floor spatial audio. Music Player improvements. ElevenLabs narration in the Library. Press Enter the Shadow to continue.');
+  }, 300);
+}
+
+function dismissV112Popup() {
+  DDStore.setItem('dd_v112_seen', '1');
+  var el = document.getElementById('v112-popup');
+  if (el) el.style.display = 'none';
+  say('Welcome to version 11.2. The Shadow World awaits.');
+}
+
 function showV111PopupIfNeeded() {
   if (DDStore.getItem('dd_v111_seen')) return;
   var el = document.getElementById('v111-popup');
@@ -52884,7 +53537,7 @@ window.addEventListener('load', function() {
     DDStore.setItem('dd_v109_seen', '1');
     DDStore.setItem('dd_v110_seen', '1');
     // Show v11.1 popup
-    showV111PopupIfNeeded();
+    showV112PopupIfNeeded();
   }, 500);
 });
 // ── END v10.2 UPDATE POPUP ──
