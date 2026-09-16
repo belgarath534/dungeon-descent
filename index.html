@@ -1739,7 +1739,7 @@ var DDStore = (function() {
     <!-- Title -->
     <div class="loading-title" data-i18n="game-title" style="font-size:2.4rem;line-height:1.1;margin-bottom:6px;">Dungeon<br>Descent</div>
     <div class="loading-sub" data-i18n="game-subtitle" style="margin-bottom:6px;">Into the dark. Again.</div>
-    <div style="font-family:Cinzel,serif;font-size:0.58rem;color:#333;letter-spacing:0.2em;margin-bottom:40px;" aria-hidden="true" id="loading-version-tag">v11.2</div>
+    <div style="font-family:Cinzel,serif;font-size:0.58rem;color:#333;letter-spacing:0.2em;margin-bottom:40px;" aria-hidden="true" id="loading-version-tag">v11.3</div>
 
     <!-- Loading bar -->
     <div class="loading-bar-wrap">
@@ -1913,7 +1913,7 @@ var DDStore = (function() {
         <span data-i18n="btn-quit">🕯 Quit</span>
       </button>
     </nav>
-    <p class="version-tag" id="menu-version-tag" aria-label="Version 11 point 2, Release">v11.2 · Release</p>
+    <p class="version-tag" id="menu-version-tag" aria-label="Version 11 point 3, Release">v11.3 · Release</p>
     <p id="menu-online-count" style="font-family:Cinzel,serif;font-size:0.55rem;color:#444;margin-top:4px;letter-spacing:0.1em;" aria-live="polite" aria-label="Players currently online"></p>
     <p style="font-family:Cinzel,serif;font-size:0.7rem;color:#ffdd44;margin-top:6px;" aria-label="Your global gold" aria-live="polite"><span data-i18n="lbl-gold">💰 </span><span class="global-gold-display">0</span></p>
     <p style="font-family:Cinzel,serif;font-size:0.7rem;color:#88ddff;margin-top:2px;" aria-label="Your diamonds" aria-live="polite">💎 <span class="global-diamond-display">0</span></p>
@@ -7939,7 +7939,7 @@ var DDStore = (function() {
     <!-- Game Version -->
     <div class="access-option" style="cursor:default;">
       <div class="access-option-label">Game Version</div>
-      <div class="access-option-desc" id="general-version-display">Dungeon Descent v11.2</div>
+      <div class="access-option-desc" id="general-version-display">Dungeon Descent v11.3</div>
     </div>
 
     <!-- Command Center Toggle -->
@@ -28899,36 +28899,51 @@ function translateVisibleText(root) {
   var langTable = T[_translationLang];
   if (!langTable) return;
   root = root || document.body;
-  if (root.nodeType === 3) {
-    var trimmed0 = root.nodeValue.trim();
-    if (trimmed0 && langTable[trimmed0]) root.nodeValue = root.nodeValue.replace(trimmed0, langTable[trimmed0]);
-    return;
-  }
-  if (root.nodeType !== 1 && root.nodeType !== 9) return;
-  var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-    acceptNode: function(node) {
-      var p = node.parentNode;
-      if (!p) return NodeFilter.FILTER_REJECT;
-      var tag = p.nodeName;
-      if (tag === 'SCRIPT' || tag === 'STYLE') return NodeFilter.FILTER_REJECT;
-      return NodeFilter.FILTER_ACCEPT;
+  // BUGFIX: this function's own DOM writes (nodeValue/aria-label changes) are
+  // themselves mutations. If the translation MutationObserver is active while
+  // this runs, each write it makes gets queued and replayed back through the
+  // observer's callback, which calls this function again on each mutated
+  // node's parent, walking (and querySelectorAll-ing) that subtree again. On
+  // a full document.body pass across every screen in this SPA that fans out
+  // into thousands of redundant re-scans and pins the main thread for
+  // minutes, presenting as a frozen/blank page. Disconnect while writing so
+  // our own writes never re-enter the observer, then restore it after.
+  var _obs = _translationObserver;
+  if (_obs) _obs.disconnect();
+  try {
+    if (root.nodeType === 3) {
+      var trimmed0 = root.nodeValue.trim();
+      if (trimmed0 && langTable[trimmed0]) root.nodeValue = root.nodeValue.replace(trimmed0, langTable[trimmed0]);
+      return;
     }
-  });
-  var node;
-  while ((node = walker.nextNode())) {
-    var trimmed = node.nodeValue.trim();
-    if (!trimmed) continue;
-    if (langTable[trimmed]) node.nodeValue = node.nodeValue.replace(trimmed, langTable[trimmed]);
-  }
-  if (root.nodeType === 1 && root.hasAttribute && root.hasAttribute('aria-label')) {
-    var cur = root.getAttribute('aria-label');
-    if (cur && langTable[cur]) root.setAttribute('aria-label', langTable[cur]);
-  }
-  if (root.querySelectorAll) {
-    root.querySelectorAll('[aria-label]').forEach(function(el) {
-      var current = el.getAttribute('aria-label');
-      if (current && langTable[current]) el.setAttribute('aria-label', langTable[current]);
+    if (root.nodeType !== 1 && root.nodeType !== 9) return;
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode: function(node) {
+        var p = node.parentNode;
+        if (!p) return NodeFilter.FILTER_REJECT;
+        var tag = p.nodeName;
+        if (tag === 'SCRIPT' || tag === 'STYLE') return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      }
     });
+    var node;
+    while ((node = walker.nextNode())) {
+      var trimmed = node.nodeValue.trim();
+      if (!trimmed) continue;
+      if (langTable[trimmed]) node.nodeValue = node.nodeValue.replace(trimmed, langTable[trimmed]);
+    }
+    if (root.nodeType === 1 && root.hasAttribute && root.hasAttribute('aria-label')) {
+      var cur = root.getAttribute('aria-label');
+      if (cur && langTable[cur]) root.setAttribute('aria-label', langTable[cur]);
+    }
+    if (root.querySelectorAll) {
+      root.querySelectorAll('[aria-label]').forEach(function(el) {
+        var current = el.getAttribute('aria-label');
+        if (current && langTable[current]) el.setAttribute('aria-label', langTable[current]);
+      });
+    }
+  } finally {
+    if (_obs) _obs.observe(document.body, { childList: true, subtree: true, characterData: true });
   }
 }
 
