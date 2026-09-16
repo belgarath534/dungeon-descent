@@ -3060,8 +3060,30 @@ var DDStore = (function() {
         <span>🎒 Inventory</span>
         <button class="btn-close" style="padding:4px 10px;font-size:.6rem;" onclick="toggleInv()" aria-label="Close inventory">Close ✕</button>
       </div>
+      <div id="dg-inv-controls" style="margin-bottom:10px;">
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">
+          <input type="text" id="inv-search" placeholder="Search items..." aria-label="Search inventory items" style="flex:1;padding:6px 10px;background:#0a0a0a;border:1px solid #333;color:#ccc;font-family:Cinzel,serif;font-size:0.68rem;outline:none;" oninput="onInvSearch(this.value)" autocomplete="off" />
+          <button type="button" aria-label="Clear search" onclick="onInvSearchClear()" style="padding:6px 10px;background:#0a0a0a;border:1px solid #333;color:#555;font-family:Cinzel,serif;font-size:0.68rem;cursor:pointer;">x</button>
+          <button type="button" aria-label="Auto sort inventory by type" onclick="autoSortInventory()" style="padding:6px 10px;background:#0a0a0a;border:1px solid #333;color:#cc9944;font-family:Cinzel,serif;font-size:0.68rem;cursor:pointer;">Sort</button>
+        </div>
+        <div id="dg-inv-tabs" style="display:flex;gap:3px;flex-wrap:wrap;"></div>
+      </div>
       <div class="dg-inv-grid" id="dg-inv-grid" aria-live="polite"></div>
     </section>
+
+    <!-- Boss Retry Overlay -->
+    <div id="boss-retry-overlay" role="dialog" aria-modal="true" aria-label="Boss retry" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:900;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;">
+      <div style="max-width:400px;width:100%;">
+        <div style="font-size:2rem;margin-bottom:12px;" aria-hidden="true">💀</div>
+        <h2 style="font-family:'Cinzel',serif;font-size:1.1rem;color:#c03030;margin-bottom:8px;" id="boss-retry-title">Fallen Before the Boss</h2>
+        <p style="font-family:'Cinzel',serif;font-size:0.75rem;color:#888;line-height:1.7;margin-bottom:20px;" id="boss-retry-msg">You were defeated, but the battle is not over. Retry the boss with half your HP — your items are yours to keep. The boss resets to full strength.</p>
+        <p style="font-family:'Cinzel',serif;font-size:0.7rem;color:#c8a832;margin-bottom:24px;" id="boss-retry-penalty">Gold penalty: <span id="boss-retry-penalty-amt">0</span> gold.</p>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <button id="boss-retry-btn" onclick="doBossRetry()" style="font-family:'Cinzel',serif;font-size:0.85rem;background:#2a1a3e;border:1px solid #6644aa;color:#c8a832;padding:14px 20px;border-radius:6px;cursor:pointer;" aria-label="Retry the boss fight">⚔ Retry Boss Fight</button>
+          <button id="boss-retry-accept-btn" onclick="doBossRetryAccept()" style="font-family:'Cinzel',serif;font-size:0.8rem;background:transparent;border:1px solid #444;color:#888;padding:12px 20px;border-radius:6px;cursor:pointer;" aria-label="Accept defeat and see run summary">Accept Defeat</button>
+        </div>
+      </div>
+    </div>
 
     <div id="dg-end" style="display:none;">
       <div class="dg-end">
@@ -8610,7 +8632,8 @@ function loadAudio() {
    'sfx-trap','sfx-attack','sfx-crit','sfx-heavy-hit','sfx-heavy-miss',
    'sfx-hurt','sfx-death','sfx-enemy-die','sfx-potion','sfx-purchase',
    'sfx-stairs','sfx-victory','sfx-gameover','sfx-unlock','sfx-levelup',
-   'sfx-sanity-warning','sfx-sanity-critical','sfx-eagle-cry','sfx-firework'];
+   'sfx-sanity-warning','sfx-sanity-critical','sfx-eagle-cry','sfx-firework',
+   'sfx-zombie-groan','sfx-vampire-laugh','sfx-ghost-scream'];
 
   sfxNames.forEach(function(n) {
     try {
@@ -12025,6 +12048,7 @@ var HOLLOW_ENEMIES = {
     { name:'The Reflection',      icon:'🪞', hp:22, atk:[6,11],  gold:[2,5],  desc:'It copies your last action. Attack and it attacks. Defend and it heals.', reflection:true },
     { name:'The Uninvited Guest', icon:'🧍', hp:26, atk:[6,12],  gold:[3,6],  isUninvited:true, desc:'Nobody invited it. Nobody can make it leave.' },
     { name:'The Twin',            icon:'👤', hp:30, atk:[5,11],  gold:[3,6],  isTwin:true, desc:'It looks exactly like you. It knows exactly what you will do next.' },
+    { name:'The Risen',           icon:'🧟', hp:32, atk:[5,10],  gold:[3,7],  hollowZombie:true, desc:'It was buried in the grounds. It did not stay buried. It never does.' },
   ],
   t2: [
     { name:'The Door Warden',     icon:'🚪', hp:48, atk:[9,16],  gold:[6,11], desc:'It guards every exit. Flee attempts automatically fail while it lives.', preventFlee:true },
@@ -12033,11 +12057,13 @@ var HOLLOW_ENEMIES = {
     { name:'Hollow Groom',        icon:'🤵', hp:44, atk:[9,16],  gold:[5,10], desc:'He waited at the altar for forty years. The anger calcified into something worse.', hollowGroom:true },
     { name:'The Bell Ringer',     icon:'🔔', hp:40, atk:[10,17], gold:[5,9],  desc:'When the bell rings your turn is skipped. It always rings on the second turn.', hollowBell:true },
     { name:'The Wall Crawler',    icon:'🧱', hp:55, atk:[8,15],  gold:[6,11], desc:'It moves on the ceiling. Every other attack comes from above — impossible to block.', hollowCrawl:true },
+    { name:'The Pale Guest',      icon:'🧛', hp:50, atk:[10,17], gold:[6,12], hollowVampire:true, desc:'It has not eaten in a long time. You can tell by the way it looks at you.' },
   ],
   t3: [
     { name:'The Oldest Guest',    icon:'💀', hp:82, atk:[13,21], gold:[10,18], desc:'It arrived before the house existed. It will be here after it falls.', immuneFirstHit:true },
     { name:'The Hollow Matron',   icon:'👵', hp:76, atk:[12,20], gold:[9,16],  desc:'She ran this house. She still does. All enemies deal 10% more damage while she lives.', hollowMatron:true },
     { name:'The Caretaker',       icon:'🗝️', hp:88, atk:[13,22], gold:[11,19], desc:'It has a key to every room. Including the ones that should not exist.', grows:true },
+    { name:'The Unfinished',      icon:'👻', hp:70, atk:[12,20], gold:[9,17],  hollowGhost:true, desc:'It did not finish what it started. It is still trying. Your attacks pass through it half the time.' },
   ],
   bossPool: [
     { name:'The Grieving One',    icon:'😭', hp:250, atk:[15,24], gold:[70,100],
@@ -13744,7 +13770,9 @@ function advanceFloor() {
   }
   if (typeof applyTraitPerFloor === 'function') applyTraitPerFloor();
   DS.roomsOnFloor = 0;
-  // Hunter Mode — phase up on floor 2, give small distance mercy on each new floor
+  DS._preBossGauntletDone = false;
+  DS._gauntletWavesCurrent = 0;
+  DS._gauntletWavesTotal = 0;
   if (DS.hunterMode && DS.hunterAlive) {
     if (DS.floor === 2 && DS.hunterPhase === 1) {
       setTimeout(function() { hunterPhaseUp(); }, 1200);
@@ -14161,6 +14189,27 @@ function startCombat(isBoss) {
   updateEnemyStatusDisplay();
   setTimeout(function() { document.getElementById('cbtn-attack').focus(); }, 100);
   say('Combat! Fighting ' + e.name + '. HP ' + e.hp + '. Choose attack, heavy, defend, potion, or flee.');
+
+  // ── HOLLOW ENEMY ENTRANCE ANNOUNCEMENTS ──
+  if (e.hollowZombie) {
+    setTimeout(function() {
+      sfx('sfx-zombie-groan');
+      addLog('🧟 Something dead stands up. It should not be able to do that.');
+      say(e.name + '. It was dead. It is not anymore. Warning — it will rise once when killed.');
+    }, 600);
+  } else if (e.hollowVampire) {
+    setTimeout(function() {
+      sfx('sfx-vampire-laugh');
+      addLog('🧛 The temperature drops. Something hungry steps into the light.');
+      say(e.name + '. It heals 8 HP every time it hits you. Kill it fast.');
+    }, 600);
+  } else if (e.hollowGhost) {
+    setTimeout(function() {
+      sfx('sfx-ghost-scream');
+      addLog('👻 The air goes cold. Something steps through the wall. Your attacks may pass right through it.');
+      say(e.name + '. 30 percent chance your attacks phase through it entirely.');
+    }, 600);
+  }
 }
 
 var _combatBtnSafetyTimer = null;
@@ -15134,6 +15183,19 @@ function enemyDead() {
   var e = DS.enemy;
   try { resetGunState(); } catch(e2) {}
 
+  // hollowZombie — revives once at 20% HP
+  if (e && e.hollowZombie && !e._zombieRevived) {
+    e._zombieRevived = true;
+    e.hp = Math.round((e.maxHp || 30) * 0.20);
+    updateEnemyBar();
+    sfx('sfx-hurt');
+    addLog('🧟 ' + e.name + ' falls — then rises again. It will not stay down.');
+    say(e.name + ' rises from death at 20 percent HP. Strike it down again.');
+    vibe && vibe([200, 100, 200, 100, 200]);
+    setCombatBtns(true);
+    return;
+  }
+
   // Shadow World — Echo boss triggers Shapeshifter after death
   if (DS.dungeon === 'The Shadow World' && e && e.isEcho && e.isBoss) {
     DS.inCombat = false;
@@ -15437,7 +15499,15 @@ function enemyDead() {
   // skipped entirely, going straight to victory.
   if (e.isElite && DS.floor === 10) {
     DS.roomsOnFloor = (DS.floorRoomsNeeded !== undefined ? DS.floorRoomsNeeded : 5);
-    DS._eliteKilledFloor10 = true; // guard: block victory screen until boss actually spawns
+    DS._eliteKilledFloor10 = true;
+    // Pre-boss minion gauntlet — run waves before the boss spawns
+    if (!DS._preBossGauntletDone) {
+      DS._preBossGauntletDone = false; // will be set true after waves complete
+      setTimeout(function() { startPreBossGauntlet(); }, 1200);
+      playTrack(exploTrackForFloor(DS.floor));
+      saveProgress(); updateTopBar();
+      return;
+    }
   }
   // Return to floor exploration music after combat
   playTrack(exploTrackForFloor(DS.floor));
@@ -15477,6 +15547,11 @@ function enemyDead() {
     DS.inCombat = false;
     DS.enemy = null;
     updateTopBar();
+    // If this was a gauntlet minion, hand off to gauntlet handler instead of enterRoom
+    if (e && e.isGauntletMinion) {
+      onGauntletWaveComplete();
+      return;
+    }
     enterRoom();
   }, 1000);
   } catch(err) {
@@ -15570,20 +15645,25 @@ function handleDeath() {
     }
   }
   if (DS.lives <= 0) {
-    say('Defeated. All lives lost.');
-    setTimeout(function() {
-      try {
-        showDefeat();
-      } catch(e) {
-        console.error('[DD] showDefeat crashed:', e);
-        // Nuclear fallback — just get to runsummary no matter what
+    // Boss retry — offer a second chance if killed by a boss
+    if (DS.enemy && DS.enemy.isBoss && !DS._bossRetryUsed) {
+      setTimeout(function() { showBossRetry(); }, 800);
+    } else {
+      say('Defeated. All lives lost.');
+      setTimeout(function() {
         try {
-          document.querySelectorAll('.screen').forEach(function(s) { s.classList.remove('active'); });
-          var rs = document.getElementById('screen-runsummary');
-          if (rs) { rs.classList.add('active'); _currentScreen = 'runsummary'; }
-        } catch(e2) {}
-      }
-    }, 800);
+          showDefeat();
+        } catch(e) {
+          console.error('[DD] showDefeat crashed:', e);
+          // Nuclear fallback — just get to runsummary no matter what
+          try {
+            document.querySelectorAll('.screen').forEach(function(s) { s.classList.remove('active'); });
+            var rs = document.getElementById('screen-runsummary');
+            if (rs) { rs.classList.add('active'); _currentScreen = 'runsummary'; }
+          } catch(e2) {}
+        }
+      }, 800);
+    }
   }
   else {
     DS.hp = Math.round(DS.maxHp * 0.4);
@@ -15833,6 +15913,8 @@ function applyShadowEnemyMechanics(e, dmgToPlayer) {
     updateEnemyBar();
     addLog('⚰️ The Groundskeeper tends to its wounds. +' + healAmt + ' HP.');
   }
+  // The Pale Guest (Vampire) — heals 8 HP on every hit it lands (handled in applyEnemyMechanicsOnHit)
+  // The Unfinished (Ghost) — 30% dodge handled in applyEnemyMechanicsOnHit
 
   return dmgToPlayer;
 }
@@ -16052,7 +16134,7 @@ function getStalkerDirection() {
   if (Math.abs(dx) >= Math.abs(dy)) {
     return dx > 0 ? 'right' : 'left';
   } else {
-    return dy > 0 ? 'behind' : 'ahead';
+    return dy > 0 ? 'ahead' : 'behind';
   }
 }
 
@@ -16122,7 +16204,7 @@ function stalkerCaught() {
   // Restore dungeon panels
   showDgPanels(true, true, true);
   try {
-    var js = new Audio(_audioUrl('hunter-jumpscare.mp3'));
+    var js = new Audio(_audioUrl('jump-scare-v3.mp3'));
     js.volume = AUD ? (AUD.sfxVol || 0.8) : 0.8;
     js.play().catch(function(){});
   } catch(e) {}
@@ -16380,7 +16462,9 @@ function getInvCategory(item) {
   if (['potion','sp-potion','luck-potion','fire-potion','curse-potion','swift-potion','def-potion','atk-potion',
        'cursed','mirror-flask','phantom-potion','gravity-tonic','leech-brew','rage-tonic','fog-flask',
        'time-potion','corruption-flask','love-potion'].indexOf(item.type) !== -1) return 'potions';
-  if (['iron-scrap','bone-shard','wolf-fang','goblin-gem','frost-crystal','fire-ember','shadow-dust','void-fragment','dragon-scale'].indexOf(item.id) !== -1) return 'materials';
+  if (item.type === 'material' || ['iron-scrap','bone-shard','wolf-fang','goblin-gem','frost-crystal','fire-ember','shadow-dust','void-fragment','dragon-scale'].indexOf(item.id) !== -1) return 'materials';
+  // Equipment: masks, relics, unique wearable/passive items from bosses or special events
+  if (item.type === 'relic' || item.type === 'mask' || (item.type === 'consumable' && item.shadowItem) || item.isEquipment) return 'equipment';
   return 'special';
 }
 
@@ -16430,7 +16514,7 @@ function autoSortInventory() {
 function switchInvTab(tab) {
   _invTab = tab;
   _invVisibleCount = _invPageSize;
-  var tabs = ['all','favorites','weapons','potions','special','materials'];
+  var tabs = ['all','favorites','weapons','potions','special','equipment','materials'];
   tabs.forEach(function(t) {
     var btn = document.getElementById('invtab-' + t);
     if (btn) {
@@ -16442,65 +16526,58 @@ function switchInvTab(tab) {
   renderInv();
 }
 
+function onInvSearch(val) {
+  _invSearch = val;
+  _invVisibleCount = _invPageSize;
+  clearTimeout(_invSearchTimer);
+  _invSearchTimer = setTimeout(function(){ renderInv(); }, 200);
+}
+function onInvSearchClear() {
+  _invSearch = '';
+  _invVisibleCount = _invPageSize;
+  var inp = document.getElementById('inv-search');
+  if (inp) { inp.value = ''; inp.focus(); }
+  renderInv();
+}
+
 function renderInv() {
   var grid = document.getElementById('dg-inv-grid');
   grid.innerHTML = '';
 
-  // ── Search bar ──
-  var searchWrap = document.createElement('div');
-  searchWrap.style.cssText = 'margin-bottom:10px;display:flex;gap:6px;align-items:center;';
-  var searchInput = document.createElement('input');
-  searchInput.type = 'text';
-  searchInput.id = 'inv-search';
-  searchInput.placeholder = 'Search items...';
-  searchInput.value = _invSearch || '';
-  searchInput.setAttribute('aria-label', 'Search inventory items');
-  searchInput.style.cssText = 'flex:1;padding:6px 10px;background:#0a0a0a;border:1px solid #333;color:#ccc;font-family:Cinzel,serif;font-size:0.68rem;outline:none;';
-  searchInput.oninput = function() {
-    _invSearch = this.value;
-    _invVisibleCount = _invPageSize;
-    clearTimeout(_invSearchTimer);
-    _invSearchTimer = setTimeout(function(){ renderInv(); }, 120);
-  };
-  var clearBtn = document.createElement('button');
-  clearBtn.type = 'button';
-  clearBtn.textContent = '✕';
-  clearBtn.setAttribute('aria-label', 'Clear search');
-  clearBtn.style.cssText = 'padding:6px 10px;background:#0a0a0a;border:1px solid #333;color:#555;font-family:Cinzel,serif;font-size:0.68rem;cursor:pointer;';
-  clearBtn.onclick = function() { _invSearch = ''; _invVisibleCount = _invPageSize; renderInv(); };
-  searchWrap.appendChild(searchInput);
-  searchWrap.appendChild(clearBtn);
-  // Auto-sort button
-  var sortBtn = document.createElement('button');
-  sortBtn.type = 'button';
-  sortBtn.textContent = '⇅';
-  sortBtn.setAttribute('aria-label', 'Auto sort inventory by type');
-  sortBtn.style.cssText = 'padding:6px 10px;background:#0a0a0a;border:1px solid #333;color:#cc9944;font-family:Cinzel,serif;font-size:0.68rem;cursor:pointer;';
-  sortBtn.onclick = autoSortInventory;
-  searchWrap.appendChild(sortBtn);
-  grid.appendChild(searchWrap);
-
-  // Build tab bar
-  var tabBar = document.createElement('div');
-  tabBar.style.cssText = 'display:flex;gap:3px;margin-bottom:10px;flex-wrap:wrap;';
-  var tabs = [
-    { id:'all',       label:'📦 All' },
-    { id:'favorites', label:'⭐ Favorites' },
-    { id:'weapons',   label:'⚔️ Weapons' },
-    { id:'potions',   label:'🧪 Potions' },
-    { id:'special',   label:'✨ Special' },
-    { id:'materials', label:'🔩 Materials' },
-  ];
-  tabs.forEach(function(t) {
-    var btn = document.createElement('button');
-    btn.id = 'invtab-' + t.id;
-    btn.textContent = t.label;
-    btn.setAttribute('aria-label', t.label + ' tab');
-    btn.style.cssText = 'padding:5px 8px;background:' + (t.id===_invTab?'#1a1000':'#080808') + ';border:1px solid ' + (t.id===_invTab?'#cc9944':'#333') + ';color:' + (t.id===_invTab?'#cc9944':'#555') + ';font-family:Cinzel,serif;font-size:0.58rem;cursor:pointer;border-radius:2px;letter-spacing:0.05em;';
-    btn.onclick = (function(tid){ return function(){ switchInvTab(tid); }; })(t.id);
-    tabBar.appendChild(btn);
+  // ── Build tab bar into persistent container (only once) ──
+  var tabContainer = document.getElementById('dg-inv-tabs');
+  if (tabContainer && !tabContainer.dataset.built) {
+    tabContainer.dataset.built = '1';
+    var tabs = [
+      { id:'all',       label:'All' },
+      { id:'favorites', label:'Fav' },
+      { id:'weapons',   label:'Weapons' },
+      { id:'armor',     label:'Armor' },
+      { id:'potions',   label:'Potions' },
+      { id:'special',   label:'Special' },
+      { id:'equipment', label:'Equipment' },
+      { id:'materials', label:'Materials' },
+    ];
+    tabs.forEach(function(t) {
+      var btn = document.createElement('button');
+      btn.id = 'invtab-' + t.id;
+      btn.textContent = t.label;
+      btn.setAttribute('aria-label', t.label + ' tab');
+      btn.style.cssText = 'padding:5px 8px;background:#080808;border:1px solid #333;color:#555;font-family:Cinzel,serif;font-size:0.58rem;cursor:pointer;border-radius:2px;letter-spacing:0.05em;margin-bottom:4px;';
+      btn.onclick = (function(tid){ return function(){ switchInvTab(tid); }; })(t.id);
+      tabContainer.appendChild(btn);
+    });
+  }
+  // Update tab highlight states without rebuilding
+  var allTabIds = ['all','favorites','weapons','armor','potions','special','equipment','materials'];
+  allTabIds.forEach(function(t) {
+    var btn = document.getElementById('invtab-' + t);
+    if (btn) {
+      btn.style.background = t === _invTab ? '#1a1000' : '#080808';
+      btn.style.borderColor = t === _invTab ? '#cc9944' : '#333';
+      btn.style.color = t === _invTab ? '#cc9944' : '#555';
+    }
   });
-  grid.appendChild(tabBar);
 
   // Show equipped items in weapons tab or all tab
   if (_invTab === 'all' || _invTab === 'weapons') {
@@ -16583,9 +16660,31 @@ function renderInv() {
     grid.appendChild(empty2); return;
   }
 
-  var visibleItems = filteredItems.slice(0, _invVisibleCount);
-  visibleItems.forEach(function(item) {
-    var i = DS.inventory.indexOf(item);
+  // Stack identical items by name — group them so screen readers don't get 59 enchanter rows
+  var stackMap = {};
+  var stackOrder = [];
+  filteredItems.forEach(function(item) {
+    // Weapons and armor are never stacked (each has unique level/stats)
+    if (item.type === 'weapon' || item.type === 'armor') {
+      var uid = item.name + '__' + (item.level||0) + '__' + Math.random();
+      stackMap[uid] = { item: item, count: 1, indices: [DS.inventory.indexOf(item)] };
+      stackOrder.push(uid);
+    } else {
+      var key = item.name;
+      if (!stackMap[key]) {
+        stackMap[key] = { item: item, count: 0, indices: [] };
+        stackOrder.push(key);
+      }
+      stackMap[key].count++;
+      stackMap[key].indices.push(DS.inventory.indexOf(item));
+    }
+  });
+  var stackedEntries = stackOrder.map(function(k) { return stackMap[k]; });
+  var visibleEntries = stackedEntries.slice(0, _invVisibleCount);
+  visibleEntries.forEach(function(entry) {
+    var item = entry.item;
+    var count = entry.count;
+    var i = entry.indices[0]; // index of first instance for use/drop
     var isUsable = item.type === 'potion' || item.type === 'enchanter' || item.type === 'music-player' || item.type === 'luck-potion' || item.type === 'fire-potion' || item.type === 'curse-potion' || item.type === 'swift-potion' || item.type === 'def-potion' || item.type === 'atk-potion' || item.type === 'cursed' || item.type === 'rune' || item.type === 'scroll' || item.type === 'skill-orb' || item.type === 'soul-trap' || item.type === 'sp-potion' || item.type === 'gamblers-spirit' || item.type === 'mirror-flask' || item.type === 'phantom-potion' || item.type === 'gravity-tonic' || item.type === 'leech-brew' || item.type === 'rage-tonic' || item.type === 'fog-flask' || item.type === 'time-potion' || item.type === 'corruption-flask' || item.type === 'love-potion' || item.type === 'consumable';
     var isRelic = item.type === 'relic';
     var isEquippable = item.isEquippable && (item.type === 'weapon' || item.type === 'armor');
@@ -16594,13 +16693,15 @@ function renderInv() {
     row.setAttribute('tabindex','0');
     var lvlStr = item.level ? ' Level ' + item.level : '';
     var statStr = item.type==='weapon' ? ' Attack ' + getWeaponAtk(item).join(' to ') : item.type==='armor' ? ' Defense plus ' + getArmorDef(item) : '';
-    var actionStr = isEquippable ? ' Press Equip to equip.' : isUsable ? ' Press Use to consume.' : ' Press Drop to discard.';
-    row.setAttribute('aria-label', item.name + lvlStr + statStr + '. ' + (item.desc||'') + actionStr);
+    var countStr = (count > 1) ? ' You have ' + count + '.' : '';
+    var actionStr = isEquippable ? ' Press Equip to equip.' : isUsable ? ' Press Use to consume one.' : ' Press Drop to discard.';
+    row.setAttribute('aria-label', item.name + lvlStr + statStr + countStr + '. ' + (item.desc||'') + actionStr);
     var info = document.createElement('span');
     info.style.cssText = 'flex:1;font-family:Cinzel,serif;font-size:0.72rem;color:var(--text-secondary);';
     var rarDisp = item.raritySymbol ? ' ' + item.raritySymbol : '';
     var durDisp = (item.type === 'weapon' && item.durability !== undefined && item.durability < 100) ? ' [' + getDurabilityLabel(item.durability).label + ']' : '';
-    info.textContent = (item.icon||'') + ' ' + item.name + rarDisp + (item.level ? ' Lv.' + item.level : '') + statStr + durDisp;
+    var countDisp = (count > 1) ? ' (x' + count + ')' : '';
+    info.textContent = (item.icon||'') + ' ' + item.name + rarDisp + countDisp + (item.level ? ' Lv.' + item.level : '') + statStr + durDisp;
     if (item.rarityColor) info.style.color = item.rarityColor;
     else if (item.type === 'weapon' && item.durability !== undefined && item.durability < 40) info.style.color = getDurabilityLabel(item.durability).color;
     info.setAttribute('aria-hidden','true');
@@ -16680,18 +16781,18 @@ function renderInv() {
     grid.appendChild(row);
   });
 
-  if (filteredItems.length > visibleItems.length) {
+  if (stackedEntries.length > visibleEntries.length) {
     var invLoadMoreBtn = document.createElement('button');
     invLoadMoreBtn.type = 'button';
     invLoadMoreBtn.className = 'btn-ghost';
     invLoadMoreBtn.style.cssText = 'width:100%;margin-top:8px;padding:10px;font-family:Cinzel,serif;font-size:0.68rem;';
-    var invRemaining = filteredItems.length - visibleItems.length;
+    var invRemaining = stackedEntries.length - visibleEntries.length;
     invLoadMoreBtn.textContent = 'Load More (' + invRemaining + ' remaining)';
     invLoadMoreBtn.setAttribute('aria-label', 'Load ' + Math.min(_invPageSize, invRemaining) + ' more items. ' + invRemaining + ' remaining.');
     invLoadMoreBtn.onclick = function() {
       _invVisibleCount += _invPageSize;
       renderInv();
-      var firstNew = grid.children[visibleItems.length];
+      var firstNew = grid.children[visibleEntries.length];
       if (firstNew) firstNew.focus();
     };
     grid.appendChild(invLoadMoreBtn);
@@ -17747,6 +17848,75 @@ function showVictory() {
     var btn = document.getElementById('dg-ngplus-btn');
     if (btn) { btn.setAttribute('tabindex','0'); btn.focus(); }
   }, 300);
+}
+
+// ── BOSS RETRY ──
+function showBossRetry() {
+  try {
+    var penalty = Math.floor((DS.gold || 0) * 0.15);
+    var bossName = (DS.enemy && DS.enemy.name) ? DS.enemy.name : 'the Boss';
+    var el = document.getElementById('boss-retry-overlay');
+    if (!el) { showDefeat(); return; }
+    var titleEl = document.getElementById('boss-retry-title');
+    var msgEl   = document.getElementById('boss-retry-msg');
+    var penEl   = document.getElementById('boss-retry-penalty-amt');
+    if (titleEl) titleEl.textContent = 'Fallen Before ' + bossName;
+    if (msgEl)   msgEl.textContent   = 'You were struck down, but the dungeon offers one final chance. Retry ' + bossName + ' with half your maximum HP. Your items stay with you. The boss resets to full strength.';
+    if (penEl)   penEl.textContent   = penalty;
+    // Store penalty and boss snapshot for retry
+    DS._bossRetryPenalty = penalty;
+    DS._bossRetryEnemy   = JSON.parse(JSON.stringify(DS.enemy)); // full boss snapshot
+    el.style.display = 'flex';
+    say('You fell before ' + bossName + '. Retry with half HP, or accept defeat. Gold penalty on retry: ' + penalty + ' gold.');
+    var retryBtn = document.getElementById('boss-retry-btn');
+    if (retryBtn) retryBtn.focus();
+  } catch(e) {
+    console.error('[BossRetry] showBossRetry failed:', e);
+    try { showDefeat(); } catch(e2) {}
+  }
+}
+
+function doBossRetry() {
+  try {
+    var el = document.getElementById('boss-retry-overlay');
+    if (el) el.style.display = 'none';
+    // Mark retry used so no second retry this run
+    DS._bossRetryUsed = true;
+    // Apply gold penalty
+    var penalty = DS._bossRetryPenalty || 0;
+    DS.gold = Math.max(0, (DS.gold || 0) - penalty);
+    // Restore player HP to 50% max
+    DS.hp = Math.max(1, Math.round(DS.maxHp * 0.50));
+    DS.lives = 1;
+    DS.inCombat = true;
+    // Reset boss to full HP (phase 1)
+    if (DS._bossRetryEnemy) {
+      DS.enemy = JSON.parse(JSON.stringify(DS._bossRetryEnemy));
+    }
+    DS.bossPhase = 1;
+    // Resume combat UI
+    updatePlayerBar();
+    updateEnemyBar();
+    showDgPanels(false, true, false);
+    setCombatBtns(true);
+    updateTopBar();
+    addLog('⚔ Boss Retry — ' + DS.enemy.name + ' resets. You fight on with ' + DS.hp + ' HP.');
+    say('Retrying the boss. ' + DS.enemy.name + ' is at full strength. You have ' + DS.hp + ' of ' + DS.maxHp + ' HP. ' + penalty + ' gold lost.');
+    vibe(VIBE.fight || [50, 100, 50]);
+  } catch(e) {
+    console.error('[BossRetry] doBossRetry failed:', e);
+    try { showDefeat(); } catch(e2) {}
+  }
+}
+
+function doBossRetryAccept() {
+  try {
+    var el = document.getElementById('boss-retry-overlay');
+    if (el) el.style.display = 'none';
+    showDefeat();
+  } catch(e) {
+    console.error('[BossRetry] doBossRetryAccept failed:', e);
+  }
 }
 
 // ── DEFEAT ──
@@ -18985,14 +19155,17 @@ var BESTIARY_DATA = [
   { id:'the-portrait',       name:'The Portrait',         icon:'🖼️', tier:'Hollow 1-3',   desc:'It was painted before the house was abandoned. The eyes in the painting were not always looking at you.', dungeon:'hollow' },
   { id:'creaking-step',      name:'Creaking Step',        icon:'🪜', tier:'Hollow 1-3',    desc:'Not a person. Not a creature. A step that has learned to move by itself. It is looking for feet.', dungeon:'hollow' },
   { id:'the-reflection',     name:'The Reflection',       icon:'🪞', tier:'Hollow 1-3',    desc:'It started appearing in mirrors three weeks after the family left. It is still there.', dungeon:'hollow' },
+  { id:'the-risen', enemyType:'undead',          name:'The Risen',            icon:'🧟', tier:'Hollow 1-3',    desc:'It was buried in the grounds. Something called it back. It did not come back the same.', dungeon:'hollow' },
   { id:'door-warden',        name:'The Door Warden', icon:'🚪', tier:'Hollow 4-6', desc:'You have been hearing it for three floors. You have finally opened the right door.', dungeon:'hollow' },
   { id:'groundskeeper',      name:'The Groundskeeper',    icon:'⚰️', tier:'Hollow 4-6',   desc:'Kept the grounds in perfect condition for thirty years after everyone left. Has opinions about trespassers.', dungeon:'hollow' },
   { id:'hollow-groom',       name:'Hollow Groom',         icon:'🤵', tier:'Hollow 4-6',   desc:'Found what he was looking for. It was not the bride.', dungeon:'hollow' },
   { id:'the-bell-ringer',    name:'The Bell Ringer',      icon:'🔔', tier:'Hollow 4-6',   desc:'The bell has not stopped ringing since the house was abandoned. Nobody is sure what it is calling.', dungeon:'hollow' },
   { id:'wall-crawler',       name:'The Wall Crawler', icon:'🧱', tier:'Hollow 4-6', desc:'Has been in the walls longer than the house has been standing. Was here first. Is very patient.', dungeon:'hollow' },
+  { id:'pale-guest', enemyType:'undead',          name:'The Pale Guest',       icon:'🧛', tier:'Hollow 4-6',    desc:'Has not eaten in a long time. Has been waiting for someone to come through the door.', dungeon:'hollow' },
   { id:'oldest-guest',       name:'The Oldest Guest',     icon:'💀', tier:'Hollow 7-9',   desc:'Was invited to a party in 1887. The party ended. The guest did not.', dungeon:'hollow' },
   { id:'hollow-matron',      name:'The Hollow Matron',    icon:'👵', tier:'Hollow 7-9',   desc:'Ran the house for forty years. Still does. Her definition of the house has expanded considerably.', dungeon:'hollow' },
   { id:'the-caretaker',      name:'The Caretaker',        icon:'🗝️', tier:'Hollow 7-9',  desc:'Has every key. Every room. Every secret. Has been waiting for someone to ask the right question.', dungeon:'hollow' },
+  { id:'the-unfinished', enemyType:'spirit',      name:'The Unfinished',       icon:'👻', tier:'Hollow 7-9',    desc:'Did not finish what it started before it died. Is still trying. Your attacks do not always find it.', dungeon:'hollow' },
   { id:'weeping-child',      name:'The Weeping Child',    icon:'😢', tier:'Hollow Special', desc:'Has been crying for a very long time. Can be soothed. Can also be fought. The first option is better for everyone.', dungeon:'hollow' },
   { id:'grieving-one',       name:'The Grieving One',     icon:'😭', tier:'Boss, Hollow Floor 10', desc:'What grief becomes when it has nowhere to go for long enough.', dungeon:'hollow', isBoss:true },
   { id:'house-itself',       name:'The House Itself',     icon:'🏚️', tier:'Boss, Hollow Floor 10', desc:'The house is not a location. It has decided you are staying.', dungeon:'hollow', isBoss:true },
@@ -27329,6 +27502,91 @@ function raidUseSkill(idx) {
 
 
 // ── FLOOR 10 ELITE GAUNTLET ──
+// ── PRE-BOSS MINION GAUNTLET ──
+// 1-2 waves of dungeon-appropriate enemies before the floor 10 boss
+function startPreBossGauntlet() {
+  var waveCount = Math.random() < 0.5 ? 1 : 2;
+  DS._gauntletWavesTotal = waveCount;
+  DS._gauntletWavesCurrent = 0;
+  showDgPanels(true, false, false);
+  setEvent('danger',
+    '⚔ The path to the final chamber is blocked. ' + waveCount + ' wave' + (waveCount > 1 ? 's' : '') +
+    ' of minions stand between you and the boss. Defeat them all.'
+  );
+  say('Pre-boss gauntlet. ' + waveCount + ' wave' + (waveCount > 1 ? 's' : '') + ' of minions block the path to the final boss. Prepare yourself.');
+  sfx('sfx-stairs'); vibe && vibe([100, 50, 100]);
+  setTimeout(function() { spawnGauntletWave(); }, 1500);
+}
+
+function spawnGauntletWave() {
+  DS._gauntletWavesCurrent++;
+  var wave = DS._gauntletWavesCurrent;
+  var total = DS._gauntletWavesTotal;
+
+  // Pick a t2 enemy from the correct dungeon pool
+  var isAsh      = DS.dungeon === 'The Ashbound Wastes';
+  var isFrost    = DS.dungeon === 'Frosthold Abyss';
+  var isSunken   = DS.dungeon === 'The Sunken Archives';
+  var isHollow   = DS.dungeon === 'The Hollow';
+  var isWhisper  = DS.dungeon === 'The Whispering Forest';
+  var isInfernal = DS.dungeon === 'The Infernal Descent';
+  var isAbyssal  = DS.dungeon === 'The Abyssal Deep';
+  var isShadow   = DS.dungeon === 'The Shadow World';
+  var isNM       = DS.diff === 'Nightmare';
+  var pool = isNM       ? NIGHTMARE_ENEMIES.t2
+           : isAsh      ? ASH_ENEMIES.t2
+           : isFrost    ? FROST_ENEMIES.t2
+           : isSunken   ? SUNKEN_ENEMIES.t2
+           : isHollow   ? HOLLOW_ENEMIES.t2
+           : isWhisper  ? WHISPER_ENEMIES.t2
+           : isInfernal ? INFERNAL_ENEMIES.t2
+           : isAbyssal  ? ABYSSAL_ENEMIES.t2
+           : isShadow   ? SHADOW_ENEMIES.t2
+           : ENEMIES.t2;
+  var base = pool[Math.floor(Math.random() * pool.length)];
+  var diffMult = DS.diff === 'Nightmare' ? 1.4 : DS.diff === 'Forsaken' ? 1.2 : DS.diff === 'Condemned' ? 1.1 : 1.0;
+  var ngMult = DS.ngPlus ? 1.15 : 1.0;
+  DS.enemy = {
+    name: base.name, icon: base.icon, gold: base.gold,
+    hp: Math.round(base.hp * 1.2 * diffMult * ngMult),
+    atk: [Math.round(base.atk[0] * 1.1 * ngMult), Math.round(base.atk[1] * 1.1 * ngMult)],
+    maxHp: 0,
+    isGauntletMinion: true,
+    _gauntletWave: wave,
+    _gauntletTotal: total
+  };
+  DS.enemy.maxHp = DS.enemy.hp;
+  // Copy relevant mechanic flags from base
+  var flags = ['hollowZombie','hollowVampire','hollowGhost','hollowWatch','hollowBell','hollowCrawl',
+               'hollowGround','preventFlee','grows','isMusicBox','isTwin','reflection'];
+  flags.forEach(function(f) { if (base[f]) DS.enemy[f] = base[f]; });
+
+  addLog('⚔ Wave ' + wave + ' of ' + total + ': ' + DS.enemy.name + ' charges forward!');
+  say('Wave ' + wave + ' of ' + total + '. ' + DS.enemy.name + ' blocks the path. Defeat it.');
+  sfx('sfx-attack');
+  setTimeout(function() { startCombat(false); }, 800);
+}
+
+function onGauntletWaveComplete() {
+  if (DS._gauntletWavesCurrent < DS._gauntletWavesTotal) {
+    // More waves — short breather then next wave
+    showDgPanels(true, false, false);
+    var remaining = DS._gauntletWavesTotal - DS._gauntletWavesCurrent;
+    setEvent('good', '✅ Wave ' + DS._gauntletWavesCurrent + ' cleared! ' + remaining + ' wave' + (remaining > 1 ? 's' : '') + ' remaining.');
+    say('Wave ' + DS._gauntletWavesCurrent + ' cleared. ' + remaining + ' more to go.');
+    setTimeout(function() { spawnGauntletWave(); }, 1500);
+  } else {
+    // All waves done — now trigger the boss
+    DS._preBossGauntletDone = true;
+    DS.roomsOnFloor = (DS.floorRoomsNeeded !== undefined ? DS.floorRoomsNeeded : 5) + 1;
+    showDgPanels(true, false, false);
+    setEvent('danger', '💀 The minions are defeated. The final chamber opens. The boss awaits.');
+    say('Gauntlet complete. All waves defeated. The boss chamber opens. Prepare for the final fight.');
+    sfx('sfx-victory'); vibe && vibe([200, 100, 200]);
+    setTimeout(function() { startCombat(true); }, 2000);
+  }
+}
+
 function startEliteGauntlet() {
   // Pick a tough tier 3 enemy as the elite guard — must use correct dungeon pool
   var isAsh      = DS.dungeon === 'The Ashbound Wastes';
@@ -30045,6 +30303,22 @@ function applyEnemyMechanicsOnHit(e, playerDmg) {
     if (e._growStacks % 3 === 0) addLog(e.name + ' grows stronger! Attack increased.');
   }
 
+  // hollowVampire — heals 8 HP when it hits the player (called after enemy attack lands)
+  if (e.hollowVampire && playerDmg > 0) {
+    var vHeal = 8;
+    e.hp = Math.min(e.maxHp || e.hp + vHeal, e.hp + vHeal);
+    updateEnemyBar();
+    addLog('🧛 ' + e.name + ' drinks deep. +' + vHeal + ' HP restored.');
+    say(e.name + ' heals ' + vHeal + ' HP from your blood.');
+  }
+
+  // hollowGhost — 30% chance to completely phase through the player's attack
+  if (e.hollowGhost && Math.random() < 0.30) {
+    addLog('👻 ' + e.name + ' phases through your attack. It is not entirely here.');
+    say(e.name + ' phased through your attack. 30 percent chance each hit.');
+    return 0;
+  }
+
   return playerDmg;
 }
 
@@ -30675,6 +30949,18 @@ var DUNGEON_EVENTS = [
     ]
   },
 
+  // ── THE SECURITY ROOM — Camera event ──
+  { id:'shadow-security-room', weight:2, type:'encounter',
+    dungeons: ['The Shadow World'],
+    title:'The Security Room',
+    text:'',
+    choices: [],
+    customTrigger: function() {
+      showSecurityRoomEvent();
+      return true;
+    }
+  },
+
   // ── THE TWO DOORS — Full screen forced choice ──
   { id:'shadow-two-doors', weight:2, type:'encounter',
     dungeons: ['The Shadow World'],
@@ -30774,6 +31060,161 @@ function showTwoDoorsEvent() {
   document.body.appendChild(ov);
   say('The Two Doors. You must choose. Door one: ' + desc[0] + '. Door two: ' + desc[1] + '. There is no going back.');
   setTimeout(function(){ var btn = ov.querySelector('button'); if (btn) btn.focus(); }, 100);
+}
+
+// ── SECURITY ROOM — Camera Event ──
+var _securityRoomTimer = null;
+var _securityRoomSwallowerDir = null;
+
+function showSecurityRoomEvent() {
+  showDgPanels(false, false, false);
+  _activeEvent = null;
+
+  // Pick which camera has the Darkness Swallower
+  var dirs = ['north', 'south', 'east', 'west'];
+  _securityRoomSwallowerDir = dirs[Math.floor(Math.random() * dirs.length)];
+  var opposites = { north:'south', south:'north', east:'west', west:'east' };
+  var escapeDir = opposites[_securityRoomSwallowerDir];
+  var timeLeft = 15;
+
+  var ov = document.createElement('div');
+  ov.id = 'security-room-overlay';
+  ov.setAttribute('role', 'dialog');
+  ov.setAttribute('aria-modal', 'true');
+  ov.setAttribute('aria-label', 'Security Room — find the Darkness Swallower');
+  ov.style.cssText = 'position:fixed;inset:0;background:#000;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;text-align:center;';
+
+  var swallowerIcon = '<div style="position:absolute;bottom:8px;right:8px;font-size:1.4rem;opacity:0.85;" aria-hidden="true">🌑</div>';
+
+  function makeCameraHTML(dir) {
+    var isSwallower = dir === _securityRoomSwallowerDir;
+    var feedContent = isSwallower
+      ? '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;position:relative;">' +
+          '<div style="font-size:2.2rem;opacity:0.7;filter:blur(1px);" aria-hidden="true">🌑</div>' +
+          '<div style="position:absolute;bottom:4px;left:0;right:0;font-family:Cinzel,serif;font-size:0.45rem;color:#ff3333;letter-spacing:0.1em;">DETECTED</div>' +
+        '</div>'
+      : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">' +
+          '<div style="font-size:0.5rem;color:#333;font-family:Cinzel,serif;letter-spacing:0.1em;">NO SIGNAL</div>' +
+        '</div>';
+    return '<div style="background:#0a0a0a;border:1px solid #222;border-radius:3px;padding:6px;position:relative;min-height:70px;display:flex;flex-direction:column;">' +
+      '<div style="font-family:Cinzel,serif;font-size:0.45rem;color:#555;letter-spacing:0.2em;margin-bottom:4px;text-transform:uppercase;">CAM ' + dir.toUpperCase() + '</div>' +
+      '<div style="flex:1;background:#050505;border:1px solid #111;border-radius:2px;min-height:50px;position:relative;overflow:hidden;">' +
+        feedContent +
+      '</div>' +
+    '</div>';
+  }
+
+  ov.innerHTML =
+    '<div style="font-family:Cinzel,serif;font-size:0.55rem;letter-spacing:0.4em;color:#9966cc;margin-bottom:10px;">THE SHADOW WORLD</div>' +
+    '<div style="font-family:Cinzel,serif;font-size:1rem;color:#cc88ff;margin-bottom:6px;">Security Room</div>' +
+    '<div style="font-family:Cinzel,serif;font-size:0.65rem;color:#666;max-width:320px;line-height:1.7;margin-bottom:14px;">Four cameras. The Darkness Swallower is on one feed. Find it — then escape the opposite direction.</div>' +
+    '<div style="font-family:Cinzel,serif;font-size:1.1rem;color:#ff4444;margin-bottom:14px;" id="sec-timer" aria-live="assertive" aria-atomic="true">:15</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;max-width:340px;margin-bottom:16px;">' +
+      makeCameraHTML('north') +
+      makeCameraHTML('south') +
+      makeCameraHTML('east') +
+      makeCameraHTML('west') +
+    '</div>' +
+    '<div style="font-family:Cinzel,serif;font-size:0.6rem;color:#555;margin-bottom:14px;">Escape in the <strong style="color:#cc88ff;">opposite</strong> direction from the Darkness Swallower.</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;max-width:280px;">' +
+      '<button onclick="securityRoomEscape(\'north\')" style="padding:12px;background:#0a0008;border:1px solid #663399;color:#cc88ff;font-family:Cinzel,serif;font-size:0.65rem;cursor:pointer;" aria-label="Escape north">↑ North</button>' +
+      '<button onclick="securityRoomEscape(\'south\')" style="padding:12px;background:#0a0008;border:1px solid #663399;color:#cc88ff;font-family:Cinzel,serif;font-size:0.65rem;cursor:pointer;" aria-label="Escape south">↓ South</button>' +
+      '<button onclick="securityRoomEscape(\'east\')"  style="padding:12px;background:#0a0008;border:1px solid #663399;color:#cc88ff;font-family:Cinzel,serif;font-size:0.65rem;cursor:pointer;" aria-label="Escape east">→ East</button>' +
+      '<button onclick="securityRoomEscape(\'west\')"  style="padding:12px;background:#0a0008;border:1px solid #663399;color:#cc88ff;font-family:Cinzel,serif;font-size:0.65rem;cursor:pointer;" aria-label="Escape west">← West</button>' +
+    '</div>';
+
+  document.body.appendChild(ov);
+
+  // Play growl on the swallower camera direction for screen readers
+  try {
+    var pan = { north: -0.2, south: 0.2, east: 0.8, west: -0.8 }[_securityRoomSwallowerDir] || 0;
+    if (AUD && AUD.ctx) {
+      var gainNode = AUD.ctx.createGain();
+      var panNode = AUD.ctx.createStereoPanner ? AUD.ctx.createStereoPanner() : null;
+      gainNode.gain.value = 0.6;
+      if (panNode) { panNode.pan.value = pan; gainNode.connect(panNode); panNode.connect(AUD.ctx.destination); }
+      else { gainNode.connect(AUD.ctx.destination); }
+      var snd = AUD.sfx && AUD.sfx['sfx-growl'];
+      if (snd) { var src = AUD.ctx.createMediaElementSource ? null : AUD.ctx.createBufferSource(); }
+    }
+    // Fallback: just play the growl sfx normally
+    sfx('sfx-growl');
+  } catch(e) {}
+
+  say('Security Room. Four camera feeds — North, South, East, West. Listen for the growl — it plays from the camera where the Darkness Swallower is. Then escape the opposite direction. You have 15 seconds. The growl is coming from the ' + _securityRoomSwallowerDir + '.');
+
+  // Focus first button
+  setTimeout(function() {
+    var btn = ov.querySelector('button');
+    if (btn) btn.focus();
+  }, 100);
+
+  // Countdown timer
+  _securityRoomTimer = setInterval(function() {
+    timeLeft--;
+    var timerEl = document.getElementById('sec-timer');
+    if (timerEl) {
+      timerEl.textContent = ':' + (timeLeft < 10 ? '0' : '') + timeLeft;
+      if (timeLeft <= 5) timerEl.style.color = '#ff2222';
+    }
+    if (timeLeft <= 0) {
+      clearInterval(_securityRoomTimer);
+      _securityRoomTimer = null;
+      securityRoomCaught('time');
+    }
+  }, 1000);
+}
+
+function securityRoomEscape(chosenDir) {
+  if (_securityRoomTimer) { clearInterval(_securityRoomTimer); _securityRoomTimer = null; }
+  var ov = document.getElementById('security-room-overlay');
+  if (ov) ov.remove();
+
+  var opposites = { north:'south', south:'north', east:'west', west:'east' };
+  var correctEscape = opposites[_securityRoomSwallowerDir];
+
+  if (chosenDir === correctEscape) {
+    // Success — reward
+    var loot = SHADOW_LOOT[Math.floor(Math.random() * SHADOW_LOOT.length)];
+    var item = Object.assign({}, loot);
+    DS.inventory.push(item); renderInv();
+    addToGlobalInventory(item);
+    DS.gold += 50;
+    updateTopBar();
+    showDgPanels(true, false, false);
+    setEvent('good', '📹 You spotted the Darkness Swallower on the ' + _securityRoomSwallowerDir + ' camera and fled ' + chosenDir + '. You escaped. The room rewards the aware. +' + item.name + ', +50 gold.');
+    say('You escaped! The Darkness Swallower was on the ' + _securityRoomSwallowerDir + ' camera. You fled ' + chosenDir + '. You found ' + item.name + ' and 50 gold.');
+    sfx('sfx-loot'); vibe(VIBE.loot);
+    addLog('📹 Security Room — escaped correctly. Found ' + item.name + '.');
+    _securityRoomSwallowerDir = null;
+    enterRoom();
+  } else {
+    securityRoomCaught('wrong');
+  }
+}
+
+function securityRoomCaught(reason) {
+  if (_securityRoomTimer) { clearInterval(_securityRoomTimer); _securityRoomTimer = null; }
+  var ov = document.getElementById('security-room-overlay');
+  if (ov) ov.remove();
+
+  var dmg = Math.round(DS.maxHp * 0.30);
+  DS.hp = Math.max(1, DS.hp - dmg);
+  updatePlayerBar();
+  addShadowCorruption(1, 'Security Room');
+  showDgPanels(true, false, false);
+
+  var msg = reason === 'time'
+    ? '📹 Time ran out. The Darkness Swallower was on the ' + _securityRoomSwallowerDir + ' camera. It was already behind you.'
+    : '📹 Wrong direction. The Darkness Swallower was on the ' + _securityRoomSwallowerDir + ' camera. You ran straight toward it.';
+  setEvent('danger', msg + ' ' + dmg + ' shadow damage. 1 corruption stack.');
+  say(reason === 'time'
+    ? 'Time ran out. The Darkness Swallower was on the ' + _securityRoomSwallowerDir + ' camera. ' + dmg + ' shadow damage. 1 corruption stack.'
+    : 'Wrong direction. The Darkness Swallower was on the ' + _securityRoomSwallowerDir + ' camera. You ran toward it. ' + dmg + ' shadow damage. 1 corruption stack.');
+  sfx('sfx-hit'); vibe(VIBE.hit);
+  addLog('📹 Security Room — ' + (reason === 'time' ? 'time ran out' : 'wrong direction') + '. ' + dmg + ' damage.');
+  _securityRoomSwallowerDir = null;
+  enterRoom();
 }
 
 function chooseDoor(doorIdx) {
