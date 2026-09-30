@@ -108,7 +108,7 @@
 <div class="hero">
   <span class="hero-icon">🔒</span>
   <h1>Privacy Policy</h1>
-  <p>Leo Productions &nbsp;·&nbsp; Effective Date: June 24, 2025</p>
+  <p>Leo Productions &nbsp;·&nbsp; Effective Date: September 30, 2026</p>
 </div>
 
 <div class="container">
@@ -120,17 +120,20 @@
   <p><strong>A. Guest Mode (no account)</strong></p>
   <p>All game data is stored locally on your device only. This includes your character name, class, race, stats, dungeon progress, achievements, inventory, settings, and music preferences. This data never leaves your device.</p>
 
-  <p><strong>B. Optional Account (Google Sign-In)</strong></p>
-  <p>Account creation is entirely optional. If you sign in with Google, we collect:</p>
+  <p><strong>B. Optional Account (Google or Apple Sign-In)</strong></p>
+  <p>Account creation is entirely optional. If you sign in with Google or Sign in with Apple, we collect:</p>
   <ul>
-    <li>Your email address</li>
+    <li>Your email address (for Sign in with Apple, this may be an Apple-provided private relay address if you choose to hide your real one)</li>
     <li>A display name or username you choose</li>
     <li>Your cloud-saved game progress (characters, achievements, settings)</li>
     <li>Tournament scores you choose to submit</li>
   </ul>
   <p>This information is stored securely in Firebase and used only to provide cloud saves and leaderboard features.</p>
 
-  <p><strong>C. Obituary Feed</strong></p>
+  <p><strong>C. Custom Battle Music Uploads</strong></p>
+  <p>If you upload your own audio file (MP3/OGG/WAV, up to 50MB) to use as custom battle music, that file is stored in Supabase cloud storage so it can be streamed back to you on future runs. Uploaded files are associated with your account and are not shared with or made visible to other players.</p>
+
+  <p><strong>D. Obituary Feed</strong></p>
   <p>When your character dies, the following is posted to a global Obituary visible to all players: character name, class, dungeon, floor, cause of death, kill count, gold collected, and date. No personally identifiable information is included.</p>
 
   <h2>3. In-App Purchases</h2>
@@ -160,9 +163,9 @@
   <ul>
     <li><strong>Firebase Authentication & Firestore (Google)</strong> — account login and cloud save storage. <a href="https://policies.google.com/privacy" target="_blank">Privacy policy</a></li>
     <li><strong>Firebase Realtime Database (Google)</strong> — real-time multiplayer features and live event data (Void Reaper). <a href="https://policies.google.com/privacy" target="_blank">Privacy policy</a></li>
-    <li><strong>Supabase</strong> — global obituary database. <a href="https://supabase.com/privacy" target="_blank">Privacy policy</a></li>
+    <li><strong>Supabase</strong> — global obituary database, storage for any custom battle music files you upload, and a backup source for game audio. <a href="https://supabase.com/privacy" target="_blank">Privacy policy</a></li>
     <li><strong>Cloudflare R2</strong> — audio file storage and delivery. No personal data is included in audio requests beyond a standard IP address. <a href="https://www.cloudflare.com/privacypolicy/" target="_blank">Privacy policy</a></li>
-    <li><strong>Railway</strong> — multiplayer server hosting. <a href="https://railway.app/legal/privacy" target="_blank">Privacy policy</a></li>
+    <li><strong>Apple Sign in with Apple</strong> — used only if you choose to sign in with your Apple ID. Apple's own privacy practices for this feature are described in Apple's privacy policy. <a href="https://www.apple.com/legal/privacy/" target="_blank">Privacy policy</a></li>
   </ul>
 
   <h2>7. Data Retention and Deletion</h2>
