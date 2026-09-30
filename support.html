@@ -273,81 +273,81 @@
     <p class="section-title">Frequently Asked Questions</p>
 
     <div class="faq-item">
-      <button class="faq-question" onclick="toggleFaq(this)" aria-expanded="false">
+      <button class="faq-question" onclick="toggleFaq(this)" aria-expanded="false" aria-controls="faq-1">
         My progress disappeared. What happened?
         <span class="faq-arrow">▼</span>
       </button>
-      <div class="faq-answer">
+      <div class="faq-answer" id="faq-1">
         Progress is saved to your device and your Google account if you're signed in. If you cleared your browser data or reinstalled the app, local saves may be lost. Sign in with Google before starting a run to keep your progress backed up across devices.
       </div>
     </div>
 
     <div class="faq-item">
-      <button class="faq-question" onclick="toggleFaq(this)" aria-expanded="false">
+      <button class="faq-question" onclick="toggleFaq(this)" aria-expanded="false" aria-controls="faq-2">
         The game isn't loading or is stuck on the loading screen.
         <span class="faq-arrow">▼</span>
       </button>
-      <div class="faq-answer">
+      <div class="faq-answer" id="faq-2">
         Try refreshing the page or restarting the app. If you're on the web version, clearing your browser cache usually fixes loading issues. Make sure you have a stable internet connection — some game assets load from the server on first launch.
       </div>
     </div>
 
     <div class="faq-item">
-      <button class="faq-question" onclick="toggleFaq(this)" aria-expanded="false">
+      <button class="faq-question" onclick="toggleFaq(this)" aria-expanded="false" aria-controls="faq-3">
         Sound or music isn't playing.
         <span class="faq-arrow">▼</span>
       </button>
-      <div class="faq-answer">
+      <div class="faq-answer" id="faq-3">
         Check that your device isn't on silent mode and that volume is turned up. On iOS, make sure the mute switch on the side of your phone is off. In-game, tap the music icon in the top bar to open the music player and make sure a track is selected.
       </div>
     </div>
 
     <div class="faq-item">
-      <button class="faq-question" onclick="toggleFaq(this)" aria-expanded="false">
+      <button class="faq-question" onclick="toggleFaq(this)" aria-expanded="false" aria-controls="faq-4">
         Achievements aren't unlocking or syncing.
         <span class="faq-arrow">▼</span>
       </button>
-      <div class="faq-answer">
+      <div class="faq-answer" id="faq-4">
         Achievements require an active internet connection to sync. Make sure you're signed in with Google. On iOS, Game Center must be enabled in your device settings. If an achievement still doesn't unlock after meeting the requirement, try restarting the app — it will re-check your progress on next launch.
       </div>
     </div>
 
     <div class="faq-item">
-      <button class="faq-question" onclick="toggleFaq(this)" aria-expanded="false">
+      <button class="faq-question" onclick="toggleFaq(this)" aria-expanded="false" aria-controls="faq-5">
         I made a purchase but didn't receive the gems.
         <span class="faq-arrow">▼</span>
       </button>
-      <div class="faq-answer">
-        If your purchase went through but gems didn't appear, go to the shop and tap "Restore Purchases." This re-applies any completed transactions. If the problem persists, contact us below with your order confirmation number and we'll sort it out.
+      <div class="faq-answer" id="faq-5">
+        Gems are usually added automatically the moment a purchase completes — check the shop screen, since sometimes the confirmation is easy to miss. If they still aren't there, contact us below with your order confirmation number (from your App Store or Google Play receipt) and we'll add them manually. Since these are one-time purchases, there's no "restore" button needed — just send us the receipt and we'll sort it out directly.
       </div>
     </div>
 
     <div class="faq-item">
-      <button class="faq-question" onclick="toggleFaq(this)" aria-expanded="false">
+      <button class="faq-question" onclick="toggleFaq(this)" aria-expanded="false" aria-controls="faq-6">
         How does VoiceOver / TalkBack accessibility work?
         <span class="faq-arrow">▼</span>
       </button>
-      <div class="faq-answer">
+      <div class="faq-answer" id="faq-6">
         Dungeon Descent is built with accessibility as a core feature, not an afterthought. Every button, combat action, enemy stat, and inventory item is labeled for screen readers. On iOS, VoiceOver is automatically detected and the game switches to native speech output. On Android, TalkBack works through the standard accessibility layer. If something isn't reading correctly, let us know exactly what it is and we'll fix it.
       </div>
     </div>
 
     <div class="faq-item">
-      <button class="faq-question" onclick="toggleFaq(this)" aria-expanded="false">
+      <button class="faq-question" onclick="toggleFaq(this)" aria-expanded="false" aria-controls="faq-7">
         How do I unlock The Shadow World?
         <span class="faq-arrow">▼</span>
       </button>
-      <div class="faq-answer">
+      <div class="faq-answer" id="faq-7">
         The Shadow World is the 9th dungeon and unlocks after completing The Abyssal Deep. Reach the final floor of The Abyssal Deep and defeat its boss — The Shadow World will appear on the dungeon selection screen after that run ends.
       </div>
     </div>
 
     <div class="faq-item" style="border-bottom:none;">
-      <button class="faq-question" onclick="toggleFaq(this)" aria-expanded="false">
+      <button class="faq-question" onclick="toggleFaq(this)" aria-expanded="false" aria-controls="faq-8">
         I found a bug or want to suggest a feature.
         <span class="faq-arrow">▼</span>
       </button>
-      <div class="faq-answer">
+      <div class="faq-answer" id="faq-8">
         Use the contact form below! Bug reports are especially helpful when you include what dungeon you were in, what floor, and what happened. Feature suggestions are always welcome — this game is built by one developer and player feedback genuinely shapes what gets added.
       </div>
     </div>
@@ -390,7 +390,13 @@
           <label for="message">Details</label>
           <textarea id="message" name="message" placeholder="Describe what happened. The more detail the better — dungeon, floor, what you were doing." required></textarea>
         </div>
-        <input type="hidden" name="_replyto" value="support@dungen-descent.org">
+        <!-- BUGFIX: this used to hardcode _replyto to support@dungen-descent.org,
+             which overrode Formspree's own correct default of using the
+             email field above as the reply-to address. Practical effect:
+             hitting "reply" in your inbox tried to reply to yourself
+             instead of the player. Removed — Formspree auto-detects the
+             "email" field name and uses it as reply-to on its own. -->
+        <input type="text" name="_gotcha" style="display:none" tabindex="-1" autocomplete="off">
         <button type="submit" class="submit-btn">Send Message</button>
       </form>
       <div class="success-msg" id="success-msg">✅ Message sent. We'll get back to you as soon as possible.</div>
