@@ -13218,8 +13218,7 @@ var SPECIAL_ROOMS = [
       // Mystery coin — 30% chance from treasure chamber
       var bonusMsg = '';
       if (Math.random() < 0.30) {
-        var curMC = parseInt(DDStore.getItem('dd_mystery_coins') || '0');
-        DDStore.setItem('dd_mystery_coins', String(curMC + 1));
+        addMysteryCoin(1); // (written straight to one store; the Coin Shop reads the synced count)
         bonusMsg += ' +1 mystery coin!';
       }
       // Diamond — 10% chance from treasure chamber
@@ -17852,8 +17851,7 @@ function enemyDead() {
   // 🪙 Mystery coin drop — bosses always drop 1, small chance of 2
   if (e.isBoss) {
     var mcDrop = Math.random() < 0.25 ? 2 : 1;
-    var curMC = parseInt(DDStore.getItem('dd_mystery_coins') || '0');
-    DDStore.setItem('dd_mystery_coins', String(curMC + mcDrop));
+    addMysteryCoin(mcDrop);
     addLog('🪙 The boss drops ' + mcDrop + ' mystery coin' + (mcDrop > 1 ? 's' : '') + '!');
     say('The boss dropped ' + mcDrop + ' mystery coin' + (mcDrop > 1 ? 's' : '') + '!');
   }
@@ -26660,10 +26658,8 @@ function vrVictory(isKillingBlow) {
   addCoinsToWallet(VR_COIN_REWARD);
   var chIdx = VR.charIdx !== undefined ? VR.charIdx : 0;
   var ch = CHARS[chIdx];
-  if (ch) {
-    ch.gold = (ch.gold || 0) + VR_GOLD_REWARD;
-    saveChars();
-  }
+  // (the gold went onto the character, where nothing reads it)
+  addGlobalGold(VR_GOLD_REWARD);
 
   incrementAchievementStat('voidReaperDefeated', 1);
   checkAchievements();
@@ -48186,18 +48182,15 @@ function claimDailyDescent() {
       DDStore.setItem('dd_soul_fragments', String(frags));
     }
     if (reward.bonus.type === 'coin') {
-      var coins = parseInt(DDStore.getItem('dd_mystery_coins') || '0') + reward.bonus.amount;
-      DDStore.setItem('dd_mystery_coins', String(coins));
+      addMysteryCoin(reward.bonus.amount);
     }
     if (reward.bonus.type === 'weekly') {
-      var coins2 = parseInt(DDStore.getItem('dd_mystery_coins') || '0') + reward.bonus.coins;
-      DDStore.setItem('dd_mystery_coins', String(coins2));
+      addMysteryCoin(reward.bonus.coins);
       var frags2 = parseInt(DDStore.getItem('dd_soul_fragments') || '0') + reward.bonus.fragments;
       DDStore.setItem('dd_soul_fragments', String(frags2));
     }
     if (reward.bonus.type === 'monthly') {
-      var coins3 = parseInt(DDStore.getItem('dd_mystery_coins') || '0') + reward.bonus.coins;
-      DDStore.setItem('dd_mystery_coins', String(coins3));
+      addMysteryCoin(reward.bonus.coins);
       var frags3 = parseInt(DDStore.getItem('dd_soul_fragments') || '0') + reward.bonus.fragments;
       DDStore.setItem('dd_soul_fragments', String(frags3));
     }
@@ -50384,13 +50377,16 @@ function buySiegeUpgrade(id) {
     var minions = _jsonParseSafe(DDStore.getItem('dd_minions'), '[]');
     if (minions.length === 0) { say('No minions available to station.'); return; }
     var stationed = d.stationedMinions || [];
-    stationed.push(minions[0]);
+    // The first minion was stationed again every time; send the next one not yet stationed.
+    var nextMinion = minions.find(function(m){ return !stationed.some(function(s){ return s.id === m.id && s.name === m.name; }); });
+    if (!nextMinion) { say('All your minions are already stationed.'); return; }
+    stationed.push(nextMinion);
     d.stationedMinions = stationed;
     SG.minionCount = stationed.length;
-    SG.minionAtk += (minions[0].atk || 8);
+    SG.minionAtk += (nextMinion.atk || 8);
     saveSiegeData(d);
-    showToast('👾 ' + minions[0].name + ' stationed at the fortress!', 'gold');
-    say(minions[0].name + ' stationed at your fortress. They will fight alongside you.');
+    showToast('👾 ' + nextMinion.name + ' stationed at the fortress!', 'gold');
+    say(nextMinion.name + ' stationed at your fortress. They will fight alongside you.');
   } else if (id === 'stockpile') {
     d.extraPotions = (d.extraPotions || 0) + 1;
     saveSiegeData(d);
@@ -50418,15 +50414,15 @@ function startSiege() {
 
   var d = getSiegeData();
   SG.wave = 1;
-  // HP: character max HP + 50% bonus for the siege
-  SG.hp = Math.round((c.maxHp || 100) * 1.50);
+  // Characters don't store max HP or attack, so every hero fought as the same
+  // 150 HP, 8–14 attack nobody. Use the class's stats and the level instead.
+  var _sgLvl = c.level || 1;
+  SG.hp = Math.round(((HP_MAP[c.cls] || 100) + (_sgLvl - 1) * 5) * 1.50);
   SG.maxHp = SG.hp;
-  // ATK: use character ATK with level bonus
-  var baseAtk = c.atk || [8,14];
-  var lvlBonus = Math.floor((c.level||1) * 0.8);
+  var baseAtk = ATK_MAP[c.cls] || [8,14];
+  var lvlBonus = Math.floor(_sgLvl * 0.8);
   SG.atk = [baseAtk[0] + lvlBonus, baseAtk[1] + lvlBonus];
-  // DEF: use character DEF
-  SG.def = (c.defBonus || 0) + Math.floor((c.level||1) * 0.3);
+  SG.def = (DEF_MAP[c.cls] || 0) + Math.floor(_sgLvl * 0.3);
   // Potions: start with 4 plus any stockpiled
   SG.potions = 4 + (d.extraPotions || 0);
   SG.gold = 0;
@@ -50453,13 +50449,18 @@ function startSiegeWave() {
   // Pick enemy from pool — scale by wave
   var pool = SIEGE_POOLS[SG.difficulty] || SIEGE_POOLS.easy;
   var baseEnemy = pool[Math.min(SG.wave - 1, pool.length - 1)];
+  // Everything grew 20% a wave, so wave 10 hit five times harder with nothing
+  // given back: no one could win. Attack now grows 10% a wave (HP still 20%),
+  // and you get 20% of your HP back between waves.
   var mult = Math.pow(1.20, SG.wave - 1);
+  var atkMult = Math.pow(1.10, SG.wave - 1);
+  if (SG.wave > 1) SG.hp = Math.min(SG.maxHp, SG.hp + Math.round(SG.maxHp * 0.20));
 
   SG.enemy = {
     name: baseEnemy.name,
     hp: Math.round(baseEnemy.hp * mult),
     maxHp: Math.round(baseEnemy.hp * mult),
-    atk: [Math.round(baseEnemy.atk[0] * mult), Math.round(baseEnemy.atk[1] * mult)],
+    atk: [Math.round(baseEnemy.atk[0] * atkMult), Math.round(baseEnemy.atk[1] * atkMult)],
     def: Math.round(baseEnemy.def * mult),
     gold: Math.round(baseEnemy.gold * mult),
   };
@@ -50604,6 +50605,9 @@ function siegeCallMinion() {
   say('Minion attacks for ' + dmg + ' damage.');
   updateSiegeBattleUI();
   if (SG.enemy.hp <= 0) { setTimeout(siegeEnemyDead, 400); return; }
+  // It was free and endless; it now takes your turn.
+  setSiegeCombatBtns(false);
+  setTimeout(function() { siegeEnemyAttack(); }, 700);
 }
 
 function siegeEnemyAttack() {
@@ -52323,6 +52327,12 @@ function applyBackstoryToRun(ch) {
 // Seasonal shop rewards saved "for your next run" (nothing ever read them).
 function applyNextRunRewards(ch) {
   if (!ch || hasMidRunSave(ch)) return;
+  // Void code "2x XP for your next run" saved a flag nothing read
+  if (DDStore.getItem('dd_code_xp_boost')) {
+    DDStore.removeItem('dd_code_xp_boost');
+    DS._xpBoost = { mult: 2, floors: 99 };
+    addLog('⚡ Reward code: 2x XP this run.');
+  }
   if (DDStore.getItem('dd_bonus_life')) {
     DDStore.removeItem('dd_bonus_life');
     DS.lives += 1; DS.maxLives += 1;
@@ -56880,6 +56890,44 @@ function mineUpdatePlayerBar() {
   if (txt) txt.textContent = 'Your HP: ' + _mineState.hp + '/' + _mineState.maxHp;
 }
 
+// Mine enemy moves (v11.7.3).
+function mineEnemyMoveText(e) {
+  if (e.dodgeEvery) return 'It phases out of reach every ' + (e.dodgeEvery === 3 ? 'third' : e.dodgeEvery + 'th') + ' hit.';
+  if (e.poisonChance) return 'Its bite can poison you.';
+  if (e.immuneFirstHit) return 'It shrugs off the first blow' + (e.physResist ? ' and resists your strikes.' : '.');
+  if (e.drainsSP) return 'It drains your focus — your skills can be blocked for a turn.';
+  if (e.grows) return 'It grows stronger every turn.';
+  if (e.lifesteal) return 'It heals from the blood it draws.';
+  if (e.burn) return 'Its strikes burn.';
+  return '';
+}
+// Your damage on a Mine enemy: first-hit immunity, phasing and resistance.
+function mineHitEnemy(dmg, physical) {
+  var e = _mineState.enemy;
+  e._hits = (e._hits || 0) + 1;
+  if (e.immuneFirstHit && e._hits === 1) { mineCombatLog('🛡 ' + e.name + ' absorbs the first blow!', '#888'); return 0; }
+  if (e.dodgeEvery && e._hits % e.dodgeEvery === 0) { mineCombatLog('🌫 ' + e.name + ' phases out — your attack passes through!', '#888'); return 0; }
+  if (physical && e.physResist) dmg = Math.round(dmg * (1 - e.physResist));
+  return dmg;
+}
+
+// After a Mine enemy's hit: poison, burn, lifesteal, drain and growth.
+function mineEnemyMoves(dealt) {
+  var e = _mineState.enemy;
+  if (!e) return;
+  if (_mineState._dot && _mineState._dot.turns > 0 && _mineState.hp > 0) {
+    _mineState._dot.turns--;
+    _mineState.hp = Math.max(1, _mineState.hp - _mineState._dot.dmg);
+    mineCombatLog(_mineState._dot.icon + ' ' + _mineState._dot.dmg + ' damage. (' + _mineState._dot.turns + ' turns left)', '#cc6644');
+  }
+  if (dealt > 0 && e.poisonChance && Math.random() < e.poisonChance) { _mineState._dot = { dmg: 6, turns: 3, icon: '🐍' }; mineCombatLog('🐍 You are poisoned!', '#88cc44'); }
+  if (dealt > 0 && e.burn) { _mineState._dot = { dmg: e.burn, turns: e.burnTurns || 2, icon: '🔥' }; mineCombatLog('🔥 You are burning!', '#ff6622'); }
+  if (dealt > 0 && e.lifesteal) { var ls = Math.max(1, Math.round(dealt * 0.3)); e.hp = Math.min(e.maxHp, e.hp + ls); mineCombatLog('🩸 ' + e.name + ' drinks ' + ls + ' HP.', '#cc4444'); mineUpdateEnemyBar(); }
+  if (e.drainsSP && Math.random() < 0.35) { _mineState._skillsBlocked = 1; mineCombatLog('✨ ' + e.name + ' drains your focus — no skills next turn.', '#aa88ff'); }
+  if (e.grows) { e.atk = [Math.round(e.atk[0] * 1.05), Math.round(e.atk[1] * 1.05)]; }
+  mineUpdatePlayerBar();
+}
+
 function mineSpawnEnemy() {
   var d = _mineState.depth;
   var pool = MINE_ENEMIES.filter(function(e) { return d >= e.depth[0] && d <= e.depth[1]; });
@@ -56890,9 +56938,14 @@ function mineSpawnEnemy() {
     icon: template.icon,
     hp: template.hp,
     maxHp: template.hp,
-    atk: template.atk,
+    atk: template.atk.slice(),
     gold: template.gold,
-    isBoss: template.isBoss || false
+    isBoss: template.isBoss || false,
+    // The special moves were written on the template but never copied onto the enemy
+    dodgeEvery: template.dodgeEvery || 0, poisonChance: template.poisonChance || 0,
+    immuneFirstHit: !!template.immuneFirstHit, drainsSP: !!template.drainsSP, grows: !!template.grows,
+    lifesteal: !!template.lifesteal, burn: template.burn || 0, burnTurns: template.burnTurns || 0,
+    physResist: template.physResist || 0, _hits: 0
   };
   _mineState.inCombat = true;
   try { playTrack('mine-combat'); } catch(e) {} // ambient keeps playing underneath
@@ -56905,7 +56958,9 @@ function mineSpawnEnemy() {
   var nameEl = document.getElementById('mine-enemy-name');
   if (nameEl) nameEl.textContent = _mineState.enemy.icon + ' ' + _mineState.enemy.name;
   mineAddLog('⚠️ A ' + _mineState.enemy.name + ' blocks your path!', '#cc4444');
-  say('Enemy encountered in the mine! ' + _mineState.enemy.name + '. HP: ' + _mineState.enemy.hp + '. Attack or flee.');
+  var _mineMove = mineEnemyMoveText(_mineState.enemy);
+  if (_mineMove) mineCombatLog('⚡ ' + _mineMove, '#cc88ff');
+  say('Enemy encountered in the mine! ' + _mineState.enemy.name + '. HP: ' + _mineState.enemy.hp + '. ' + (_mineMove ? _mineMove + ' ' : '') + 'Attack or flee.');
 }
 
 function getMineSkills(ch) {
@@ -57042,6 +57097,7 @@ function mineCombatAction(action) {
   if (action === 'attack') {
     var dmg = baseDmg;
     if (_mineState._buffed) { dmg = Math.floor(dmg * 2); _mineState._buffed = false; }
+    dmg = mineHitEnemy(dmg, true);
     _mineState.enemy.hp = Math.max(0, _mineState.enemy.hp - dmg);
     mineUpdateEnemyBar();
     mineCombatLog('⚔ ' + t('You hit ') + _mineState.enemy.name + t(' for ') + dmg + t(' damage!'), '#ffdd44');
@@ -57049,7 +57105,7 @@ function mineCombatAction(action) {
 
   } else if (action === 'heavy') {
     // Heavy strike — 1.8x damage but enemy hits back harder
-    var heavyDmg = Math.floor(baseDmg * 1.8);
+    var heavyDmg = mineHitEnemy(Math.floor(baseDmg * 1.8), true);
     _mineState.enemy.hp = Math.max(0, _mineState.enemy.hp - heavyDmg);
     mineUpdateEnemyBar();
     mineCombatLog(t('💥 HEAVY STRIKE! You slam ') + _mineState.enemy.name + t(' for ') + heavyDmg + t(' damage!'), '#ff9900');
@@ -57070,7 +57126,17 @@ function mineCombatAction(action) {
       say('No gun equipped.');
       return;
     }
-    var gunDmg = Math.floor(Math.random() * (gunDef.dmg[1] - gunDef.dmg[0] + 1)) + gunDef.dmg[0];
+    // The Mine's gun fired every turn; it now charges, empties and reloads like everywhere else
+    if (_gunState.onCooldown) { mineCombatLog('🔫 Your gun is reloading.', '#888'); say('Your gun is reloading.'); return; }
+    if (!_gunState.charged) {
+      _gunState.charged = true; _gunState.shotsLeft = gunDef.shots || 1;
+      mineCombatLog('🔫 ' + (gunDef.name || 'Gun') + ' charged — ' + _gunState.shotsLeft + ' shot' + (_gunState.shotsLeft > 1 ? 's' : '') + ' ready.', '#88ddff');
+      say((gunDef.name || 'Gun') + ' charged.');
+      return;
+    }
+    _gunState.shotsLeft--;
+    if (_gunState.shotsLeft <= 0) { _gunState.charged = false; if (gunDef.cooldown) startGunCooldown(gunDef.cooldown); }
+    var gunDmg = mineHitEnemy(Math.floor(Math.random() * (gunDef.dmg[1] - gunDef.dmg[0] + 1)) + gunDef.dmg[0], false);
     _mineState.enemy.hp = Math.max(0, _mineState.enemy.hp - gunDmg);
     mineUpdateEnemyBar();
     mineCombatLog('🔫 ' + (gunDef.name || 'Gun') + ' — ' + gunDmg + ' damage to ' + _mineState.enemy.name + '!', '#88ddff');
@@ -57107,6 +57173,7 @@ function mineCombatAction(action) {
     return;
 
   } else if (action === 'skill') {
+    if (_mineState._skillsBlocked > 0) { _mineState._skillsBlocked = 0; mineCombatLog('✨ Your focus is drained — no skills this turn.', '#aa88ff'); say('Your focus is drained. No skills this turn.'); return; }
     var mineSkills = getMineSkills(ch);
     if (!mineSkills.length) {
       mineCombatLog('✨ No skills unlocked yet!', '#886644');
@@ -57161,7 +57228,9 @@ function mineCombatAction(action) {
     var gold = _mineState.enemy.gold;
     addGlobalGold(gold);
     try {
-      var mineEnemyId = 'mine-' + _mineState.enemy.name.toLowerCase().replace(/[^a-z0-9]/g,'-').replace(/-+/g,'-');
+      // Recorded by name: "Mine Bat" became "mine-mine-bat", which the Bestiary never shows
+      var _mineSlug = _mineState.enemy.name.toLowerCase().replace(/[^a-z0-9]/g,'-').replace(/-+/g,'-');
+      var mineEnemyId = _mineSlug.indexOf('mine-') === 0 ? _mineSlug : 'mine-' + _mineSlug;
       bestiaryKills[mineEnemyId] = (bestiaryKills[mineEnemyId] || 0) + 1;
       DDStore.setItem('dd_bestiary', JSON.stringify(bestiaryKills));
     } catch(e) {}
@@ -57206,6 +57275,7 @@ function mineCombatAction(action) {
     _mineState.hp = Math.max(0, _mineState.hp - eDmg);
     mineUpdatePlayerBar();
     mineCombatLog('💥 ' + _mineState.enemy.name + t(' hits you for ') + eDmg + '!', '#cc4444');
+    mineEnemyMoves(eDmg);
     say(_mineState.enemy.name + t(' hits you for ') + eDmg + t(' damage. Your HP: ') + _mineState.hp);
     if (_mineState.hp <= 0) {
       mineCombatLog('💀 You were defeated. Surfacing...', '#cc2222');
@@ -57383,8 +57453,7 @@ function mineSurface(defeated) {
   if (goldEarned > 0) addGlobalGold(goldEarned);
   if (diamondsEarned > 0) addDiamonds(diamondsEarned);
   if (coinsEarned > 0) {
-    var curCoins = parseInt(DDStore.getItem('dd_mystery_coins') || '0');
-    DDStore.setItem('dd_mystery_coins', String(curCoins + coinsEarned));
+    addMysteryCoin(coinsEarned); // Mine coins went missing: written past the synced counter
   }
   // Save unused potions to global inventory
   if (potionsFound > 0) {
@@ -57463,10 +57532,12 @@ function mineSurface(defeated) {
 }
 
 function mineExit() {
-  if (_mineState.active && _mineState.hand.length > 0) {
+  // The chest is lost too when you leave without surfacing; the warning only mentioned your hands.
+  var _chestN = (_mineState.chest && _mineState.chest.length) || 0;
+  if (_mineState.active && (_mineState.hand.length > 0 || _chestN > 0)) {
     showChoiceModal(
       '⚠ Leave the Mine?',
-      'You still have items in your hands. Leave now and lose them, or surface first to keep them.',
+      'You still have ' + _mineState.hand.length + ' item' + (_mineState.hand.length === 1 ? '' : 's') + ' in your hands and ' + _chestN + ' in your chest. Leave now and lose them all, or surface first to keep them.',
       [
         { label: 'Leave (lose items)', action: function() {
           _mineState.hand = [];
@@ -60140,11 +60211,12 @@ function copyVoidCode() {
 var REWARD_CODE_PRIZES = [
   { id:'gold_500', label:'500 gold', apply: function() { addGlobalGold(500); if(CHARS&&CHARS[0]){CHARS[0].gold=(CHARS[0].gold||0)+500;saveChars();} } },
   { id:'gold_250', label:'250 gold', apply: function() { addGlobalGold(250); } },
-  { id:'coins_5',  label:'5 Mystery Coins', apply: function() { if(CHARS&&CHARS.length>0){CHARS.forEach(function(c){c.mysteryCoins=(c.mysteryCoins||0)+5;});saveChars();} } },
+  // (the coins went onto each character, where nothing reads them)
+  { id:'coins_5',  label:'5 Mystery Coins', apply: function() { addMysteryCoin(5); } },
   { id:'discount_10', label:'10% Blacksmith discount for 1 hour', apply: function() { DDStore.setItem('dd_blacksmith_discount', JSON.stringify({pct:0.10,expires:Date.now()+3600000,source:'Reward Code'})); } },
   { id:'xp_boost', label:'2x XP for your next run', apply: function() { DDStore.setItem('dd_code_xp_boost', '1'); } },
   { id:'gold_750', label:'750 gold', apply: function() { addGlobalGold(750); } },
-  { id:'coins_10', label:'10 Mystery Coins', apply: function() { if(CHARS&&CHARS.length>0){CHARS.forEach(function(c){c.mysteryCoins=(c.mysteryCoins||0)+10;});saveChars();} } },
+  { id:'coins_10', label:'10 Mystery Coins', apply: function() { addMysteryCoin(10); } },
 ];
 
 // Hook into General settings Enter Code button (Void rewards)
@@ -63744,8 +63816,7 @@ function spireFloorRewards() {
     var coinChance = 0.25 + (floorDepth * 0.02);
     if (Math.random() < coinChance) {
       var coinAmt = Math.random() < 0.3 ? 2 : 1;
-      var curCoins = parseInt(DDStore.getItem('dd_mystery_coins') || '0');
-      DDStore.setItem('dd_mystery_coins', String(curCoins + coinAmt));
+      addMysteryCoin(coinAmt);
       spireLog('🪙 Floor ' + SPIRE.floor + ' drop: ' + coinAmt + ' mystery coin' + (coinAmt > 1 ? 's' : '') + '!', '#ffcc44');
       say('Mystery coin drop! ' + coinAmt + ' mystery coin' + (coinAmt > 1 ? 's' : '') + ' found.');
     }
@@ -63880,7 +63951,7 @@ function spireVictory() {
     ch.gold = (ch.gold || 0) + 1000;
     addGlobalGold(1000);
     // 25 Mystery Coins — they went on the character, where the Coin Shop never looks
-    DDStore.setItem('dd_mystery_coins', String(parseInt(DDStore.getItem('dd_mystery_coins') || '0') + 25));
+    addMysteryCoin(25);
     // 25% Blacksmith discount for 2 hours
     var discountExpiry = Date.now() + (2 * 60 * 60 * 1000);
     DDStore.setItem('dd_blacksmith_discount', JSON.stringify({
