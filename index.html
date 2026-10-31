@@ -14781,6 +14781,7 @@ function initDungeon(ch) {
   if (ch2 && ch2.corruptionMode && ch2.corruption >= 25) scheduleCorruptionWhisper();
   if (ch2 && ch2.corruptionMode && ch2.corruption >= 50) DS._corruptedHunterActive = true;
   if (ch2 && ch2.corruptionMode && ch2.corruption >= 75) DS._skillsBackfire = true;
+  if (ch2 && ch2.corruptionMode && ch2.corruption >= 100) DS._corruptionRun = true;
 
   // ── LEGACY MODE: dungeon tier scaling ──
   if (ch.runMode === 'legacy' && ch.dungeonTier && ch.dungeonTier > 1) {
@@ -16144,6 +16145,15 @@ var DUNGEON_BOSS_SFX = {
 
 function startCombat(isBoss) {
   fxReset();
+  // Corruption 50% — one fight in ten, the Corrupted Hunter comes instead (the flag was never read)
+  if (!isBoss && DS._corruptedHunterActive && DS.enemy && !DS.enemy.isBoss && !DS.enemy._corruptedHunter && (DS.floor || 1) >= 2 && Math.random() < 0.10) {
+    DS.enemy.name = 'Corrupted Hunter'; DS.enemy.icon = '🏹';
+    DS.enemy.hp = Math.round(DS.enemy.hp * 1.3); DS.enemy.maxHp = DS.enemy.hp;
+    DS.enemy.atk = [Math.round(DS.enemy.atk[0] * 1.2), Math.round(DS.enemy.atk[1] * 1.2)];
+    DS.enemy.isElite = true; DS.enemy._corruptedHunter = true;
+    addLog('🏹 The Corrupted Hunter has found you. Your corruption led it here.');
+    say('The Corrupted Hunter has found you.');
+  }
   setTimeout(function(){ showDungeonTip(isBoss ? 'first-boss' : (DS.enemy && DS.enemy.isElite) ? 'first-elite' : 'first-combat'); }, 800);
   DS.inCombat = true; DS.defending = false;
   if (isBoss) { DS._eliteKilledFloor10 = false; try { companionOnBossEncounter(); } catch(e2) {} }
@@ -17192,6 +17202,8 @@ function doFight(action) {
     DS.inventory.splice(DS.inventory.indexOf(pot), 1);
     // Brewmaster — potions heal twice as much (the flag was never read)
     var heal = Math.round((pot.heal || 40) * DS.potionMult * (DS._brewmaster ? 2 : 1));
+    // "Find the Music Box or use a potion" — potions never touched the forest's corruption
+    if (isWhisperForest() && _corruption > 0) { reduceCorruption(10); addLog('🌲 The potion pushes the corruption back 10%.'); }
     // Alchemist — potions heal 60% more
     if (DS.cls === 'Alchemist' && ACCESS.classTraits) heal = Math.round(heal * 1.35);
     // Merfolk — potions heal 20% more
@@ -17553,6 +17565,16 @@ function sanitizeGold() {
 }
 
 function enemyDead() {
+  if (DS._corruptionRun && DS.enemy && DS.enemy.isBoss && !DS._corruptionPrize) {
+    DS._corruptionPrize = true;
+    try {
+      var _leg = WEAPON_RARITIES.find(function(r){ return r.id === 'legendary'; });
+      var _cw = applyRarityToWeapon({ name:'Corrupted Blade', icon:'🗡️', type:'weapon', weaponType:'sword', atkBase:[12, 20],
+        level: Math.max(1, 1 + Math.floor((DS.floor || 1) / 3)), isEquippable:true, desc:'Forged from your own corruption.' }, _leg);
+      DS.inventory.push(_cw); addToGlobalInventory(_cw);
+      addLog('☠ Corruption Run reward: ' + _cw.name + '! Check your inventory.');
+    } catch (eP) {}
+  }
   if (DS._fx && DS._fx.soulLeash && DS.enemy && DS.hp > 0) {
     var leash = Math.round((DS.enemy.maxHp || DS.enemy.hp || 0) * 0.5);
     DS.hp = Math.min(DS.maxHp, DS.hp + leash);
@@ -17824,6 +17846,8 @@ function enemyDead() {
   // Cinco de Mayo, Ambush Day, Friday the 13th) was shown but never paid.
   var _evGold = getEventBonuses();
   if (_evGold && _evGold.goldMult && _evGold.goldMult !== 1) g = Math.max(1, Math.round(g * _evGold.goldMult));
+  // Corruption Run (100%) — gold drops doubled
+  if (DS._corruptionRun) g = g * 2;
   // Lucky Potion: only multi-enemy fights ever read it.
   if (DS._luckPotionKills && DS._luckPotionKills > 0) {
     g = Math.round(g * (DS._luckPotionMult || 2)); DS._luckPotionKills--;
@@ -18094,6 +18118,8 @@ function handleDeath() {
   // Normalize lives — if undefined/NaN treat as 0
   if (typeof DS.lives !== 'number' || isNaN(DS.lives)) DS.lives = 0;
   DS.lives = Math.max(0, DS.lives - 1);
+  // Corruption Mode — every life lost darkens your soul (only one rare death ever added it)
+  try { addCharCorruption((DS.floor || 1) >= 7 ? 10 : (DS.floor || 1) >= 4 ? 7 : 5); } catch (eC) {}
   // Log this death
   var killerName = DS.enemy ? DS.enemy.name : 'the dungeon';
   logDeath(_charIdx, DS.floor, killerName);
@@ -19479,6 +19505,7 @@ function useItem(i) {
     }
     if (DS.hp >= DS.maxHp && !item.applyEffect) { say('Your health is already full.'); return; }
     var heal = item.heal > 0 ? Math.round((item.heal || 40) * DS.potionMult * (DS._brewmaster ? 2 : 1)) : 0;
+    if (heal > 0 && isWhisperForest() && _corruption > 0) { reduceCorruption(10); addLog('🌲 The potion pushes the corruption back 10%.'); }
     if (heal > 0) DS.hp = Math.min(DS.maxHp, DS.hp + heal);
     DS.inventory.splice(i, 1);
     DS.usedPotion = true;
@@ -20037,6 +20064,7 @@ function saveProgress(completed) {
       _emberWard: DS._emberWard || false,
       _runeFortune: DS._runeFortune || false,
       _vampireLord: DS._vampireLord || false,
+      _forestCorruption: (typeof _corruption !== 'undefined' && DS.dungeon === 'The Whispering Forest') ? _corruption : 0,
       _xpBoost: DS._xpBoost || null, _spiritBoost: DS._spiritBoost || 0, _sparklerAtk: !!DS._sparklerAtk,
       _warlordAtk: DS._warlordAtk || 0, _tempAtk: DS._tempAtk || null, _tempDef: DS._tempDef || null,
       _skillMastery: DS._skillMastery || 0, _allMastery: DS._allMastery || 0, _halfCostSkills: !!DS._halfCostSkills,
@@ -20107,6 +20135,8 @@ function restoreMidRun(ch) {
   DS._emberWard        = s._emberWard        || false;
   DS._runeFortune      = s._runeFortune      || false;
   DS._vampireLord      = s._vampireLord      || false;
+  DS._forestCorruptionSaved = s._forestCorruption || 0;
+  if (DS._forestCorruptionSaved && typeof _corruption !== 'undefined') { _corruption = DS._forestCorruptionSaved; }
   DS._xpBoost = s._xpBoost || null; DS._spiritBoost = s._spiritBoost || 0; DS._sparklerAtk = !!s._sparklerAtk;
   DS._warlordAtk = s._warlordAtk || 0; DS._tempAtk = s._tempAtk || null; DS._tempDef = s._tempDef || null;
   DS._skillMastery = s._skillMastery || 0; DS._allMastery = s._allMastery || 0; DS._halfCostSkills = !!s._halfCostSkills;
@@ -24674,6 +24704,16 @@ function useSkill(idx) {
   var _apocalypseWeapon = DS.equippedWeapon && DS.equippedWeapon.rarityEffect === 'apocalypse';
   var actualCost = ((DS.unlimitedPower && DS.unlimitedPower > 0) || _apocalypseWeapon) ? 0 : Math.max(0, skill.spCost - (DS.tinkererDiscount||0) - traitDisc - gnomeDisc - _weatherSpDiscount - _abyssalSpDiscount - (DS._soulSurge ? 1 : 0) - _drownedTomeDisc);
   if (DS._halfCostSkills) actualCost = Math.floor(actualCost / 2);
+  // Corruption 75% — skills can backfire (the flag was set and never read)
+  if (DS._skillsBackfire && Math.random() < 0.15) {
+    DS.sp -= Math.min(DS.sp, actualCost); updateXPBar();
+    var _bfHurt = Math.max(1, Math.round(DS.maxHp * 0.10));
+    DS.hp = Math.max(1, DS.hp - _bfHurt); updatePlayerBar();
+    addLog('☠ The corruption twists ' + skill.name + ' — it backfires! You take ' + _bfHurt + ' damage.');
+    say('The corruption twists ' + skill.name + '. It backfires. You take ' + _bfHurt + ' damage.');
+    if (_wasMulti) setCombatBtns = _origSetCombatBtns;
+    setCombatBtns(true); updateSkillButtons(); return;
+  }
   // Archmage — skills cost 2 less (the flag was never read)
   if (DS._archmage) actualCost = Math.max(0, actualCost - 2);
   // Battle Hymn — every skill sings: +5 attack for your next 3 attacks
@@ -51090,7 +51130,9 @@ function updateBountyProgress(type, value, dungeon) {
   if (b.type === 'kill_count' && (type === 'kill' || type === 'kill_count')) {
     progress++; updated = true;
   }
-  if (b.type === 'kill_type' && type === 'kill' && value && b.target && value.toLowerCase().indexOf(b.target.toLowerCase()) !== -1) {
+  // (said "in The Crypt" but counted kills in any dungeon)
+  if (b.type === 'kill_type' && type === 'kill' && value && b.target && value.toLowerCase().indexOf(b.target.toLowerCase()) !== -1
+      && (!b.dungeon || b.dungeon === 'Any dungeon' || dungeon === b.dungeon)) {
     progress++; updated = true;
   }
   if (b.type === 'kill_elite' && type === 'kill_elite' && (b.dungeon === 'Any dungeon' || dungeon === b.dungeon)) {
@@ -51099,7 +51141,9 @@ function updateBountyProgress(type, value, dungeon) {
   if (b.type === 'kill_boss' && type === 'kill_boss' && (b.dungeon === 'Any dungeon' || dungeon === b.dungeon)) {
     progress++; updated = true;
   }
-  if (b.type === 'reach_floor' && type === 'floor' && value >= b.count && (b.dungeon === 'Any dungeon' || dungeon === b.dungeon)) {
+  // "without dying" — only when no life has been lost this run
+  if (b.type === 'reach_floor' && type === 'floor' && value >= b.count && (b.dungeon === 'Any dungeon' || dungeon === b.dungeon)
+      && !(DS && DS.lives < DS.maxLives)) {
     progress = b.count; updated = true;
   }
 
@@ -52327,6 +52371,11 @@ function applyBackstoryToRun(ch) {
 // Seasonal shop rewards saved "for your next run" (nothing ever read them).
 function applyNextRunRewards(ch) {
   if (!ch || hasMidRunSave(ch)) return;
+  // "In a single run" bounties added up across every run
+  try {
+    var _bd = getBountyData();
+    if (_bd.activeBounty && _bd.activeBounty.type === 'kill_count' && !_bd.bountyComplete && _bd.bountyProgress) { _bd.bountyProgress = 0; saveBountyData(_bd); }
+  } catch (eB) {}
   // Void code "2x XP for your next run" saved a flag nothing read
   if (DDStore.getItem('dd_code_xp_boost')) {
     DDStore.removeItem('dd_code_xp_boost');
@@ -57982,7 +58031,9 @@ var _corruptionTimer = null;
 var _corruption = 0;
 
 function startCorruptionSystem() {
-  _corruption = 0;
+  // A resumed run keeps its corruption (it lived only in memory and reset on quit)
+  _corruption = DS._forestCorruptionSaved || 0;
+  DS._forestCorruptionSaved = 0;
   updateCorruptionBar();
   if (_corruptionTimer) clearInterval(_corruptionTimer);
   _corruptionTimer = setInterval(function() {
@@ -57996,6 +58047,12 @@ function stopCorruptionSystem() {
 }
 
 function addCorruption(amount, announce) {
+  // The Shadow World's events (the Mirror, the Offering, the Two Doors) added
+  // their corruption here, which does nothing outside the Whispering Forest.
+  if (DS.dungeon === 'The Shadow World' && typeof addShadowCorruption === 'function') {
+    addShadowCorruption(Math.max(1, Math.round(amount)), typeof announce === 'string' ? announce : 'The dungeon');
+    return;
+  }
   if (!isWhisperForest()) return;
   var prev = _corruption;
   _corruption = Math.min(100, _corruption + amount);
@@ -58030,6 +58087,8 @@ function updateCorruptionBar() {
 
 function triggerCorruptionDeath() {
   stopCorruptionSystem();
+  // The meter stayed full, so every 8-second tick took another life
+  _corruption = 0; updateCorruptionBar();
   DS.hp = 0;
   addLog('The corruption consumes you. The forest claims another soul.');
   say('Fully corrupted. The forest takes you. Death.');
@@ -64912,8 +64971,11 @@ function initShakeToAttack() {
         if (force > _shakeThreshold && now - _lastShakeTime > _shakeCooldown) {
           _lastShakeTime = now;
           if (force > 25 && DS.sp >= 3) {
-            say('Shake attack! Unleashing skill!');
-            doFight('skill0');
+            // ("skill0" isn't an action the fight handles, so a hard shake wasted your turn)
+            var _shSkills = getUnlockedSkills();
+            var _shIdx = _shSkills.findIndex(function(s){ return DS.sp >= s.spCost; });
+            if (_shIdx >= 0) { say('Shake attack! Unleashing ' + _shSkills[_shIdx].name + '!'); useSkill(_shIdx); }
+            else doFight('attack');
           } else {
             doFight('attack');
           }
@@ -66359,7 +66421,9 @@ function hunterTurn(isIdle) {
 
   // Speed: phase 1 = 1 step/turn, phase 2 = moves twice if idle, faster if player idles 3+
   var steps = 1;
-  if (DS.hunterPhase === 2) steps = 1;
+  // Phase 2 announced it moves faster but still came one room a turn: an extra step every third turn
+  DS._hunterTurns = (DS._hunterTurns || 0) + 1;
+  if (DS.hunterPhase === 2 && DS._hunterTurns % 3 === 0) steps = 2;
   if (DS.hunterIdleTurns >= 3) steps = 2; // idle penalty — rushes
 
   DS.hunterDist = Math.max(0, (DS.hunterDist || 10) - steps);
