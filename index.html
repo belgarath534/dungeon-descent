@@ -16721,6 +16721,8 @@ function raidGunAction() {
 
 function doFight(action) {
   if (!DS.inCombat) return;
+  // Berserk Mode — no defending (only the keyboard shortcut checked it)
+  if (action === 'defend' && DS.runModNoDefend) { say('Cannot defend in Berserk Mode.'); return; }
   // The Clock (Time Descender phase 2) runs its own attack-window combat loop —
   // route attack/heavy/defend clicks there instead of the normal resolution below.
   if (DS.enemy && DS.enemy.isClock) { timeDescenderClockHit(action); return; }
@@ -16898,6 +16900,8 @@ function doFight(action) {
   if (DS._berserkerSub) { var hpMissing = DS.maxHp - DS.hp; baseAtk += Math.floor(hpMissing / 10); }
   if (DS._spellblade) baseAtk += Math.floor((DS.sp||0) / 10);
   if (DS._battleHymn && DS._battleHymnTurns > 0) { baseAtk += 5; DS._battleHymnTurns--; }
+  // Berserk Mode — +40% attack (announced, never applied)
+  if (DS.runModAtkBoost) baseAtk = Math.round(baseAtk * DS.runModAtkBoost);
   // Sparkler Buff from the Liberty Shop — +30% attack this run
   if (DS._sparklerAtk) baseAtk = Math.round(baseAtk * 1.30);
   // Night Shroud — +35% at night (its "Night Mode" doesn't exist; the Night Blessing hours are used)
@@ -16951,7 +16955,8 @@ function doFight(action) {
     var _keenBonus = _wre === 'keen' ? 0.05 : 0;
     // The Unlucky One — no crits, no luck
     // Wind Walker and Shadow — the first attack of every fight is a critical
-    var _subFirst = (DS._windWalker || DS._shadowAssassin) && !(DS._fx && DS._fx.subFirstStrike);
+    // Phantom Run's "first strike always crits" too
+    var _subFirst = (DS._windWalker || DS._shadowAssassin || DS.runModFirstCrit) && !(DS._fx && DS._fx.subFirstStrike);
     if (_subFirst) fxGet().subFirstStrike = true;
     var crit = !DS._unluckyOne && (Math.random() < (0.10 + (DS.critBonus||0) + _keenBonus) || DS.markedKill || _subFirst);
     if (DS.markedKill) { DS.markedKill = false; addLog('Marked Kill activates — guaranteed critical!'); }
@@ -17572,7 +17577,8 @@ function sanitizeGold() {
 }
 
 function enemyDead() {
-  if (DS._corruptionRun && DS.enemy && DS.enemy.isBoss && !DS._corruptionPrize) {
+  // Death March's legendary boss drop and the Corruption Run's prize
+  if ((DS._corruptionRun || DS.runModLegendaryBoss) && DS.enemy && DS.enemy.isBoss && !DS._corruptionPrize) {
     DS._corruptionPrize = true;
     try {
       var _leg = WEAPON_RARITIES.find(function(r){ return r.id === 'legendary'; });
@@ -21032,7 +21038,7 @@ function renderShop() {
   var list = document.getElementById('shop-items');
   list.innerHTML = '';
   shopSession.forEach(function(item, i) {
-    var rawCost = item.cost || 0;
+    var rawCost = shopItemCost(item);
     var finalCost = nightDisc ? Math.floor(rawCost * 0.75) : rawCost;
     var canAfford = DS.gold >= finalCost;
     // Row container
@@ -21076,9 +21082,17 @@ function renderShop() {
   });
 }
 
+// Gold Curse — potions cost double (announced, never applied)
+function shopItemCost(item) {
+  var c = item.cost || 0;
+  if (DS.runModPotionCostMult && /potion|elixir/.test(item.type || '')) c = c * DS.runModPotionCostMult;
+  return c;
+}
+
 function buyItem(i) {
   var item = shopSession[i];
   if (!item || item.sold) return;
+  if (DS.runModPotionCostMult && /potion|elixir/.test(item.type || '') && !item._curseCost) { item._curseCost = true; item.cost = shopItemCost(item); }
   if (DS.gold < item.cost && !(DS.activeSpirit && DS.activeSpirit.isMarketSprite)) {
     document.getElementById('shop-msg').textContent = 'Not enough gold. You need ' + item.cost + 'g.';
     say('Not enough gold. You need ' + item.cost + ' gold. You have ' + DS.gold + '.');
@@ -24376,6 +24390,8 @@ function fxEnemyTurn(e, fromAttack) {
     addLog('Holy Light blinds the enemy — attack halved! (' + DS.holyLight + ' turns left)');
   }
   if (f.softenHits > 0) { mult *= f.soften; f.softenHits--; }
+  // Frozen Floors (-20%) and Death March (+25%) enemy damage
+  if (DS.runModEnemyDmgMult && DS.runModEnemyDmgMult !== 1) mult *= DS.runModEnemyDmgMult;
   // Blood Moon — you take 25% more damage (shown, never applied)
   var _evTake = getEventBonuses();
   if (_evTake && _evTake.takesMore) mult *= 1 + _evTake.takesMore;
@@ -24391,6 +24407,8 @@ function fxAfterTaken(e, taken) {
     f.capTurns--;
     if (taken > f.cap) { DS.hp = Math.min(DS.maxHp, DS.hp + (taken - f.cap)); taken = f.cap; addLog('No hit can do more than ' + f.cap + '.'); }
   }
+  // Burning Dungeon — every hit burns for 2 more
+  if (DS.runModFireDmg && taken > 0) { DS.hp = Math.max(0, DS.hp - 2); taken += 2; }
   // Fever Run (+15% damage taken) and Ancient Curse (1 HP per enemy attack, whatever your defense)
   var _dwT = getDungeonWeather();
   if (_dwT && _dwT.playerDmgTaken && taken > 0) { var _fe = Math.round(taken * (_dwT.playerDmgTaken - 1)); if (_fe > 0) { DS.hp = Math.max(0, DS.hp - _fe); taken += _fe; } }
@@ -25456,6 +25474,8 @@ function gainXP(amount) {
   if (DS.pilgrimProf) amount = Math.round(amount * 1.15);
   if (DS.backstoryXPBonus) amount = Math.round(amount * (1 + DS.backstoryXPBonus));
   if (DS._xpBoost && DS._xpBoost.floors > 0) amount = Math.round(amount * DS._xpBoost.mult);
+  // The Watching's double XP and the Pilgrim's +15% set DS.xpBoost, which nothing read
+  if (DS.xpBoost && DS.xpBoost !== 1) amount = Math.round(amount * DS.xpBoost);
   // Safety — make sure xp is a valid number
   if (isNaN(DS.xp) || DS.xp === undefined || DS.xp === null) DS.xp = 0;
   DS.xp += amount;
@@ -41757,6 +41777,8 @@ var DUNGEON_EVENTS = [
 var _activeEvent = null;
 
 function rollDungeonEvent() {
+  // The Watching — no event rooms this run (announced, never applied)
+  if (DS.runModNoEvents) return null;
   // 10% chance per room
   if (Math.random() > 0.10) return false;
   var pool = [];
