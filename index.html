@@ -14963,6 +14963,7 @@ function enterRoom() {
     setCombatBtns(true);
     return;
   }
+  try { fxTickTrapPoison(); } catch(eTick) {}
   // CRITICAL — never enter a new room during an active Chimera fight
   // The Chimera uses _chimeraParts instead of DS.enemy, so the check above misses it
   if (_chimeraActive) {
@@ -17744,6 +17745,11 @@ function enemyDead() {
   // BUGFIX: Rune of Fortune ("+25% gold from all enemies this run") set a flag
   // (DS._runeFortune) that nothing ever read — it did nothing. Apply it here.
   if (DS._runeFortune) g = Math.round(g * 1.25);
+  // Lucky Potion: only multi-enemy fights ever read it.
+  if (DS._luckPotionKills && DS._luckPotionKills > 0) {
+    g = Math.round(g * (DS._luckPotionMult || 2)); DS._luckPotionKills--;
+    addLog('🍀 Lucky Potion doubles the gold!' + (DS._luckPotionKills <= 0 ? ' It wears off.' : ''));
+  }
   DS.gold += g;
   addGlobalGold(g);
   updateDailyQuestProgress('gold', g);
@@ -19408,17 +19414,23 @@ function useItem(i) {
     // Open the fragment reader
     openLoreFragment(item);
     return;
-  } else if (item.type === 'def-potion') {
-    DS.defBonus += (item.def || 3);
+  } else if (item.type === 'def-potion' || item.type === 'atk-potion') {
+    // Potions that say "for 3 turns" now last 3 turns; before, every one of
+    // them added to your stats for the whole run (and the loot table's
+    // Defense Potion's bonus field was never read).
+    var isAtk = item.type === 'atk-potion';
+    var amt = isAtk ? (item.atk || item.bonus || 4) : (item.def || item.bonus || 3);
+    var potTurns = item.turns || item.duration || 0;
     DS.inventory.splice(i, 1);
-    say('Used ' + item.name + '. +' + (item.def||3) + ' defense.');
-    setEvent('good', 'Iron Flask consumed. Your skin hardens. +' + (item.def||3) + ' defense.');
-    updateTopBar(); renderInv(); saveProgress();
-  } else if (item.type === 'atk-potion') {
-    DS.atkBonus += (item.atk || 4);
-    DS.inventory.splice(i, 1);
-    say('Used ' + item.name + '. +' + (item.atk||4) + ' attack.');
-    setEvent('good', 'Berserker Draught consumed. Fury burns through you. +' + (item.atk||4) + ' attack.');
+    if (potTurns > 0) {
+      fxTempStat(isAtk ? 'atk' : 'def', amt, potTurns);
+      say('Used ' + item.name + '. +' + amt + (isAtk ? ' attack' : ' defense') + ' for ' + potTurns + ' turns.');
+      setEvent('good', item.name + ' consumed. +' + amt + (isAtk ? ' attack' : ' defense') + ' for ' + potTurns + ' turns.');
+    } else {
+      if (isAtk) DS.atkBonus += amt; else DS.defBonus += amt;
+      say('Used ' + item.name + '. +' + amt + (isAtk ? ' attack' : ' defense') + ' for the rest of this run.');
+      setEvent('good', item.name + ' consumed. +' + amt + (isAtk ? ' attack' : ' defense') + ' for the rest of this run.');
+    }
     updateTopBar(); renderInv(); saveProgress();
   } else if (item.type === 'warding-bell') {
     DS._wardingBellCharges = (DS._wardingBellCharges || 0) + 1;
@@ -19462,6 +19474,7 @@ function useItem(i) {
   } else if (item.type === 'curse-potion') {
     var ce = DS.enemy;
     if (!ce) { say('No enemy to target. Use this in combat.'); return; }
+    if (!ce._cursed) ce._preCurseAtk = ce.atk.slice();
     ce.atk = [Math.round(ce.atk[0]*0.5), Math.round(ce.atk[1]*0.5)];
     ce._cursed = 3;
     DS.inventory.splice(i, 1);
@@ -19609,6 +19622,8 @@ function useItem(i) {
     }
     // Regular scroll — Reveal, Smite, Mending, Knowledge
     var scrollDef = SCROLL_DEFS.find(function(s){ return s.id === item.id; });
+    // Mending only heals outside combat; reading it in a fight used it up for nothing.
+    if (scrollDef && scrollDef.id === 'scroll-mending' && DS.inCombat) { say('The Scroll of Mending only works outside combat. It is still in your bag.'); setCombatBtns(true); updateSkillButtons(); return; }
     if (scrollDef) { scrollDef.apply(); DS.inventory.splice(i,1); renderInv(); saveProgress(); updateTopBar(); }
     else say('Unknown scroll.');
     setCombatBtns(true); updateSkillButtons(); return;
@@ -23756,6 +23771,36 @@ function fxReset() {
 }
 function fxGet() { if (!DS._fx) fxReset(); return DS._fx; }
 
+// Attack and defense potions that last a few turns (counted on enemy turns).
+function fxTempStat(kind, amt, turns) {
+  var key = kind === 'atk' ? '_tempAtk' : '_tempDef';
+  var cur = DS[key];
+  if (cur && cur.turns > 0) { if (kind === 'atk') DS.atkBonus -= cur.n; else DS.defBonus -= cur.n; }
+  DS[key] = { n: amt, turns: turns };
+  if (kind === 'atk') DS.atkBonus += amt; else DS.defBonus += amt;
+}
+function fxTickTemp() {
+  ['_tempAtk', '_tempDef'].forEach(function(key) {
+    var t = DS[key];
+    if (!t || t.turns <= 0) return;
+    t.turns--;
+    if (t.turns === 0) {
+      if (key === '_tempAtk') DS.atkBonus -= t.n; else DS.defBonus -= t.n;
+      addLog(key === '_tempAtk' ? 'Your attack potion wears off.' : 'Your defense potion wears off.');
+    }
+  });
+}
+// The Poison Dart (and other trap poison) promised damage every turn but never ticked.
+function fxTickTrapPoison() {
+  var p = DS.trapDoT;
+  if (!p || !(p.turns > 0) || DS.hp <= 0) return;
+  p.turns--;
+  DS.hp = Math.max(1, DS.hp - p.dmg);
+  addLog('☠️ ' + p.name + ' — ' + p.dmg + ' damage. (' + p.turns + ' turns left)');
+  updatePlayerBar();
+  if (p.turns <= 0) DS.trapDoT = null;
+}
+
 // Your damage, after a skill or an attack: empower, vulnerable and skill mastery.
 function fxPlayerDamage(dmg, isSkill) {
   if (!(dmg > 0)) return dmg;
@@ -23774,6 +23819,12 @@ function fxPlayerDamage(dmg, isSkill) {
 function fxEnemyTurn(e, fromAttack) {
   var f = fxGet();
   if (DS._debuffImmune) { DS.frozen = false; DS.trapDoT = null; }
+  fxTickTemp();
+  fxTickTrapPoison();
+  if (e._cursed > 0) {
+    e._cursed--;
+    if (e._cursed === 0 && e._preCurseAtk) { e.atk = e._preCurseAtk; e._preCurseAtk = null; addLog('The curse on ' + e.name + ' fades.'); }
+  }
   if (f.buffTurns > 0) {
     f.buffTurns--;
     if (f.buffTurns === 0) {
@@ -60806,7 +60857,8 @@ function equipWeapon(item) {
   DS.equippedWeapon = item;
   var atk = getWeaponAtk(item);
   DS.equippedWeaponAtk = atk;
-  DS.atkBonus = (DS.atkBonus || 0) + atk[0];
+  // The middle of the range, as at the start of a run (equipping used the low end).
+  DS.atkBonus = (DS.atkBonus || 0) + Math.floor((atk[0] + atk[1]) / 2);
   if (item.weaponType === 'staff') { DS.sp = Math.min((DS.maxSp||100), (DS.sp||0) + 10); }
   DS.inventory = DS.inventory.filter(function(i){ return i !== item; });
   // Save equipped weapon globally so it persists
@@ -60824,7 +60876,7 @@ function equipWeapon(item) {
 function unequipWeapon() {
   if (!DS.equippedWeapon) return;
   var atk = DS.equippedWeaponAtk || [0,0];
-  DS.atkBonus = Math.max(0, (DS.atkBonus||0) - atk[0]);
+  DS.atkBonus = Math.max(0, (DS.atkBonus||0) - Math.floor((atk[0] + atk[1]) / 2));
   // Return to global inventory
   addToGlobalInventory(DS.equippedWeapon);
   DS.inventory.push(DS.equippedWeapon);
