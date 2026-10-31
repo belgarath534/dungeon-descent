@@ -21465,6 +21465,11 @@ var RAID_BOSS_TEMPLATE = {name:'The Undying Legion',icon:'💀',hp:150,atk:[14,2
 
 var RD = {};
 
+// Day keys look like "2026-10-5"; Safari (the iPhone app) can't parse one-digit
+// months or days, so a missed day never reset the streak. Parse them by hand and
+// count calendar days.
+function parseDayKey(k){var p=String(k||'').split('-').map(Number);return (p.length===3&&!isNaN(p[0]))?new Date(p[0],p[1]-1,p[2]):new Date(k);}
+function calendarDaysBetween(a,b){var x=new Date(a.getFullYear(),a.getMonth(),a.getDate()),y=new Date(b.getFullYear(),b.getMonth(),b.getDate());return Math.round((y-x)/86400000);}
 function todayKey(){var d=new Date();return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();}
 function getRaidSave(){return _jsonParseSafe(DDStore.getItem('dd_raid'), '{}');}
 function setRaidSave(o){DDStore.setItem('dd_raid',JSON.stringify(o));}
@@ -48328,8 +48333,8 @@ function initDailyDescentBadge() {
 
   // Check if streak is broken
   if (state.lastClaim && state.lastClaim !== today) {
-    var last = new Date(state.lastClaim);
-    var diffDays = Math.floor((now - last) / 86400000);
+    var last = parseDayKey(state.lastClaim);
+    var diffDays = calendarDaysBetween(last, now);
     if (diffDays > 1) state.streak = 0;
   }
 
@@ -48373,8 +48378,8 @@ function checkDailyDescent() {
 
   // Check if streak broken
   if (state.lastClaim) {
-    var last = new Date(state.lastClaim);
-    var diffDays = Math.floor((now - last) / 86400000);
+    var last = parseDayKey(state.lastClaim);
+    var diffDays = calendarDaysBetween(last, now);
     if (diffDays > 1) state.streak = 0;
   }
 
