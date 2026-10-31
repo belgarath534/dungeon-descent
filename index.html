@@ -22861,7 +22861,10 @@ var CHAT_BAD_WORDS = ['fuck','shit','ass','bitch','cunt','dick','cock','pussy','
 
 function chatContainsBadWord(text) {
   var lower = text.toLowerCase().replace(/[^a-z0-9\s]/g, '');
-  return CHAT_BAD_WORDS.some(function(w) { return lower.indexOf(w) !== -1; });
+  // Whole words only ("class", "pass" and "assassin" were refused); the worst slurs still match anywhere
+  var _cw = lower.split(/[^a-z0-9]+/);
+  var _always = ['nigger','nigga','faggot','cunt','retard'];
+  return CHAT_BAD_WORDS.some(function(w) { return _cw.indexOf(w) !== -1 || (_always.indexOf(w) !== -1 && lower.indexOf(w) !== -1); });
 }
 
 function chatGetUsername() {
@@ -26239,6 +26242,9 @@ function showBossRiddle() {
   setCombatBtns(false); // Disable combat buttons during riddle
 
   var riddle = BOSS_RIDDLES[Math.floor(Math.random() * BOSS_RIDDLES.length)];
+  // The right answer was always the first — shuffle a copy
+  var _order = [0, 1, 2].sort(function(){ return Math.random() - 0.5; });
+  riddle = { q: riddle.q, a: _order.map(function(k){ return riddle.a[k]; }), correct: _order.indexOf(riddle.correct) };
   DS._activeRiddle = riddle;
 
   var ov = document.getElementById('ov-boss-riddle');
@@ -44674,10 +44680,13 @@ function devUnlockAll() {
     'The Ashbound Wastes': true,
     'Frosthold Abyss': true,
     'The Sunken Archives': true,
-    'The Hollow': true
+    'The Hollow': true,
+    'The Whispering Forest': true // (it was left locked)
   };
   DDStore.setItem('dd_unlocks', JSON.stringify(u));
   DDStore.setItem('dd_infernal_unlocked', '1');
+  DDStore.setItem('dd_abyssal_unlocked', '1');
+  DDStore.setItem('dd_shadowworld_unlocked', '1');
   DDStore.setItem('dd_dev_mode', '1');
   refreshDungeonUnlocks();
   refreshInfernalCard();
@@ -44706,6 +44715,8 @@ function refreshInfernalCard() {
 
 function devResetUnlocks() {
   DDStore.setItem('dd_unlocks', JSON.stringify({}));
+  // (the Infernal, Abyssal and Shadow World stayed open)
+  DDStore.removeItem('dd_infernal_unlocked'); DDStore.removeItem('dd_abyssal_unlocked'); DDStore.removeItem('dd_shadowworld_unlocked');
   refreshDungeonUnlocks();
   say('Dev: all dungeon unlocks reset. Only Crypt of Malachar available.');
 }
