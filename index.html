@@ -16152,6 +16152,9 @@ var DUNGEON_BOSS_SFX = {
 
 function startCombat(isBoss) {
   fxReset();
+  // Bloodfire Potion and Glacier Tonic: "the next enemy" burns / is stunned (set, never read)
+  if (DS._potionBurnNext) { DS._potionBurnNext = false; fxGet().dot = 8; fxGet().dotTurns = 3; addLog('🔥 Bloodfire! The enemy burns for 8 damage a turn for 3 turns.'); }
+  if (DS._potionStunNext) { DS._potionStunNext = false; fxGet().stun = Math.max(fxGet().stun, 1); addLog('❄️ Glacier Tonic! The enemy is frozen for a turn.'); }
   // Corruption 50% — one fight in ten, the Corrupted Hunter comes instead (the flag was never read)
   if (!isBoss && DS._corruptedHunterActive && DS.enemy && !DS.enemy.isBoss && !DS.enemy._corruptedHunter && (DS.floor || 1) >= 2 && Math.random() < 0.10) {
     DS.enemy.name = 'Corrupted Hunter'; DS.enemy.icon = '🏹';
@@ -19629,7 +19632,7 @@ function useItem(i) {
 
   } else if (item.type === 'phantom-potion') {
     if (!DS.inCombat) { say('Use this in combat.'); return; }
-    DS._phantomTurns = 2;
+    DS._phantomTurns = item.phantomTurns || 2; // brewed numbers (an Alchemist's are stronger)
     DS.inventory.splice(i, 1);
     addLog('👻 Phantom Potion! You become untargetable for 2 turns. Enemy attacks pass through you.');
     say('Phantom Potion active. Untargetable for 2 turns.');
@@ -19639,7 +19642,7 @@ function useItem(i) {
   } else if (item.type === 'gravity-tonic') {
     var gte = DS.enemy;
     if (!gte) { say('No enemy to target.'); return; }
-    DS._gravityTurns = 3;
+    DS._gravityTurns = item.gravityTurns || 3;
     DS.inventory.splice(i, 1);
     addLog('🌀 Gravity Tonic! ' + gte.name + ' ATK drops to 1 for 3 turns.');
     say('Gravity Tonic! Enemy ATK reduced to 1 for 3 turns.');
@@ -19648,8 +19651,8 @@ function useItem(i) {
 
   } else if (item.type === 'leech-brew') {
     if (!DS.inCombat) { say('Use this in combat.'); return; }
-    DS._leechTurns = 4;
-    DS._leechPct = 0.30;
+    DS._leechTurns = item.leechTurns || 4;
+    DS._leechPct = item.leechPct || 0.30;
     DS.inventory.splice(i, 1);
     addLog('🩸 Leech Brew! Every hit heals you for 30% of damage dealt for 4 turns.');
     say('Leech Brew active. 30% life steal for 4 turns.');
@@ -19658,7 +19661,7 @@ function useItem(i) {
 
   } else if (item.type === 'rage-tonic') {
     if (!DS.inCombat) { say('Use this in combat.'); return; }
-    DS._rageTurns = 3;
+    DS._rageTurns = item.rageTurns || 3;
     DS.inventory.splice(i, 1);
     addLog('💢 Rage Tonic! Triple ATK but double incoming damage for 3 turns. Pure chaos.');
     say('Rage Tonic! Triple damage dealt, double damage taken for 3 turns.');
@@ -19668,7 +19671,7 @@ function useItem(i) {
   } else if (item.type === 'fog-flask') {
     var ffe = DS.enemy;
     if (!ffe) { say('No enemy to target.'); return; }
-    DS._fogTurns = 3;
+    DS._fogTurns = item.fogTurns || 3;
     DS.inventory.splice(i, 1);
     addLog('🌫️ Fog Flask! ' + ffe.name + ' accuracy drops 70% for 3 turns.');
     say('Fog Flask! Enemy 70% chance to miss for 3 turns.');
@@ -19677,7 +19680,7 @@ function useItem(i) {
 
   } else if (item.type === 'time-potion') {
     if (!DS.inCombat) { say('Use this in combat.'); return; }
-    DS._timeStop = (DS._timeStop || 0) + 2;
+    DS._timeStop = (DS._timeStop || 0) + (item.timeTurns || item.freeTurns || 2);
     DS.inventory.splice(i, 1);
     addLog('⌛ Time Potion! Time slows. You get 2 free attacks. Enemy cannot respond.');
     say('Time Potion! 2 free attacks. Enemy frozen.');
@@ -19687,7 +19690,7 @@ function useItem(i) {
   } else if (item.type === 'corruption-flask') {
     var cfe = DS.enemy;
     if (!cfe) { say('No enemy to target.'); return; }
-    DS._corruptionFlask = { turns: 4, dmgPerTurn: 20 };
+    DS._corruptionFlask = { turns: item.corrTurns || 4, dmgPerTurn: item.corrDmg || 20 };
     DS.inventory.splice(i, 1);
     addLog('💜 Corruption Flask! ' + cfe.name + ' takes 20 corruption damage each turn for 4 turns.');
     say('Corruption Flask! Enemy takes 20 damage per turn for 4 turns.');
@@ -24376,6 +24379,8 @@ function fxEnemyTurn(e, fromAttack) {
     return { skip: true, mult: 1 };
   }
   if (subDodges()) return { skip: true, mult: 1 };
+  // Time Stop (spell) and the Time Potion: the enemy loses its turns (the counter was never read)
+  if (DS._timeStop > 0) { DS._timeStop--; addLog('⌛ Time is stopped — ' + e.name + ' cannot act. (' + DS._timeStop + ' left)'); return { skip: true, mult: 1 }; }
   if (f.dodge > 0) {
     f.dodge--;
     addLog('You avoid ' + e.name + "'s attack completely!");
