@@ -15205,7 +15205,9 @@ function enterRoom() {
               hp: 120, maxHp: 120,
               atk: [18, 28],
               gold: [50, 80],
-              isBoss: true,
+              // (it was a boss, and killing a boss wins the dungeon — a Black Box on
+              // floor 2 could end the run on the spot; it's a tough elite instead)
+              isElite: true,
               isUnluckyOne: true,
               desc: 'It has been waiting. It does not speak. It only takes.'
             };
@@ -15216,7 +15218,7 @@ function enterRoom() {
             updateEnemyBar(); updatePlayerBar();
             setCombatBtns(true);
             addLog('The Unlucky One emerges. Your luck drops to zero. It wants your gold.');
-            say('The Unlucky One. Boss. 120 HP. Your critical chance is zero. It may steal your gold each turn.');
+            say('The Unlucky One. Elite. 120 HP. Your critical chance is zero. It may steal your gold each turn.');
           }},
           { label: '🚪 Leave It', action: function() {
             sfx('sfx-select');
@@ -15300,6 +15302,12 @@ function enterRoom() {
       }
       // The Hollow special encounters — check before normal enemy spawn
       var inRaid = (typeof RD !== 'undefined' && RD.active);
+      // Time Descender — floors 6+, 15% chance, any dungeon, once per run
+      // (the roll sat inside The Hollow's encounters, so it only ever came there)
+      if (!inRaid && rollTimeDescender()) {
+        setTimeout(function(){ triggerTimeDescender(); }, 300);
+        return;
+      }
       if (isHollow && !inRaid) {
         // Weeping Child — floors 3+, 10% chance
         var wcChance = (_hollowWeather && _hollowWeather.silentNight) ? 0.20 : 0.10;
@@ -15317,11 +15325,6 @@ function enterRoom() {
         // Weeping Mother — floors 5+, 7% chance
         if (DS.floor >= 5 && Math.random() < 0.07) {
           setTimeout(function(){ triggerWeepingMother(); }, 300);
-          return;
-        }
-        // Time Descender — floors 6+, 15% chance, any dungeon, once per run
-        if (rollTimeDescender()) {
-          setTimeout(function(){ triggerTimeDescender(); }, 300);
           return;
         }
         // Medusa — floors 4+, ~10% chance, once per run
@@ -18189,6 +18192,7 @@ function handleDeath() {
     } else {
       // A lost Gauntlet sends the character home
       if (_gauntletActive) endGauntlet();
+      medusaStillLooksCheck();
       say('Defeated. All lives lost.');
       setTimeout(function() {
         try {
@@ -20312,6 +20316,7 @@ function showVictory() {
   DS._victoryPending = false;
   vibe(VIBE.bossKill);
   setTimeout(companionOnVictory, 800);
+  medusaStillLooksCheck();
   DS.inCombat = false;
   DS.enemy = null;
   setCombatBtns(false);
@@ -26803,6 +26808,16 @@ function vrChatSend() {
 //═════════════════
 // MEDUSA ARC SYSTEM
 //═════════════════
+
+// "She Still Looks" — nothing ever counted it: a run ends with Medusa still searching for her father.
+function medusaStillLooksCheck() {
+  if (DS.medusaJoined && !DS.medusaFatherFound && !DS._medusaStillCounted) {
+    DS._medusaStillCounted = true;
+    incrementAchievementStat('medusaStillLooks', 1);
+    try { checkAchievements(); } catch (e) {}
+    addLog('🐍 Medusa never found her father. She still looks for him.');
+  }
+}
 
 function getMedusaSave() {
   return _jsonParseSafe(DDStore.getItem('dd_medusa'), '{}');
@@ -50003,10 +50018,11 @@ function startHunt() {
   if (!c) { say('Select a character first.'); return; }
 
   HUNT.active = true;
-  HUNT.hp = c.maxHp || 100;
+  // Characters don't store HP, attack or defense, so everyone hunted with 100 HP and 8–14 attack
+  HUNT.hp = (HP_MAP[c.cls] || 100) + ((c.level || 1) - 1) * 5;
   HUNT.maxHp = HUNT.hp;
-  HUNT.atk = c.atk || [8,14];
-  HUNT.def = c.defBonus || 2;
+  HUNT.atk = (ATK_MAP[c.cls] || [8,14]).slice();
+  HUNT.def = DEF_MAP[c.cls] || 2;
   HUNT.kills = 0;
   HUNT.items = 0;
   HUNT.gold = 0;
@@ -50108,6 +50124,8 @@ function huntEncounterEnemy(rank) {
   if (playerWins) {
     var goldEarned = enemy.gold + (rank.rank >= 4 ? Math.round(enemy.gold * 0.3) : 0);
     var xpEarned = enemy.xp;
+    // Rank 7's "Critical hunt strikes unlocked": a critical kill pays double rank XP (it changed nothing)
+    if (crit && rank.rank >= 7) xpEarned *= 2;
     HUNT.kills++;
     HUNT.gold += goldEarned;
     addGlobalGold(goldEarned);
@@ -52431,6 +52449,8 @@ function applyPendingDream(ch) {
   var _baseInitDungeon = initDungeon;
   initDungeon = function(ch) {
     var r = _baseInitDungeon.apply(this, arguments);
+    // One wandering NPC per run (the flag was never reset, so it was one per app launch)
+    if (typeof _npcEncounterUsed !== 'undefined') _npcEncounterUsed = false;
     try { applyBackstoryToRun(ch); } catch (e) {}
     try { applyPendingDream(ch); } catch (e) {}
     try { applyNextRunRewards(ch); } catch (e) {}
@@ -61414,6 +61434,8 @@ function timeDescenderClockHit(action) {
     say('Struck the clock for ' + dmg + '. Clock HP: ' + DS.enemy.hp + '.');
   }
   if (DS.enemy.hp <= 0) { timeDescenderVictory(); return; }
+  // Chrono Armor: no clock cycles — strike freely
+  if (hasChronoArmor()) { DS._clockAttackWindow = true; setCombatBtns(true); updateSkillButtons(); return; }
   setCombatBtns(false);
   addLog('\u23f0 The clock continues. Brace yourself.');
   say('The clock endures. Another cycle begins.');
@@ -61461,6 +61483,8 @@ function timeDescenderPhaseTwo() {
     if (hasChronoArmor()) {
       addLog('\u2728 Chrono Armor resonates. The clock\'s power is nullified.');
       say('Your Chrono Armor negates the clock. The Time Descender is vulnerable.');
+      // (the strike window was never opened, so no attack could land and the fight froze)
+      DS._clockAttackWindow = true;
       setCombatBtns(true); updateSkillButtons();
       setTimeout(function(){ document.getElementById('cbtn-attack').focus(); }, 200);
       return;
@@ -66132,7 +66156,8 @@ function resolveNPCChoice(npcId, choiceIdx) {
       DS.inventory.push(item);
       rewardMsg = ' You received ' + item.name + '.';
     } else if (r.type === 'rune') {
-      var rune = { name:'Wanderers Rune', icon:'🔮', type:'rune', desc:'Left by someone who was here before you. Its purpose is unclear but it feels important.', cost:100 };
+      // A rune with no effect, so using it did nothing: it's a keepsake you can sell
+      var rune = { name:'Wanderers Rune', icon:'🔮', type:'material', desc:'Left by someone who was here before you. Its purpose is unclear but it feels important. A keepsake — sell it to a merchant.', cost:100 };
       DS.inventory.push(rune);
       rewardMsg = ' You received a Wanderers Rune.';
     } else if (r.type === 'buff') {
@@ -66144,8 +66169,10 @@ function resolveNPCChoice(npcId, choiceIdx) {
 
   if (ov) ov.remove();
 
-  // Drop Void Fragment if this was the Void Child
-  if (npc.isVoidChild && choice.action !== 'leave') {
+  // Drop Void Fragment if this was the Void Child — unless the choice's own reward
+  // already gave one (it gave two at once)
+  var _gaveFragment = choice.reward && (choice.reward.type === 'void-fragment' || choice.reward.type === 'void-fragment-small');
+  if (npc.isVoidChild && choice.action !== 'leave' && !_gaveFragment) {
     setTimeout(function() { addVoidFragment(); }, 800);
   }
 
