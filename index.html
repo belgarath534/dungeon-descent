@@ -24364,6 +24364,8 @@ function subOnHit(e, dmg) {
 
 // The enemy's hit, before it lands: Wind Walker and Phase Walker dodges.
 function subDodges() {
+  // Halfling — 15% of attacks slip past (set, never read)
+  if (DS.halflingDodge && ACCESS.classTraits && Math.random() < 0.15) { addLog('🍃 You slip out of the way!'); return true; }
   // Void Walker — Void Touched: 15% to phase through an attack (never read)
   if (DS._voidWalker && Math.random() < (DS._voidPhaseChance || 0.15)) { addLog('🌌 You phase through the attack!'); return true; }
   if (DS._windWalker && Math.random() < 0.15) { addLog('💨 You dodge the attack!'); return true; }
@@ -24414,6 +24416,8 @@ function fxEnemyTurn(e, fromAttack) {
     DS._wardenUsedFloor = true; DS.frozen = false; DS.trapDoT = null;
     addLog('🛡 Warden — you shrug off the effect.');
   }
+  // Golem — shrugs off poison and freezing (burns still get through)
+  if (DS.golemRace && ACCESS.classTraits) { DS.frozen = false; if (DS.trapDoT && !/burn/i.test(DS.trapDoT.name || '')) DS.trapDoT = null; }
   if (DS._debuffImmune || f.debuffTurns > 0) { DS.frozen = false; DS.trapDoT = null; if (f.debuffTurns > 0) f.debuffTurns--; }
   fxTickTemp();
   fxTickTrapPoison();
@@ -25642,6 +25646,8 @@ function checkLevelUp() {
     DS.level++;
     needed = XP_TABLE[Math.min(DS.level, XP_TABLE.length - 1)];
     leveledUp = true;
+    // Angel — heals 15 HP each level
+    if (DS.angelRace && ACCESS.classTraits) DS.hp = Math.min(DS.maxHp, DS.hp + 15);
     // Last Hope: +5 SP per level up (promised, never given)
     if (DS.backstorySPBonus) { DS.maxSp += DS.backstorySPBonus; DS.sp = Math.min(DS.maxSp, DS.sp + DS.backstorySPBonus); }
   }
@@ -52601,6 +52607,35 @@ function applyBackstoryToRun(ch) {
   if (b.bonusKey === 'sp') { DS.backstorySPBonus = b.bonusVal; DS.maxSp += b.bonusVal; DS.sp = Math.min(DS.maxSp, DS.sp + b.bonusVal); }
   if (b.bonusKey === 'xp') DS.backstoryXPBonus = 0.2;
 }
+// The stat lines on the race cards ("+AGI +INT", "+STR+STR -DEF" …) were never
+// applied, Golems had no code at all, and Vampires, Goblins and Angels missed
+// their extras. Each "+STAT" is one level point on that stat; "-STAT" takes one away.
+var RACE_STAT_IDS = { STR:'strength', AGI:'agility', INT:'intelligence', DEF:'defense', LCK:'luck', STA:'stamina' };
+function applyRaceStats(ch) {
+  if (!ch || hasMidRunSave(ch)) return;
+  DS.golemRace = ch.race === 'Golem';
+  var desc = (typeof _raceDescs !== 'undefined' && _raceDescs[ch.race]) || '';
+  var lp = function(id, sign) {
+    var st = LP_STATS.find(function(s){ return s.id === id; });
+    if (!st) return;
+    if (sign > 0) { st.apply(); return; }
+    if (id === 'strength') DS.atkBonus = (DS.atkBonus || 0) - 2;
+    else if (id === 'defense') DS.defBonus = Math.max(0, (DS.defBonus || 0) - 2);
+    else if (id === 'agility') { DS.fleeBonus = (DS.fleeBonus || 0) - 0.05; DS.critBonus = (DS.critBonus || 0) - 0.03; }
+    else if (id === 'luck') DS.luckBonus = (DS.luckBonus || 0) - 0.10;
+  };
+  if (ch.race === 'Human') { ['strength','stamina','intelligence'].forEach(function(id){ lp(id, 1); }); }
+  else if (ch.race !== 'Halfling') { // (the Halfling's luck and strength are already applied above)
+    var re = /([+-])(STR|AGI|INT|DEF|LCK|STA)/g, m;
+    while ((m = re.exec(desc))) lp(RACE_STAT_IDS[m[2]], m[1] === '+' ? 1 : -1);
+  }
+  if (!ACCESS.classTraits) return;
+  if (ch.race === 'Golem') DS.defBonus = (DS.defBonus || 0) + 5;
+  if (ch.race === 'Vampire') { DS.maxHp = Math.round(DS.maxHp * 0.80); DS.hp = Math.min(DS.hp, DS.maxHp); }
+  if (ch.race === 'Goblin') { DS.gold += 30; addGlobalGold(30); }
+  DS.angelRace = ch.race === 'Angel';
+}
+
 // Seasonal shop rewards saved "for your next run" (nothing ever read them).
 function applyNextRunRewards(ch) {
   if (!ch || hasMidRunSave(ch)) return;
@@ -52669,6 +52704,7 @@ function applyPendingDream(ch) {
     try { applyBackstoryToRun(ch); } catch (e) {}
     try { applyPendingDream(ch); } catch (e) {}
     try { applyNextRunRewards(ch); } catch (e) {}
+    try { applyRaceStats(ch); } catch (e) {}
     if (ch && ch.spellBook) DS.spellBook = true;
     return r;
   };
