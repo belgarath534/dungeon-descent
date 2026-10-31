@@ -19680,7 +19680,7 @@ function useItem(i) {
 
   } else if (item.type === 'time-potion') {
     if (!DS.inCombat) { say('Use this in combat.'); return; }
-    DS._timeStop = (DS._timeStop || 0) + (item.timeTurns || item.freeTurns || 2);
+    DS._timeStop = (DS._timeStop || 0) + (item.freeAttacks || item.timeTurns || 2);
     DS.inventory.splice(i, 1);
     addLog('⌛ Time Potion! Time slows. You get 2 free attacks. Enemy cannot respond.');
     say('Time Potion! 2 free attacks. Enemy frozen.');
