@@ -1811,7 +1811,7 @@ var DDStore = (function() {
     <!-- Title -->
     <div class="loading-title" data-i18n="game-title" style="font-size:2.4rem;line-height:1.1;margin-bottom:6px;">Dungeon<br>Descent</div>
     <div class="loading-sub" data-i18n="game-subtitle" style="margin-bottom:6px;">Into the dark. Again.</div>
-    <div style="font-family:Cinzel,serif;font-size:0.58rem;color:#333;letter-spacing:0.2em;margin-bottom:40px;" aria-hidden="true" id="loading-version-tag">v11.7.2</div>
+    <div style="font-family:Cinzel,serif;font-size:0.58rem;color:#333;letter-spacing:0.2em;margin-bottom:40px;" aria-hidden="true" id="loading-version-tag">v11.7.3</div>
 
     <!-- Loading bar -->
     <div class="loading-bar-wrap">
@@ -1990,7 +1990,7 @@ var DDStore = (function() {
         <span data-i18n="btn-quit">🕯 Quit</span>
       </button>
     </nav>
-    <p class="version-tag" id="menu-version-tag" aria-label="Version 11 point 7 point 2, Release">v11.7.2 · Release</p>
+    <p class="version-tag" id="menu-version-tag" aria-label="Version 11 point 7 point 3, Release">v11.7.3 · Release</p>
     <p id="menu-online-count" style="font-family:Cinzel,serif;font-size:0.55rem;color:#444;margin-top:4px;letter-spacing:0.1em;" aria-live="polite" aria-label="Players currently online"></p>
     <p style="font-family:Cinzel,serif;font-size:0.7rem;color:#ffdd44;margin-top:6px;" aria-label="Your global gold" aria-live="polite"><span data-i18n="lbl-gold">💰 </span><span class="global-gold-display">0</span></p>
     <p style="font-family:Cinzel,serif;font-size:0.7rem;color:#88ddff;margin-top:2px;" aria-label="Your diamonds" aria-live="polite">💎 <span class="global-diamond-display">0</span></p>
@@ -3555,8 +3555,26 @@ var DDStore = (function() {
       <button class="back-btn" onclick="goTo('menu')" aria-label="Back to main menu">← Menu</button>
       <h2 class="screen-title">What's New</h2>
     </div>
-    <div class="version-block latest" tabindex="0" aria-label="Version 11.7.2">
-      <div class="version-num">v11.7.2 — Latest</div>
+    <div class="version-block latest" tabindex="0" aria-label="Version 11.7.3">
+      <div class="version-num">v11.7.3 — Latest</div>
+      <div class="version-date">The Hundred Fixes Update</div>
+      <ul class="version-changes">
+        <li>🍎 Dungeon Descent has been rebuilt from the ground up as a native iPhone app in Swift. Rebuilding every system found over 100 bugs — and every one of them is fixed here too.</li>
+        <li>✨ Every class skill now does what its description says. 105 skills used to do nothing at all (they cost SP and gave the enemy a free hit), and buffs that say "this combat" or "for 3 turns" no longer stack for the whole run.</li>
+        <li>🔮 Spells finish what they start — Frost Lance freezes, Blood Shield blocks, Soul Drain drains, Void Mirror heals, and the rest. Spell scrolls can finally be read, and your Spell Book stays with your character.</li>
+        <li>⚔️ 17 subclass paths that did nothing now work (Wind Walker, Poisoner, Crusader, Beast Caller, Archmage, Hawkeye, Trapper, Paradox and more), and they're no longer lost when you resume a run. Bomb Throwers get a 💣 Bomb button.</li>
+        <li>🧬 Races, class traits, origins and dreams apply their bonuses as described.</li>
+        <li>🏚️ The Hollow and the Abyssal Deep's enemies use their real abilities: the Bell Ringer, the Wall Crawler, the Door Warden, the Pressure Beast and more.</li>
+        <li>🎲 All eight Run Modifiers, the Daily Dungeon modifiers, Daily Challenges, dungeon conditions and event gold bonuses now actually do what they announce.</li>
+        <li>🏰 The Spire's bosses appear, the Gauntlet has its real last dungeon and one life, and the Siege can be won.</li>
+        <li>🧪 Potions, seasonal shop items, forged weapons and their effects, alchemy brews and Mystery Coin rewards all work properly — and items bought from the menu go into your next run.</li>
+        <li>☠ Corruption Mode, bounties, the hunter, the Mine and the Time Descender all do what they say.</li>
+        <li>🔒 The tournament leaderboard no longer shows players' email addresses.</li>
+        <li>🐛 Plus dozens more: the daily streak on iPhone, boss riddle answers, the chat filter refusing words like "class", Continue Journey into The Shadow World, and more.</li>
+      </ul>
+    </div>
+    <div class="version-block" tabindex="0" aria-label="Version 11.7.2">
+      <div class="version-num">v11.7.2</div>
       <div class="version-date">The Run Briefing Update</div>
       <ul class="version-changes">
         <li>📜 Run Briefing — starting a run no longer stacks up to six pop-ups on top of each other. The quests, run modifier, dungeon condition, class trait, opening quote, dungeon intro, seasonal event and your guide's greeting are now one screen with one Begin Descent button. Nothing disappears on a timer, VoiceOver lands right on Begin, and the narrator reads the whole page.</li>
@@ -44739,7 +44757,7 @@ function devResetSRPrompt() {
 }
 
 // ── WHATS NEW ──
-var CURRENT_VERSION = '11.7.2';
+var CURRENT_VERSION = '11.7.3';
 function checkWhatsNew() {
   // Update ALL version displays from single source of truth
   var vtag = document.querySelector('.version-tag');
