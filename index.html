@@ -11805,6 +11805,10 @@ function applyAbyssalSilence() {
 
 // Thermal vent weather — heal on kill
 function applyAbyssalKillBonus() {
+  // Forest Blessing's heal per kill was only words
+  var dw = getDungeonWeather();
+  if (dw && dw.hpPerKill && DS.hp > 0) { DS.hp = Math.min(DS.maxHp, DS.hp + dw.hpPerKill); updatePlayerBar(); addLog(dw.icon + ' ' + dw.name + ' — +' + dw.hpPerKill + ' HP from the kill.'); }
+  if (DS.dungeon !== 'The Abyssal Deep') return;
   var w = getAbyssalWeather();
   if (!w || !w.hpPerKill) return;
   DS.hp = Math.min(DS.maxHp, DS.hp + w.hpPerKill);
@@ -17204,7 +17208,7 @@ function doFight(action) {
     var pot = pots[0];
     DS.inventory.splice(DS.inventory.indexOf(pot), 1);
     // Brewmaster — potions heal twice as much (the flag was never read)
-    var heal = Math.round((pot.heal || 40) * DS.potionMult * (DS._brewmaster ? 2 : 1));
+    var heal = Math.round((pot.heal || 40) * DS.potionMult * (DS._brewmaster ? 2 : 1) * weatherPotionMult());
     // "Find the Music Box or use a potion" — potions never touched the forest's corruption
     if (isWhisperForest() && _corruption > 0) { reduceCorruption(10); addLog('🌲 The potion pushes the corruption back 10%.'); }
     // Alchemist — potions heal 60% more
@@ -17731,7 +17735,7 @@ function enemyDead() {
     // Abyssal Deep — check resurrection
     try { if (DS.dungeon === 'The Abyssal Deep' && DS.enemy) { if (checkAbyssalResurrect(DS.enemy)) return; } } catch(e) {}
     // Abyssal Deep — kill bonus (thermal vent)
-    try { if (DS.dungeon === 'The Abyssal Deep') applyAbyssalKillBonus(); } catch(e) {}
+    try { applyAbyssalKillBonus(); } catch(e) {}
     // July 4th firework drop and tournament
     try { checkFireworkDrop(); } catch(e2) {}
     try { if (JULY4_TOURNAMENT.active) { addJuly4TournamentScore(25); checkJuly4TournamentEnd(); } } catch(e2) {}
@@ -17832,6 +17836,8 @@ function enemyDead() {
   // Vampire Lord — heal from kills
   // (Vampire Lord healed 20% of the gold dropped; it now heals from damage dealt, in subOnHit)
   // Dungeon weather gold mult
+  var _awGold = abyssalWeatherGoldMult();
+  if (_awGold !== 1) g = Math.round(g * _awGold);
   var _dwGold = getDungeonWeatherGoldMult();
   if (_dwGold !== 1 && DS.dungeon !== 'The Hollow') g = Math.round(g * _dwGold);
   // Luck bonus gold
@@ -19508,7 +19514,7 @@ function useItem(i) {
       return;
     }
     if (DS.hp >= DS.maxHp && !item.applyEffect) { say('Your health is already full.'); return; }
-    var heal = item.heal > 0 ? Math.round((item.heal || 40) * DS.potionMult * (DS._brewmaster ? 2 : 1)) : 0;
+    var heal = item.heal > 0 ? Math.round((item.heal || 40) * DS.potionMult * (DS._brewmaster ? 2 : 1) * weatherPotionMult()) : 0;
     if (heal > 0 && isWhisperForest() && _corruption > 0) { reduceCorruption(10); addLog('🌲 The potion pushes the corruption back 10%.'); }
     if (heal > 0) DS.hp = Math.min(DS.maxHp, DS.hp + heal);
     DS.inventory.splice(i, 1);
@@ -20068,6 +20074,8 @@ function saveProgress(completed) {
       _emberWard: DS._emberWard || false,
       _runeFortune: DS._runeFortune || false,
       _vampireLord: DS._vampireLord || false,
+      // Tonight's conditions (they lived only in memory, so a resumed run re-rolled them)
+      _weatherIds: { d: _dungeonWeather ? _dungeonWeather.id : null, a: _abyssalWeather ? _abyssalWeather.id : null, h: _hollowWeather ? _hollowWeather.id : null },
       _forestCorruption: (typeof _corruption !== 'undefined' && DS.dungeon === 'The Whispering Forest') ? _corruption : 0,
       _xpBoost: DS._xpBoost || null, _spiritBoost: DS._spiritBoost || 0, _sparklerAtk: !!DS._sparklerAtk,
       _warlordAtk: DS._warlordAtk || 0, _tempAtk: DS._tempAtk || null, _tempDef: DS._tempDef || null,
@@ -20140,6 +20148,13 @@ function restoreMidRun(ch) {
   DS._runeFortune      = s._runeFortune      || false;
   DS._vampireLord      = s._vampireLord      || false;
   DS._forestCorruptionSaved = s._forestCorruption || 0;
+  if (s._weatherIds) {
+    var _allDW = [];
+    Object.keys(DUNGEON_WEATHER).forEach(function(k){ _allDW = _allDW.concat(DUNGEON_WEATHER[k] || []); });
+    _dungeonWeather = s._weatherIds.d ? (_allDW.find(function(w){ return w.id === s._weatherIds.d; }) || null) : null;
+    _abyssalWeather = s._weatherIds.a ? (ABYSSAL_WEATHER.find(function(w){ return w.id === s._weatherIds.a; }) || null) : null;
+    _hollowWeather = s._weatherIds.h ? (HOLLOW_WEATHER.find(function(w){ return w.id === s._weatherIds.h; }) || null) : null;
+  }
   if (DS._forestCorruptionSaved && typeof _corruption !== 'undefined') { _corruption = DS._forestCorruptionSaved; }
   DS._xpBoost = s._xpBoost || null; DS._spiritBoost = s._spiritBoost || 0; DS._sparklerAtk = !!s._sparklerAtk;
   DS._warlordAtk = s._warlordAtk || 0; DS._tempAtk = s._tempAtk || null; DS._tempDef = s._tempDef || null;
@@ -24376,6 +24391,10 @@ function fxAfterTaken(e, taken) {
     f.capTurns--;
     if (taken > f.cap) { DS.hp = Math.min(DS.maxHp, DS.hp + (taken - f.cap)); taken = f.cap; addLog('No hit can do more than ' + f.cap + '.'); }
   }
+  // Fever Run (+15% damage taken) and Ancient Curse (1 HP per enemy attack, whatever your defense)
+  var _dwT = getDungeonWeather();
+  if (_dwT && _dwT.playerDmgTaken && taken > 0) { var _fe = Math.round(taken * (_dwT.playerDmgTaken - 1)); if (_fe > 0) { DS.hp = Math.max(0, DS.hp - _fe); taken += _fe; } }
+  if (_dwT && _dwT.cursedArmor && e) { DS.hp = Math.max(0, DS.hp - 1); taken += 1; }
   if (f.voidMirror > 0 && taken > 0) {
     f.voidMirror--;
     DS.hp = Math.min(DS.maxHp, DS.hp + taken * 2);
@@ -51905,7 +51924,23 @@ function getDungeonWeatherSpDiscount() {
   return w.spDiscount;
 }
 
+// The Abyssal Deep's own conditions: Crushing Depth's room cost and
+// Bioluminescent Bloom's gold were announced but never applied.
+function abyssalWeatherGoldMult() {
+  var w = DS.dungeon === 'The Abyssal Deep' ? getAbyssalWeather() : null;
+  return (w && w.goldMult) || 1;
+}
+// Stronger potions (Divine Blessing, Cooled Ashes, Crypt Mist, Hallowed Ground, Library Silence)
+function weatherPotionMult() {
+  var w = getDungeonWeather();
+  return 1 + ((w && w.potionBoost) || 0);
+}
 function applyDungeonWeatherRoomHpLoss() {
+  var aw = DS.dungeon === 'The Abyssal Deep' ? getAbyssalWeather() : null;
+  if (aw && aw.roomHpLoss && DS.hp > 1) {
+    DS.hp = Math.max(1, DS.hp - aw.roomHpLoss); updatePlayerBar();
+    addLog(aw.icon + ' ' + aw.name + ' — -' + aw.roomHpLoss + ' HP from the pressure.');
+  }
   var w = _dungeonWeather;
   if (!w || !w.roomHpLoss) return;
   DS.hp = Math.max(1, DS.hp - w.roomHpLoss);
