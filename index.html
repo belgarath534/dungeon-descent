@@ -11737,9 +11737,11 @@ function applyAbyssalEnemyMechanics(enemy, action) {
   // Pressure Beast — stacks
   if (enemy.pressureStacks) {
     enemy._pressureStack = (enemy._pressureStack || 0) + 1;
+    // +10% per turn alive (it compounded on the already-grown attack every turn)
+    if (!enemy._pressureBase) enemy._pressureBase = enemy.atk.slice();
     enemy.atk = [
-      Math.round(enemy.atk[0] * (1 + enemy._pressureStack * 0.10)),
-      Math.round(enemy.atk[1] * (1 + enemy._pressureStack * 0.10))
+      Math.round(enemy._pressureBase[0] * (1 + enemy._pressureStack * 0.10)),
+      Math.round(enemy._pressureBase[1] * (1 + enemy._pressureStack * 0.10))
     ];
   }
 
@@ -16946,12 +16948,8 @@ function doFight(action) {
   if (DS.dungeon === 'The Abyssal Deep') {
     try {
       var _abyssalResult = applyAbyssalPlayerMechanics(baseAtk, e);
-      if (_abyssalResult === 0) {
-        // Miss or self-hit — re-enable buttons so player can act again
-        setCombatBtns(true);
-        updateSkillButtons();
-        return;
-      }
+      // A blind miss or a Siren self-hit costs the turn (it gave a free retry)
+      if (_abyssalResult === 0) DS._abyssalLostTurn = true;
       baseAtk = _abyssalResult;
     } catch(err) {}
   }
@@ -17260,6 +17258,10 @@ function doFight(action) {
     trackGlobalStat('totalPotions', 1);
     setCombatBtns(true); return;
 
+  } else if (action === 'flee' && e && e.preventFlee) {
+    // Creaking Step, the Door Warden and the Void Anchor block flight (they only warned)
+    addLog('You try to flee — but ' + e.name + ' blocks every exit. There is no escape.');
+    say('Cannot flee. ' + e.name + ' blocks the way.');
   } else if (action === 'flee') {
     vibe(VIBE.flee);
     if (DS.berserkerTrait && ACCESS.classTraits) {
@@ -18498,7 +18500,8 @@ function applyShadowEnemyMechanics(e, dmgToPlayer) {
     e._bellTurn = (e._bellTurn || 0) + 1;
     if (e._bellTurn === 2) {
       e._bellRung = true;
-      addLog('🔔 THE BELL RINGS. Your turn is skipped!');
+      DS._abyssalLostTurn = true; // your next attack is lost (it only announced the skipped turn)
+      addLog('🔔 THE BELL RINGS. Your next turn is skipped!');
       say('The bell rings. Your turn is lost.');
       // The extra damage is already applied — just announce the stun
     }
@@ -19581,6 +19584,13 @@ function useItem(i) {
     // Open the fragment reader
     openLoreFragment(item);
     return;
+  } else if ((item.type === 'def-potion' || item.type === 'atk-potion') && item.special === 'crit') {
+    // Shadow Oil — its onUse handler never ran (and is lost when the bag is saved)
+    DS.markedKill = true;
+    DS.inventory.splice(i, 1);
+    setEvent('good', 'Shadow Oil applied. Next attack guaranteed critical!');
+    say('Shadow Oil. Next attack is a guaranteed critical hit.');
+    renderInv(); saveProgress();
   } else if (item.type === 'def-potion' || item.type === 'atk-potion') {
     // Potions that say "for 3 turns" now last 3 turns; before, every one of
     // them added to your stats for the whole run (and the loot table's
@@ -24376,6 +24386,7 @@ function subDodges() {
 
 // Your damage, after a skill or an attack: empower, vulnerable and skill mastery.
 function fxPlayerDamage(dmg, isSkill) {
+  if (!isSkill && DS._abyssalLostTurn) { DS._abyssalLostTurn = false; return 0; }
   if (!(dmg > 0)) return dmg;
   var f = fxGet();
   var m = 1;
@@ -49217,7 +49228,7 @@ var DUNGEON_INTROS = {
   'The Sunken Archives':    { eyebrow:'Entering the Archives', text:'The water is perfectly still. The candles are still lit. Something has been cataloguing. It has found a new entry.' },
   'The Hollow':             { eyebrow:'Entering the Hollow',   text:'The house knows you are here. It has always known. It has been waiting for you specifically. It does not explain how it knew.' },
   'The Whispering Forest':  { eyebrow:'Entering the Forest',   text:'The trees do not move in the wind here. There is no wind. The sound you hear is not the wind. The forest would like you to know that.' },
-  'The Infernal':           { eyebrow:'Entering the Infernal', text:'Everything here has already burned. It burns still. The things that live in the fire have stopped noticing the fire. They will notice you.' },
+  'The Infernal Descent':   { eyebrow:'Entering the Infernal', text:'Everything here has already burned. It burns still. The things that live in the fire have stopped noticing the fire. They will notice you.' },
   'The Abyssal Deep':       { eyebrow:'Descending into the Deep', text:'The deepest dungeon. Every boss here has four phases and at least 600 HP. It hits harder than anything you have faced. Stock every potion. Use every skill. Cast every spell. You have been warned.' },
   'The Shadow World':       { eyebrow:'Entering the Shadow World', text:'It has existed for 3000 years beneath a cursed forest. It does not obey your rules. The Shapeshifter waits at the end — wearing your face, using your skills, knowing your every move. Nothing that enters here leaves unchanged.' },
 };
