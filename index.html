@@ -16958,7 +16958,7 @@ function doFight(action) {
     // Phantom Run's "first strike always crits" too
     var _subFirst = (DS._windWalker || DS._shadowAssassin || DS.runModFirstCrit) && !(DS._fx && DS._fx.subFirstStrike);
     if (_subFirst) fxGet().subFirstStrike = true;
-    var crit = !DS._unluckyOne && (Math.random() < (0.10 + (DS.critBonus||0) + _keenBonus) || DS.markedKill || _subFirst);
+    var crit = !DS._unluckyOne && (Math.random() < (0.10 + (DS.critBonus||0) + _keenBonus + (forgeFx() === 'crit-boost' ? 0.10 : 0)) || DS.markedKill || _subFirst);
     if (DS.markedKill) { DS.markedKill = false; addLog('Marked Kill activates — guaranteed critical!'); }
     // Transcendence
     var transcMult = (DS.transcendence && DS.transcendence > 0) ? 2 : 1;
@@ -17861,6 +17861,8 @@ function enemyDead() {
   // Cinco de Mayo, Ambush Day, Friday the 13th) was shown but never paid.
   var _evGold = getEventBonuses();
   if (_evGold && _evGold.goldMult && _evGold.goldMult !== 1) g = Math.max(1, Math.round(g * _evGold.goldMult));
+  // Forge: Lucky — 5 more gold a kill
+  if (forgeFx() === 'gold-find') g += 5;
   // Corruption Run (100%) — gold drops doubled
   if (DS._corruptionRun) g = g * 2;
   // Lucky Potion: only multi-enemy fights ever read it.
@@ -24217,6 +24219,29 @@ function fxFightBonus(kind) {
 var SUB_UNDEAD = ['Hollow Shade','Brittle Skeleton','Wailing Wraith','Armored Skeleton','Bone Colossus','Death Knight','Soul Harvester','Malachar the Undying'];
 var SUB_BEASTS = [['🐺', 'wolf'], ['🐻', 'bear'], ['🦅', 'hawk'], ['🐍', 'serpent'], ['🐗', 'boar']];
 
+// Forge effects (Burning, Life Steal, Keen Edge, Venomous, Lucky, Arcane,
+// Shattering, Swift, Thorned, Executioner) were written on the weapon and
+// never used in a fight.
+function forgeFx() { return DS.equippedWeapon && DS.equippedWeapon.forgeEffect; }
+function forgeDamage(e, dmg) {
+  var fx = forgeFx();
+  if (!fx || !e || !(dmg > 0)) return dmg;
+  if (fx === 'execute' && e.hp / Math.max(1, e.maxHp || e.hp) < 0.25) { addLog('🔨 Executioner — +50% damage to the weakened foe!'); return Math.round(dmg * 1.5); }
+  // Enemies have no defense to lower, so Shattering cracks their guard: +2 a hit, up to 10
+  if (fx === 'armor-break') { e._shatter = Math.min(10, (e._shatter || 0) + 2); return dmg + e._shatter; }
+  return dmg;
+}
+function forgeAfterHit(e, dmg) {
+  var fx = forgeFx();
+  if (!fx || !e || !(dmg > 0)) return;
+  var f = fxGet();
+  if (fx === 'burn' && e.hp > 0 && Math.random() < 0.15) { f.dot = Math.max(f.dot, 5); f.dotTurns = Math.max(f.dotTurns, 3); addLog('🔥 Your blade sets ' + e.name + ' burning — 5 damage a turn for 3 turns!'); }
+  if (fx === 'poison' && e.hp > 0 && Math.random() < 0.20) { f.dot = Math.max(f.dot, 4); f.dotTurns = Math.max(f.dotTurns, 3); addLog('🐍 Venom seeps in — ' + e.name + ' is poisoned!'); }
+  if (fx === 'lifesteal' && DS.hp < DS.maxHp) { var h = Math.max(1, Math.round(dmg * 0.10)); DS.hp = Math.min(DS.maxHp, DS.hp + h); updatePlayerBar(); addLog('🩸 Life Steal heals ' + h + ' HP.'); }
+  if (fx === 'sp-regen') { DS.sp = Math.min(DS.maxSp, DS.sp + 2); updateXPBar(); }
+  if (fx === 'double-hit' && e.hp > 0 && Math.random() < 0.10) { e.hp = Math.max(0, e.hp - dmg); updateEnemyBar(); addLog('⚡ Swift — you strike twice for another ' + dmg + '!'); }
+}
+
 // After your attack lands.
 function subOnHit(e, dmg) {
   if (!e || !(dmg > 0) || e.hp <= 0) return;
@@ -24268,7 +24293,7 @@ function fxPlayerDamage(dmg, isSkill) {
     addLog('Holy Crusade heals ' + f.crusade + ' HP.');
   }
   var out = m === 1 ? dmg : Math.round(dmg * m);
-  if (!isSkill) subOnHit(DS.enemy, out);
+  if (!isSkill) { out = forgeDamage(DS.enemy, out); subOnHit(DS.enemy, out); forgeAfterHit(DS.enemy, out); }
   return out;
 }
 
@@ -24407,6 +24432,8 @@ function fxAfterTaken(e, taken) {
     f.capTurns--;
     if (taken > f.cap) { DS.hp = Math.min(DS.maxHp, DS.hp + (taken - f.cap)); taken = f.cap; addLog('No hit can do more than ' + f.cap + '.'); }
   }
+  // Forge: Thorned — 15% of the damage you take goes back
+  if (forgeFx() === 'thorns' && taken > 0 && e && e.hp > 0) { var _ft = Math.round(taken * 0.15); if (_ft > 0) { e.hp = Math.max(0, e.hp - _ft); updateEnemyBar(); addLog('🌵 Your thorned blade reflects ' + _ft + ' damage!'); if (e.hp <= 0) return true; } }
   // Burning Dungeon — every hit burns for 2 more
   if (DS.runModFireDmg && taken > 0) { DS.hp = Math.max(0, DS.hp - 2); taken += 2; }
   // Fever Run (+15% damage taken) and Ancient Curse (1 HP per enemy attack, whatever your defense)
@@ -56746,7 +56773,7 @@ function forgeCraft(recipeId) {
     id: recipe.id + '_' + Date.now(),
     name: recipe.name, icon: recipe.icon,
     type: 'weapon', atkBonus: recipe.atk[0],
-    atkRange: recipe.atk, level: 1,
+    atkRange: recipe.atk, atkBase: recipe.atk.slice(), level: 1, isEquippable: true,
     desc: recipe.desc + (effect ? ' [' + effect.name + ': ' + effect.desc + ']' : ''),
     forgeEffect: effect ? effect.id : null,
     forgeEffectName: effect ? effect.name : null,
@@ -56792,6 +56819,14 @@ function forgeReroll() {
 function forgeKeep() {
   if (!_forgeCurrentWeapon) return;
   var gInv = getGlobalInventory();
+  // A run keeps one weapon per name, so a second forged weapon of the same name vanished
+  var _names = gInv.filter(function(i){ return i.type === 'weapon'; }).map(function(i){ return i.name; });
+  if (_names.indexOf(_forgeCurrentWeapon.name) !== -1) {
+    var _base = _forgeCurrentWeapon.name + ' (' + (_forgeCurrentWeapon.forgeEffectName || 'Forged') + ')';
+    var _nm = _base, _n = 2;
+    while (_names.indexOf(_nm) !== -1) { _nm = _base + ' ' + _n; _n++; }
+    _forgeCurrentWeapon.name = _nm;
+  }
   gInv.push(_forgeCurrentWeapon);
   saveGlobalInventory(gInv);
   // Track forge count for achievement
@@ -61814,7 +61849,8 @@ function getUpgradeCost(level) {
 
 function getWeaponAtk(weapon) {
   if (!weapon) return 0;
-  var base = weapon.atkBase || [5, 8];
+  // Forged weapons saved their attack as atkRange, so they hit like a starter sword
+  var base = weapon.atkBase || weapon.atkRange || [5, 8];
   var lvl = weapon.level || 1;
   var bonus = Math.round((lvl - 1) * 2.5);
   return [base[0] + bonus, base[1] + bonus];
@@ -64750,9 +64786,13 @@ async function scheduleAllNotifications() {
       sound: 'sfx-unlock.wav', smallIcon: 'ic_launcher'
     });
 
-    // ── VOID REAPER WARNING — fires 14 hours after app open (one-time)
-    var voidTime = new Date(now.getTime() + (14 * 60 * 60 * 1000));
-    if (prefs.void) notifications.push({
+    // ── VOID REAPER WARNING — two hours before the awake Reaper's window closes.
+    // (It fired 14 hours after you opened the app, whether the Reaper was awake or not.)
+    var _vrs = (typeof _vrState !== 'undefined' && _vrState) ? _vrState : null;
+    var voidTime = (_vrs && _vrs.awake && _vrs.awakenedAt && !_vrs.defeated)
+      ? new Date(_vrs.awakenedAt + (VR_WINDOW_HOURS - 2) * 3600000) : null;
+    if (voidTime && voidTime.getTime() <= now.getTime()) voidTime = null;
+    if (prefs.void && voidTime) notifications.push({
       id: id++,
       title: '🌑 The Void Reaper Stirs',
       body: 'Two hours remain before the dungeon suffers. Defeat it or face consequences.',
@@ -64883,6 +64923,7 @@ async function scheduleAllNotifications() {
       for (var i = 0; i < 400; i++) { // scan up to ~13 months ahead
         if (d.getDay() === 5 && d.getDate() === 13) {
           var fri13 = new Date(d.getFullYear(), d.getMonth(), 13, 8, 0, 0);
+          if (!prefs.friday13) break; // (it was scheduled even with its switch off)
           notifications.push({
             id: id++,
             title: '💀 Friday the 13th',
