@@ -14962,7 +14962,10 @@ function initDungeon(ch) {
   try { if (isWhisperForest()) startCorruptionSystem(); } catch(e) {}
   // Independence Tournament — starts once per character per event window
   try {
-    if (getActiveEvent() === 'july4' && !getJuly4TournamentData().active) {
+    // Once per event (it restarted after every win)
+    var _tnYear = String(new Date().getFullYear());
+    if (getActiveEvent() === 'july4' && !getJuly4TournamentData().active && DDStore.getItem('dd_july4_tn_year') !== _tnYear) {
+      DDStore.setItem('dd_july4_tn_year', _tnYear);
       startJuly4Tournament(_charIdx);
     }
   } catch(e) {}
@@ -15783,6 +15786,7 @@ function advanceFloor() {
   if (typeof applyTraitPerFloor === 'function') applyTraitPerFloor();
   DS.roomsOnFloor = 0;
   DS._warlordAtk = 0;
+  DS._wardenUsedFloor = false;
   if (DS._xpBoost && DS._xpBoost.floors > 0) { DS._xpBoost.floors--; if (DS._xpBoost.floors === 0) addLog('Your XP boost wears off.'); }
   if (DS._beastCaller) {
     DS._beast = Math.floor(Math.random() * SUB_BEASTS.length);
@@ -22605,8 +22609,12 @@ var BAD_WORDS = ['fuck','shit','ass','bitch','cunt','dick','cock','pussy','nigge
 
 function ecContainsBadWord(text) {
   var lower = text.toLowerCase().replace(/[^a-z0-9\s]/g, '');
+  // Whole words only: matching inside words refused "Hellhound", "Shellback" and
+  // "Assassin". The worst slurs are still caught inside any word.
+  var words = lower.split(/\s+/);
+  var always = ['nigger','nigga','faggot','cunt','retard'];
   return BAD_WORDS.some(function(w) {
-    return lower.split(/\s+/).indexOf(w) !== -1 || lower.indexOf(w) !== -1;
+    return words.indexOf(w) !== -1 || (always.indexOf(w) !== -1 && lower.indexOf(w) !== -1);
   });
 }
 
@@ -24401,6 +24409,11 @@ function fxPlayerDamage(dmg, isSkill) {
 // checked Shadow Form, Wind Step or Holy Light (only the skill path did).
 function fxEnemyTurn(e, fromAttack) {
   var f = fxGet();
+  // Warden — shrugs off the first freeze or poison each floor (the flag was never read)
+  if (DS.wardenImmune && !DS._wardenUsedFloor && (DS.frozen || (DS.trapDoT && DS.trapDoT.turns > 0))) {
+    DS._wardenUsedFloor = true; DS.frozen = false; DS.trapDoT = null;
+    addLog('🛡 Warden — you shrug off the effect.');
+  }
   if (DS._debuffImmune || f.debuffTurns > 0) { DS.frozen = false; DS.trapDoT = null; if (f.debuffTurns > 0) f.debuffTurns--; }
   fxTickTemp();
   fxTickTrapPoison();
@@ -47255,6 +47268,14 @@ function castSpell(spellId) {
       updateEnemyBar();
       if (_spE.hp <= 0) setTimeout(function(){ enemyDead(); }, 500);
     }
+    // Echo Staff — "spells cast twice, the second for 50%" (only a description before)
+    if (_spE && _spE.hp > 0 && _spE.hp < _spHpBefore && DS.equippedWeapon && /^(.* )?Echo Staff/.test(DS.equippedWeapon.name || '')) {
+      var _echo = Math.max(1, Math.round((_spHpBefore - _spE.hp) * 0.5));
+      _spE.hp = Math.max(0, _spE.hp - _echo);
+      addLog('🔮 The Echo Staff repeats the spell for ' + _echo + ' damage!');
+      updateEnemyBar();
+      if (_spE.hp <= 0) setTimeout(function(){ enemyDead(); }, 500);
+    }
     var _spStunBefore = fxGet().stun;
     spellPostEffects(spellId);
     if (DS._stormcaller && fxGet().stun > _spStunBefore) fxGet().stun++;
@@ -67544,9 +67565,13 @@ function rhythmResult(win) {
     [1,2,3].forEach(function(i){ var p=document.getElementById('rhythm-pip-'+i); if(p){p.style.background='#ccaa00';p.style.borderColor='#ffdd44';} });
     setTimeout(function(){
       if (ov) ov.style.display = 'none';
-      DS._rhythmBuff = 2;
-      DS._rhythmAtkBoost = Math.round((DS.totalAtk||DS.atk||10) * 0.4);
-      DS._rhythmDefBoost = Math.round((DS.def||5) * 0.3);
+      // (the bonus was saved and never read — and DS.atk is a range, so it was NaN)
+      var _rf = fxGet();
+      if (_rf.buffTurns > 0) { DS.atkBonus -= _rf.buffAtk; DS.defBonus -= _rf.buffDef; }
+      _rf.buffAtk = Math.round(((DS.atk[0] + DS.atk[1]) / 2 + (DS.atkBonus || 0)) * 0.4);
+      _rf.buffDef = Math.max(1, Math.round(((DS.def || 0) + (DS.defBonus || 0)) * 0.3));
+      _rf.buffTurns = 2;
+      DS.atkBonus += _rf.buffAtk; DS.defBonus += _rf.buffDef;
       addLog('🌊 You answered the call! +40% ATK and +30% DEF for 2 turns.');
       updateAchievementStat('rhythmWon', 1);
       awardAchievement('ach-rhythm-win');
