@@ -3198,6 +3198,7 @@ var DDStore = (function() {
         <button type="button" class="dg-combat-btn" id="cbtn-defend" onclick="doFight('defend')" aria-label="Defend, reduces incoming damage">🛡 Defend</button>
         <button type="button" class="dg-combat-btn" id="cbtn-potion" onclick="doFight('potion')" aria-label="Use a health potion">🧪 Potion</button>
         <button type="button" class="dg-combat-btn" id="cbtn-flee" onclick="doFight('flee')" aria-label="Attempt to flee combat">🏃 Flee</button>
+        <button type="button" class="dg-combat-btn" id="cbtn-bomb" onclick="throwSubclassBomb()" aria-label="Throw your bomb. 60 damage, once per floor" style="display:none;border-color:#cc6600;color:#ff9944;">💣 Bomb</button>
         <button type="button" class="dg-combat-btn" id="cbtn-purge" onclick="doFight('purge')" aria-label="Purge shadow corruption. Costs 4 SP." style="display:none;border-color:#9966cc;color:#cc88ff;">✨ Purge</button>
         <button type="button" class="dg-combat-btn" id="cbtn-examine" onclick="examineEnemy()" aria-label="Examine enemy to learn their weakness and abilities" style="border-color:#4444aa;color:#8888ff;">🔍 Examine</button>
         <button type="button" class="dg-combat-btn" id="cbtn-eagles-cry" onclick="activateEaglesCry()" aria-label="Eagle's Cry — Fourth of July skill, reduces enemy attack 30% for 3 turns" style="display:none;border-color:#cc4444;color:#ff6644;">🦅 Eagle's Cry</button>
@@ -11573,6 +11574,20 @@ function showSubclassChoice() {
   setTimeout(function(){ var btn = optEl.querySelector('button'); if(btn) btn.focus(); }, 100);
 }
 
+// A resumed run only kept the subclass id, so every passive flag but the
+// Vampire Lord's was lost. Set them again from the subclass's own apply().
+function restoreSubclassFlags() {
+  if (!DS._subclass || typeof SUBCLASSES === 'undefined') return;
+  Object.keys(SUBCLASSES).forEach(function(cls) {
+    (SUBCLASSES[cls] || []).forEach(function(sub) {
+      if (sub.id !== DS._subclass || !sub.apply) return;
+      var src = sub.apply.toString();
+      var re = /DS\.(_[A-Za-z]+)\s*=\s*true/g, m;
+      while ((m = re.exec(src))) DS[m[1]] = true;
+    });
+  });
+}
+
 function chooseSubclass(sub) {
   DS._subclass = sub.id;
   DS._subclassName = sub.name;
@@ -11582,7 +11597,9 @@ function chooseSubclass(sub) {
   if (sub.statBonus) {
     Object.keys(sub.statBonus).forEach(function(stat) {
       var pts = sub.statBonus[stat];
-      var lp = LP_STATS.find(function(s){ return s.id === stat; });
+      // "spirit" and "vitality" aren't level-point stats, so they gave nothing.
+      var statId = stat === 'spirit' ? 'intelligence' : stat === 'vitality' ? 'stamina' : stat;
+      var lp = LP_STATS.find(function(s){ return s.id === statId; });
       if (lp) { for(var i=0;i<pts;i++) lp.apply(); }
     });
   }
@@ -12667,7 +12684,7 @@ var ELITE_SPIRITS = [
     ability:'Grants +5 defense at combat start. Attacks for 20% ice damage.',
     passiveDesc:'Ice Dominion',
     onAttack: function(b){ return Math.round(b*0.20); },
-    onCombatStart: function(){ DS.defBonus+=5; addLog('Frost Crown hardens your defenses. +5 defense!'); },
+    onCombatStart: function(){ DS.defBonus+=5; fxGet().fightDef += 5; addLog('Frost Crown hardens your defenses. +5 defense for this fight!'); },
     onKill: null },
   { id:'archivist-spirit',    name:'Archive Phantom',   icon:'📜', rarity:'elite',
     desc:'The ghost of a drowned archivist. Knows every weakness.',
@@ -15756,6 +15773,12 @@ function advanceFloor() {
   }
   if (typeof applyTraitPerFloor === 'function') applyTraitPerFloor();
   DS.roomsOnFloor = 0;
+  DS._warlordAtk = 0;
+  if (DS._xpBoost && DS._xpBoost.floors > 0) { DS._xpBoost.floors--; if (DS._xpBoost.floors === 0) addLog('Your XP boost wears off.'); }
+  if (DS._beastCaller) {
+    DS._beast = Math.floor(Math.random() * SUB_BEASTS.length);
+    addLog(SUB_BEASTS[DS._beast][0] + ' A ' + SUB_BEASTS[DS._beast][1] + ' answers your call and joins you on this floor.');
+  }
   DS._preBossGauntletDone = false;
   DS._gauntletWavesCurrent = 0;
   DS._gauntletWavesTotal = 0;
@@ -16292,10 +16315,26 @@ function startCombat(isBoss) {
 
 var _combatBtnSafetyTimer = null;
 
+function throwSubclassBomb() {
+  if (!DS.inCombat || !DS.enemy || !DS._bombThrower || !DS._bombReady) return;
+  var e = DS.enemy;
+  DS._bombReady = false;
+  e.hp = Math.max(0, e.hp - 60);
+  sfx('sfx-trap');
+  updateEnemyBar();
+  addLog('💣 You throw your bomb at ' + e.name + ' for 60 damage!');
+  say('Bomb! 60 damage to ' + e.name + '. Your next bomb is ready on the next floor.');
+  if (e.hp <= 0) { setCombatBtns(false); setTimeout(function() { enemyDead(); }, 400); return; }
+  setCombatBtns(true); updateSkillButtons();
+}
+
 function setCombatBtns(on) {
   // Show Purge button only in Shadow World
   var purgeBtn = document.getElementById('cbtn-purge');
   if (purgeBtn) purgeBtn.style.display = (DS && DS.dungeon === 'The Shadow World') ? '' : 'none';
+  // Bomb Thrower — the bomb recharged every floor, but there was no way to throw it
+  var bombBtn = document.getElementById('cbtn-bomb');
+  if (bombBtn) { bombBtn.style.display = (DS && DS._bombThrower && DS._bombReady) ? '' : 'none'; bombBtn.disabled = !on; }
 
   ['cbtn-attack','cbtn-heavy','cbtn-defend','cbtn-potion','cbtn-flee','cbtn-examine'].forEach(function(id) {
     var el = document.getElementById(id);
@@ -16843,6 +16882,12 @@ function doFight(action) {
   if (DS._berserkerSub) { var hpMissing = DS.maxHp - DS.hp; baseAtk += Math.floor(hpMissing / 10); }
   if (DS._spellblade) baseAtk += Math.floor((DS.sp||0) / 10);
   if (DS._battleHymn && DS._battleHymnTurns > 0) { baseAtk += 5; DS._battleHymnTurns--; }
+  // Sparkler Buff from the Liberty Shop — +30% attack this run
+  if (DS._sparklerAtk) baseAtk = Math.round(baseAtk * 1.30);
+  // Night Shroud — +35% at night (its "Night Mode" doesn't exist; the Night Blessing hours are used)
+  if (DS._nightShroud && isNightTime()) baseAtk = Math.round(baseAtk * 1.35);
+  // Warlord — the kill streak, reset each floor
+  if (DS._warlordAtk) baseAtk += DS._warlordAtk;
   // Berserker's Mark coin upgrade — +3 damage below 50% HP
   if (DS._berserkerMark && DS.hp <= DS.maxHp * 0.5) baseAtk += 3;
   // Hunter's Mark coin upgrade — first attack always crits
@@ -16889,7 +16934,10 @@ function doFight(action) {
     // Keen — +5% critical hit chance
     var _keenBonus = _wre === 'keen' ? 0.05 : 0;
     // The Unlucky One — no crits, no luck
-    var crit = !DS._unluckyOne && (Math.random() < (0.10 + (DS.critBonus||0) + _keenBonus) || DS.markedKill);
+    // Wind Walker and Shadow — the first attack of every fight is a critical
+    var _subFirst = (DS._windWalker || DS._shadowAssassin) && !(DS._fx && DS._fx.subFirstStrike);
+    if (_subFirst) fxGet().subFirstStrike = true;
+    var crit = !DS._unluckyOne && (Math.random() < (0.10 + (DS.critBonus||0) + _keenBonus) || DS.markedKill || _subFirst);
     if (DS.markedKill) { DS.markedKill = false; addLog('Marked Kill activates — guaranteed critical!'); }
     // Transcendence
     var transcMult = (DS.transcendence && DS.transcendence > 0) ? 2 : 1;
@@ -16912,6 +16960,8 @@ function doFight(action) {
         addLog('⚡ Holy Smite! +' + smiteDmg + ' holy damage!');
       }
     }
+    // Crusader — +50% against the undead
+    if (DS._crusader && e && SUB_UNDEAD.indexOf(e.name) !== -1) playerDmg = Math.round(playerDmg * 1.5);
     // Swift weapon — +20% damage on the first attack of combat
     if (_wre === 'swift' && DS._weaponFirstHit) {
       playerDmg = Math.round(playerDmg * 1.20);
@@ -17074,7 +17124,8 @@ function doFight(action) {
   } else if (action === 'heavy') {
     // Weighted weapon — heavy strikes never miss
     var _heavyWre = DS.equippedWeapon && DS.equippedWeapon.rarityEffect;
-    if (_heavyWre !== 'weighted' && Math.random() < 0.30) {
+    // Hawkeye — Heavy Strike never misses (the flag was never read)
+    if (_heavyWre !== 'weighted' && !DS._hawkeye && Math.random() < 0.30) {
       sfx('sfx-heavy-miss');
       vibe(VIBE.miss);
       addLog('Your heavy strike misses! The enemy sidesteps.');
@@ -17140,7 +17191,8 @@ function doFight(action) {
     }
     var pot = pots[0];
     DS.inventory.splice(DS.inventory.indexOf(pot), 1);
-    var heal = Math.round((pot.heal || 40) * DS.potionMult);
+    // Brewmaster — potions heal twice as much (the flag was never read)
+    var heal = Math.round((pot.heal || 40) * DS.potionMult * (DS._brewmaster ? 2 : 1));
     // Alchemist — potions heal 60% more
     if (DS.cls === 'Alchemist' && ACCESS.classTraits) heal = Math.round(heal * 1.35);
     // Merfolk — potions heal 20% more
@@ -17171,6 +17223,7 @@ function doFight(action) {
     var fleeChance = swiftGuarantee ? 1.0 : (hasRing ? 0.75 : 0.45) + (DS.fleeBonus || 0) + lightStepBonus;
     if (Math.random() < fleeChance) {
       DS.inCombat = false;
+      fxReset();
       playTrack(exploTrackForFloor(DS.floor));
       showDgPanels(true, false, false);
       setEvent('', swiftGuarantee ? '💨 Swift as a ghost — you vanish before they can react.' : 'You slip into the shadows. The enemy\'s howl fades behind you.');
@@ -17657,7 +17710,10 @@ function enemyDead() {
       }
     } catch(e2) {}
     // Warlord kill streak
-    if (DS._subclassPassive === 'warlord') { DS.atkBonus = (DS.atkBonus||0) + 2; addLog('👑 Warlord: +2 ATK from kill streak!'); }
+    // (the streak was added to attack for the whole run; it now resets each floor)
+    if (DS._subclassPassive === 'warlord' || DS._subclass === 'warlord') { DS._warlordAtk = (DS._warlordAtk||0) + 2; addLog('👑 Warlord: +2 ATK from kill streak!'); }
+    // Death Knight — death feeds you
+    if (DS._deathKnightSub) { DS.hp = Math.min(DS.maxHp, DS.hp + 10); addLog('💀 Death feeds you — +10 HP.'); updatePlayerBar(); }
     // Soul Reaper — steal skill from elite/boss
     if (DS._soulReaper && DS.enemy && (DS.enemy.isElite || DS.enemy.isBoss) && DS.skillPool && DS.skillPool.length > 0) {
       var stolen = DS.skillPool.splice(0,1)[0];
@@ -17739,7 +17795,7 @@ function enemyDead() {
   var hw = getHollowWeather();
   if (hw && hw.goldMult && DS.dungeon === 'The Hollow') g = Math.round(g * hw.goldMult);
   // Vampire Lord — heal from kills
-  if (DS._vampireLord) { var vlHeal = Math.max(1, Math.floor(g * 0.20)); DS.hp = Math.min(DS.maxHp, DS.hp + vlHeal); updatePlayerBar(); }
+  // (Vampire Lord healed 20% of the gold dropped; it now heals from damage dealt, in subOnHit)
   // Dungeon weather gold mult
   var _dwGold = getDungeonWeatherGoldMult();
   if (_dwGold !== 1 && DS.dungeon !== 'The Hollow') g = Math.round(g * _dwGold);
@@ -17754,6 +17810,10 @@ function enemyDead() {
   // BUGFIX: Rune of Fortune ("+25% gold from all enemies this run") set a flag
   // (DS._runeFortune) that nothing ever read — it did nothing. Apply it here.
   if (DS._runeFortune) g = Math.round(g * 1.25);
+  // Event gold (Void Week, Fourth of July, St. Patrick's, Brazil, Valentine's,
+  // Cinco de Mayo, Ambush Day, Friday the 13th) was shown but never paid.
+  var _evGold = getEventBonuses();
+  if (_evGold && _evGold.goldMult && _evGold.goldMult !== 1) g = Math.max(1, Math.round(g * _evGold.goldMult));
   // Lucky Potion: only multi-enemy fights ever read it.
   if (DS._luckPotionKills && DS._luckPotionKills > 0) {
     g = Math.round(g * (DS._luckPotionMult || 2)); DS._luckPotionKills--;
@@ -18092,6 +18152,8 @@ function handleDeath() {
     if (DS.enemy && DS.enemy.isBoss && !DS._bossRetryUsed) {
       setTimeout(function() { showBossRetry(); }, 800);
     } else {
+      // A lost Gauntlet sends the character home
+      if (_gauntletActive) endGauntlet();
       say('Defeated. All lives lost.');
       setTimeout(function() {
         try {
@@ -18691,6 +18753,7 @@ function stalkerEscaped() {
     addLog('📦 Found: ' + reward.name + '!');
   }
   DS.gold += 150;
+  addGlobalGold(150); // (went to the run but never to your global gold)
   updateTopBar();
   sfx('sfx-victory');
   vibe && vibe(VIBE.bossKill);
@@ -19403,7 +19466,7 @@ function useItem(i) {
       return;
     }
     if (DS.hp >= DS.maxHp && !item.applyEffect) { say('Your health is already full.'); return; }
-    var heal = item.heal > 0 ? Math.round((item.heal || 40) * DS.potionMult) : 0;
+    var heal = item.heal > 0 ? Math.round((item.heal || 40) * DS.potionMult * (DS._brewmaster ? 2 : 1)) : 0;
     if (heal > 0) DS.hp = Math.min(DS.maxHp, DS.hp + heal);
     DS.inventory.splice(i, 1);
     DS.usedPotion = true;
@@ -19933,7 +19996,8 @@ function saveProgress(completed) {
       level: DS.level, xp: DS.xp,
       lives: DS.lives,
       kills: DS.kills,
-      atkBonus: DS.atkBonus, defBonus: DS.defBonus, critBonus: DS.critBonus||0, luckBonus: DS.luckBonus||0, fleeBonus: DS.fleeBonus||0, _subclass: DS._subclass||null, _subclassName: DS._subclassName||null, _subclassIcon: DS._subclassIcon||null,
+      // Without this fight's own bonuses, which end with the fight
+      atkBonus: DS.atkBonus - fxFightBonus('atk'), defBonus: DS.defBonus - fxFightBonus('def'), critBonus: DS.critBonus||0, luckBonus: DS.luckBonus||0, fleeBonus: DS.fleeBonus||0, _subclass: DS._subclass||null, _subclassName: DS._subclassName||null, _subclassIcon: DS._subclassIcon||null,
       inventory: DS.inventory,
       unlockedSkills: DS.unlockedSkills || [],
       skillPool: DS.skillPool || [],
@@ -19961,6 +20025,10 @@ function saveProgress(completed) {
       _emberWard: DS._emberWard || false,
       _runeFortune: DS._runeFortune || false,
       _vampireLord: DS._vampireLord || false,
+      _xpBoost: DS._xpBoost || null, _spiritBoost: DS._spiritBoost || 0, _sparklerAtk: !!DS._sparklerAtk,
+      _warlordAtk: DS._warlordAtk || 0, _tempAtk: DS._tempAtk || null, _tempDef: DS._tempDef || null,
+      _skillMastery: DS._skillMastery || 0, _allMastery: DS._allMastery || 0, _halfCostSkills: !!DS._halfCostSkills,
+      _debuffImmune: !!DS._debuffImmune, _onceSkills: DS._onceSkills || null, _bombReady: !!DS._bombReady, _beast: DS._beast || 0,
       _voidCurse: DS._voidCurse || false,
       _nightBlessing: DS._nightBlessing || false,
       hunterMode: DS.hunterMode || false,
@@ -20027,6 +20095,13 @@ function restoreMidRun(ch) {
   DS._emberWard        = s._emberWard        || false;
   DS._runeFortune      = s._runeFortune      || false;
   DS._vampireLord      = s._vampireLord      || false;
+  DS._xpBoost = s._xpBoost || null; DS._spiritBoost = s._spiritBoost || 0; DS._sparklerAtk = !!s._sparklerAtk;
+  DS._warlordAtk = s._warlordAtk || 0; DS._tempAtk = s._tempAtk || null; DS._tempDef = s._tempDef || null;
+  DS._skillMastery = s._skillMastery || 0; DS._allMastery = s._allMastery || 0; DS._halfCostSkills = !!s._halfCostSkills;
+  DS._debuffImmune = !!s._debuffImmune; DS._onceSkills = s._onceSkills || null; DS._bombReady = !!s._bombReady; DS._beast = s._beast || 0;
+  restoreSubclassFlags();
+  // The Gauntlet's progress lived only in memory, so leaving the app lost it.
+  if (ch._gauntlet) { _gauntletActive = true; _gauntletProgress = ch._gauntlet.progress || 0; DS.lives = Math.min(DS.lives, 1); DS.maxLives = 1; }
   DS._voidCurse        = s._voidCurse        || false;
   DS._nightBlessing    = s._nightBlessing    || false;
   DS.hunterMode        = s.hunterMode        || false;
@@ -20213,6 +20288,7 @@ function showVictory() {
         ch.dungeon = nextDungeon;
         ch.floor = 1;
         ch.midRunSave = null;
+        ch._gauntlet = { progress: _gauntletProgress };
         // Keep current HP — no healing between dungeons
         ch._gauntletHp = DS.hp;
         ch._gauntletMaxHp = DS.maxHp;
@@ -20221,6 +20297,8 @@ function showVictory() {
       say('Dungeon ' + _gauntletProgress + ' cleared! Entering ' + nextDungeon + '. ' + (GAUNTLET_DUNGEONS.length - _gauntletProgress) + ' dungeons remain. HP carries over.');
       setTimeout(function() {
         initDungeon(ch);
+        gauntletOneLife();
+        challengeFixEndless();
         // Restore HP from previous dungeon
         if (ch._gauntletHp) { DS.hp = ch._gauntletHp; DS.maxHp = ch._gauntletMaxHp; updatePlayerBar(); }
         goTo('dungeon');
@@ -20228,11 +20306,7 @@ function showVictory() {
       return;
     } else {
       // Gauntlet complete!
-      _gauntletActive = false;
-      _gauntletProgress = 0;
-      // Restore original dungeon
-      var ch2 = CHARS[_charIdx];
-      if (ch2 && ch2._gauntletOrigDungeon) { ch2.dungeon = ch2._gauntletOrigDungeon; saveChars(); }
+      endGauntlet();
       // Award achievement
       var gAch = getAchievementStats();
       gAch.gauntletClears = (gAch.gauntletClears||0) + 1;
@@ -20660,7 +20734,7 @@ function retryRun() {
 
 function openNGPlusChoice() {
   var ch = _charIdx !== null ? CHARS[_charIdx] : null;
-  var dungeonOrder = ['Crypt of Malachar','The Ashbound Wastes','Frosthold Abyss','The Sunken Archives','The Hollow','The Whispering Forest','The Infernal Descent','The Abyssal Deep'];
+  var dungeonOrder = ['Crypt of Malachar','The Ashbound Wastes','Frosthold Abyss','The Sunken Archives','The Hollow','The Whispering Forest','The Infernal Descent','The Abyssal Deep','The Shadow World'];
   var currentIdx = dungeonOrder.indexOf(ch ? ch.dungeon : '');
   var nextDungeon = (currentIdx >= 0 && currentIdx < dungeonOrder.length - 1) ? dungeonOrder[currentIdx + 1] : null;
 
@@ -20697,7 +20771,7 @@ function continueJourney() {
   closeOv('ov-ngplus-choice');
   if (_charIdx === null) return;
   var ch = CHARS[_charIdx];
-  var dungeonOrder = ['Crypt of Malachar','The Ashbound Wastes','Frosthold Abyss','The Sunken Archives','The Hollow','The Whispering Forest','The Infernal Descent','The Abyssal Deep'];
+  var dungeonOrder = ['Crypt of Malachar','The Ashbound Wastes','Frosthold Abyss','The Sunken Archives','The Hollow','The Whispering Forest','The Infernal Descent','The Abyssal Deep','The Shadow World'];
   var currentIdx = dungeonOrder.indexOf(ch.dungeon);
   if (currentIdx < 0 || currentIdx >= dungeonOrder.length - 1) {
     // Last dungeon — nothing to continue to, just go to menu
@@ -20844,6 +20918,13 @@ var SHOP_STOCK = [
 var shopSession = [];
 
 function openShop() {
+  // Daily modifier "Stripped": the shop does not appear (nothing read the flag)
+  if (DS._dailyMod_noShop) {
+    say('Stripped — no merchant today. Continuing your descent.');
+    addLog('🚫 Stripped: the merchant is gone.');
+    setTimeout(function() { enterRoom(); }, 600);
+    return;
+  }
   showDungeonTip('first-shop');
   // Use dungeon-specific shop stock
   var baseStock = DS.dungeon === 'The Ashbound Wastes' ? ASH_SHOP_STOCK
@@ -24044,6 +24125,50 @@ function fxReset() {
     crusade: 0, crusadeTurns: 0, warlord: false, stickyBomb: 0, lethalTempo: 0 };
 }
 function fxGet() { if (!DS._fx) fxReset(); return DS._fx; }
+function fxFightBonus(kind) {
+  var f = DS._fx;
+  if (!f) return 0;
+  return kind === 'atk' ? (f.fightAtk || 0) + (f.buffTurns > 0 ? (f.buffAtk || 0) : 0)
+                        : (f.fightDef || 0) + (f.buffTurns > 0 ? (f.buffDef || 0) : 0);
+}
+
+// ── SUBCLASS PASSIVES (v11.7.3) ──
+// The subclass screen saved a flag for each path, but nothing read the flags of
+// Wind Walker, Shadow, Poisoner, Crusader, Beast Caller, Archmage, Hawkeye,
+// Trapper, Death Knight, Hex Blade, Dragon Ascendant, Brewmaster, Plague
+// Bearer, Phase Walker, Night Shroud, Paradox or Spirit Caller. They now do
+// what their descriptions say.
+var SUB_UNDEAD = ['Hollow Shade','Brittle Skeleton','Wailing Wraith','Armored Skeleton','Bone Colossus','Death Knight','Soul Harvester','Malachar the Undying'];
+var SUB_BEASTS = [['🐺', 'wolf'], ['🐻', 'bear'], ['🦅', 'hawk'], ['🐍', 'serpent'], ['🐗', 'boar']];
+
+// After your attack lands.
+function subOnHit(e, dmg) {
+  if (!e || !(dmg > 0) || e.hp <= 0) return;
+  var f = fxGet();
+  if (DS._poisoner) { f.dot = f.dotTurns > 0 ? Math.min(20, f.dot + 4) : 4; f.dotTurns = 3; addLog('🐍 ' + e.name + ' is poisoned!'); }
+  else if (DS._dragonAscendant && Math.random() < 0.20) { f.dot = Math.max(8, f.dotTurns > 0 ? f.dot : 0); f.dotTurns = 3; addLog('🐉 Flame breath! ' + e.name + ' is burning!'); }
+  else if (DS._plagueBearerSub && Math.random() < 0.25) { f.dot = Math.max(5, f.dotTurns > 0 ? f.dot : 0); f.dotTurns = 3; addLog('☠️ ' + e.name + ' is diseased!'); }
+  if (DS._hexBlade) { f.vuln = Math.max(f.vuln, 0.35); f.vulnTurns = Math.max(f.vulnTurns, 3); }
+  if (DS._trapper && !f.trapperDone) {
+    f.trapperDone = true;
+    if (Math.random() < 0.30) { f.stun = Math.max(f.stun, 1); addLog('🪤 Trap sprung! ' + e.name + ' is stunned!'); }
+  }
+  if (DS._vampireLord) { var vl = Math.max(1, Math.floor(dmg / 5)); DS.hp = Math.min(DS.maxHp, DS.hp + vl); updatePlayerBar(); }
+  if (DS._beastCaller) {
+    var b = SUB_BEASTS[(DS._beast || 0) % SUB_BEASTS.length];
+    var bd = rnd(8, 14);
+    e.hp = Math.max(0, e.hp - bd);
+    addLog(b[0] + ' Your ' + b[1] + ' attacks for ' + bd + ' damage!');
+    updateEnemyBar();
+  }
+}
+
+// The enemy's hit, before it lands: Wind Walker and Phase Walker dodges.
+function subDodges() {
+  if (DS._windWalker && Math.random() < 0.15) { addLog('💨 You dodge the attack!'); return true; }
+  if (DS._phaseWalker && Math.random() < 0.20) { addLog('👁️ You phase through the attack!'); return true; }
+  return false;
+}
 
 // Your damage, after a skill or an attack: empower, vulnerable and skill mastery.
 function fxPlayerDamage(dmg, isSkill) {
@@ -24054,12 +24179,15 @@ function fxPlayerDamage(dmg, isSkill) {
   if (f.vulnTurns > 0) m *= 1 + f.vuln;
   if (isSkill && DS._skillMastery) m *= 1 + DS._skillMastery;
   if (DS._allMastery) m *= 1 + DS._allMastery;
+  if (isSkill && DS._archmage) m *= 1.20;
   if (f.crusadeTurns > 0 && f.crusade > 0) {
     if (f.crusadeTurns < 99) f.crusadeTurns--;
     DS.hp = Math.min(DS.maxHp, DS.hp + f.crusade); updatePlayerBar();
     addLog('Holy Crusade heals ' + f.crusade + ' HP.');
   }
-  return m === 1 ? dmg : Math.round(dmg * m);
+  var out = m === 1 ? dmg : Math.round(dmg * m);
+  if (!isSkill) subOnHit(DS.enemy, out);
+  return out;
 }
 
 // The start of the enemy's turn. Returns 'dead' if its damage over time killed
@@ -24100,12 +24228,15 @@ function fxEnemyTurn(e, fromAttack) {
     e.atk = [Math.max(1, e.atk[0] - f.decay), Math.max(1, e.atk[1] - f.decay)];
     addLog('Death and Decay saps ' + e.name + "'s strength.");
   }
+  // Spirit Caller — the spirit heals 8 HP each turn of a fight
+  if (DS._spiritCaller && DS.hp > 0 && DS.hp < DS.maxHp) { DS.hp = Math.min(DS.maxHp, DS.hp + 8); updatePlayerBar(); addLog('🌀 Your spirit heals you for 8 HP.'); }
   if (f.stun > 0) {
     f.stun--;
     addLog(e.name + ' cannot act this turn!');
     say(e.name + ' is stunned.');
     return { skip: true, mult: 1 };
   }
+  if (subDodges()) return { skip: true, mult: 1 };
   if (f.dodge > 0) {
     f.dodge--;
     addLog('You avoid ' + e.name + "'s attack completely!");
@@ -24145,6 +24276,9 @@ function fxEnemyTurn(e, fromAttack) {
     addLog('Holy Light blinds the enemy — attack halved! (' + DS.holyLight + ' turns left)');
   }
   if (f.softenHits > 0) { mult *= f.soften; f.softenHits--; }
+  // Blood Moon — you take 25% more damage (shown, never applied)
+  var _evTake = getEventBonuses();
+  if (_evTake && _evTake.takesMore) mult *= 1 + _evTake.takesMore;
   if (f.reduceTurns > 0) { mult *= 1 - f.reduce; f.reduceTurns--; }
   return { skip: false, mult: mult };
 }
@@ -24158,6 +24292,8 @@ function fxAfterTaken(e, taken) {
     if (taken > f.cap) { DS.hp = Math.min(DS.maxHp, DS.hp + (taken - f.cap)); taken = f.cap; addLog('No hit can do more than ' + f.cap + '.'); }
   }
   if (DS.hp <= 0 && f.unstoppable > 0) { DS.hp = 1; addLog('Unstoppable! Death refused.'); }
+  // Paradox — once per fight, the killing blow is rewound
+  if (DS.hp <= 0 && DS._paradox && !f.paradoxUsed) { f.paradoxUsed = true; DS.hp = Math.max(1, taken); addLog('🔄 Paradox! Time rewinds one turn — death never happened.'); }
   if (f.unstoppable > 0) f.unstoppable--;
   if (f.thornsTurns > 0 && f.thorns > 0 && taken > 0 && e && e.hp > 0) {
     if (f.thornsTurns < 99) f.thornsTurns--;
@@ -24474,6 +24610,10 @@ function useSkill(idx) {
   var _apocalypseWeapon = DS.equippedWeapon && DS.equippedWeapon.rarityEffect === 'apocalypse';
   var actualCost = ((DS.unlimitedPower && DS.unlimitedPower > 0) || _apocalypseWeapon) ? 0 : Math.max(0, skill.spCost - (DS.tinkererDiscount||0) - traitDisc - gnomeDisc - _weatherSpDiscount - _abyssalSpDiscount - (DS._soulSurge ? 1 : 0) - _drownedTomeDisc);
   if (DS._halfCostSkills) actualCost = Math.floor(actualCost / 2);
+  // Archmage — skills cost 2 less (the flag was never read)
+  if (DS._archmage) actualCost = Math.max(0, actualCost - 2);
+  // Battle Hymn — every skill sings: +5 attack for your next 3 attacks
+  if (DS._battleHymn) DS._battleHymnTurns = 3;
   if (DS.unlimitedPower && DS.unlimitedPower > 0) DS.unlimitedPower--;
   DS.sp -= actualCost;
   updateXPBar();
@@ -25187,6 +25327,7 @@ function gainXP(amount) {
   amount = Math.round(amount * dcBonus);
   if (DS.pilgrimProf) amount = Math.round(amount * 1.15);
   if (DS.backstoryXPBonus) amount = Math.round(amount * (1 + DS.backstoryXPBonus));
+  if (DS._xpBoost && DS._xpBoost.floors > 0) amount = Math.round(amount * DS._xpBoost.mult);
   // Safety — make sure xp is a valid number
   if (isNaN(DS.xp) || DS.xp === undefined || DS.xp === null) DS.xp = 0;
   DS.xp += amount;
@@ -42717,7 +42858,7 @@ var STARTER_SPIRITS = [
     desc:'A moth charged with static. Has a chance to stun on attack.',
     ability:'Each attack has a 20% chance to stun the enemy for 1 turn.',
     passiveDesc:'Static Shock',
-    onAttack:function(b){ if(Math.random()<0.20){ addLog('Thunder Moth shocks the enemy — stunned!'); } return Math.round(b*0.12); },
+    onAttack:function(b){ if(Math.random()<0.20){ fxGet().stun = Math.max(fxGet().stun, 1); addLog('Thunder Moth shocks the enemy — stunned!'); } return Math.round(b*0.12); },
     onCombatStart:null, onKill:null },
   { id:'market-sprite', name:'Market Sprite', icon:'🪙', rarity:'starter',
     desc:'A spirit bound to commerce. Negotiates on your behalf at every shop.',
@@ -42748,8 +42889,8 @@ var RARE_SPIRITS = [
     desc:'A wolf of ancient ice. Freezes enemies and grants defense.',
     ability:'At combat start grants +4 defense. Attacks for 20% damage, may freeze.',
     passiveDesc:'Arctic Guard', minLevel:5,
-    onAttack:function(b){ if(Math.random()<0.25){ addLog('Glacial Wolf freezes the enemy!'); } return Math.round(b*0.20); },
-    onCombatStart:function(){ DS.defBonus+=4; addLog('Glacial Wolf surrounds you in ice armor. +4 defense!'); }, onKill:null },
+    onAttack:function(b){ if(Math.random()<0.25){ fxGet().stun = Math.max(fxGet().stun, 1); addLog('Glacial Wolf freezes the enemy!'); } return Math.round(b*0.20); },
+    onCombatStart:function(){ DS.defBonus+=4; fxGet().fightDef += 4; addLog('Glacial Wolf surrounds you in ice armor. +4 defense for this fight!'); }, onKill:null },
   { id:'void-wraith', enemyType:'spirit', name:'Void Wraith', icon:'👁️', rarity:'rare',
     dungeon:'Nightmare',
     desc:'A wraith from beyond reality. Drains life to heal you.',
@@ -42873,11 +43014,14 @@ function updateSpiritDisplay() {
 
 function applySpiritOnAttack(baseAtk, enemyName) {
   if (!DS.activeSpirit || !DS.activeSpirit.onAttack) return 0;
-  if (DS.activeSpirit.rarity==='rare' && DS.level < 5) {
-    addLog(DS.activeSpirit.name + ' dormant — reach level 5 to awaken.');
+  // Rare spirits wake at level 5, and a spirit's own minLevel (the Void Herald's 7) was never checked
+  var _spMin = DS.activeSpirit.minLevel || (DS.activeSpirit.rarity === 'rare' ? 5 : 0);
+  if (DS.level < _spMin) {
+    addLog(DS.activeSpirit.name + ' dormant — reach level ' + _spMin + ' to awaken.');
     return 0;
   }
   var dmg = DS.activeSpirit.onAttack(baseAtk, enemyName);
+  if (DS._spiritBoost && dmg > 0) dmg = Math.round(dmg * DS._spiritBoost);
   if (dmg > 0) {
     var msg = DS.activeSpirit.name + ' strikes for ' + dmg + '!';
     addLog(DS.activeSpirit.icon + ' ' + msg);
@@ -42896,7 +43040,7 @@ function applyMedusaTempSpirit() {
 
 function applySpiritOnCombatStart() {
   if (!DS.activeSpirit || !DS.activeSpirit.onCombatStart) return;
-  if (DS.activeSpirit.rarity==='rare' && DS.level < 5) return;
+  if (DS.level < (DS.activeSpirit.minLevel || (DS.activeSpirit.rarity === 'rare' ? 5 : 0))) return;
   DS.activeSpirit.onCombatStart();
   // Combat start effects already call addLog — also say the spirit name so JAWS hears it
   say(DS.activeSpirit.name + ' activates.');
@@ -47962,6 +48106,15 @@ function updateSeasonalCurrencyDisplay() {
 }
 
 // ── SEASONAL SHOP ITEMS ──
+// Seasonal shop items bought from the menu went into a run that wasn't there
+// (the last run's leftover state). They now go into your saved inventory, and
+// into the current run's bag when you're in one.
+function seasonalGive(item) {
+  var inRun = _currentScreen === 'dungeon' && DS && DS.inventory;
+  if (inRun) DS.inventory.push(item);
+  addToGlobalInventory(item);
+}
+
 var CURSE_SHOP_ITEMS = [
   { id:'bs-discount-code', name:'Blacksmith Discount',   icon:'⚒️', cost:15, desc:'10% off all Blacksmith upgrades for 24 hours. A code is added to your General Settings.',
     apply: function() {
@@ -47992,10 +48145,7 @@ var CURSE_SHOP_ITEMS = [
   },
   { id:'halloween-potion', name:'Pumpkin Brew',           icon:'🎃', cost:8,  desc:'A potion that heals 80 HP. Only sold in the Curse Shop.',
     apply: function() {
-      if (DS && DS.inventory) {
-        DS.inventory.push({name:'Pumpkin Brew',icon:'🎃',type:'potion',heal:80,desc:'Halloween brew. Heals 80 HP.'});
-        addToGlobalInventory({name:'Pumpkin Brew',icon:'🎃',type:'potion',heal:80,desc:'Halloween brew.'});
-      }
+      seasonalGive({name:'Pumpkin Brew',icon:'🎃',type:'potion',heal:80,desc:'Halloween brew. Heals 80 HP.'});
       say('Pumpkin Brew added to inventory.');
     }
   },
@@ -48017,10 +48167,7 @@ var SANTA_SHOP_ITEMS = [
   },
   { id:'santa-potion',     name:'Eggnog Flask',          icon:'🥛', cost:8,  desc:'Heals 60 HP and restores 10 SP. Only sold in the Santa Shop.',
     apply: function() {
-      if (DS && DS.inventory) {
-        DS.inventory.push({name:'Eggnog Flask',icon:'🥛',type:'potion',heal:60,spRestore:10,desc:'Heals 60 HP and 10 SP.'});
-        addToGlobalInventory({name:'Eggnog Flask',icon:'🥛',type:'potion',heal:60,desc:'Heals 60 HP and 10 SP.'});
-      }
+      seasonalGive({name:'Eggnog Flask',icon:'🥛',type:'potion',heal:60,spRestore:10,desc:'Heals 60 HP and 10 SP.'});
       say('Eggnog Flask added to inventory.');
     }
   },
@@ -48041,7 +48188,7 @@ var SANTA_SHOP_ITEMS = [
 var LIBERTY_SHOP_ITEMS = [
   { id:'liberty-firework',   name:'Mega Firework',          icon:'🎆', cost:5,  desc:'A powerful firework. Deals massive damage in combat.',
     apply: function() {
-      if (DS && DS.inventory) DS.inventory.push({name:'Mega Firework',icon:'🎆',type:'firework',isFirework:true,desc:'Deals massive damage.'});
+      seasonalGive({name:'Mega Firework',icon:'🎆',type:'firework',isFirework:true,desc:'Deals massive damage.'});
       say('Mega Firework added to inventory. Use it in combat for massive damage.');
     }
   },
@@ -48069,13 +48216,13 @@ var LIBERTY_SHOP_ITEMS = [
   },
   { id:'liberty-cannon',     name:'Patriot Cannon',         icon:'💣', cost:15, desc:'One-use item. Instantly defeats any non-boss enemy.',
     apply: function() {
-      if (DS && DS.inventory) DS.inventory.push({name:'Patriot Cannon',icon:'💣',type:'cannon',isInstakill:true,desc:'Instantly defeats any non-boss enemy.'});
+      seasonalGive({name:'Patriot Cannon',icon:'💣',type:'cannon',isInstakill:true,desc:'Instantly defeats any non-boss enemy.'});
       say('Patriot Cannon added to inventory. One shot, one kill. Non-boss enemies only.');
     }
   },
   { id:'liberty-potion',     name:'Freedom Potion',         icon:'🔵', cost:7,  desc:'Heals 100 HP and grants immunity to debuffs for 3 turns.',
     apply: function() {
-      if (DS && DS.inventory) DS.inventory.push({name:'Freedom Potion',icon:'🔵',type:'potion',heal:100,debuffImmune:3,desc:'Heals 100 HP. Debuff immunity for 3 turns.'});
+      seasonalGive({name:'Freedom Potion',icon:'🔵',type:'potion',heal:100,debuffImmune:3,desc:'Heals 100 HP. Debuff immunity for 3 turns.'});
       say('Freedom Potion added to inventory. Heals 100 HP and grants debuff immunity.');
     }
   },
@@ -48093,7 +48240,7 @@ var HARVEST_SHOP_ITEMS = [
   },
   { id:'harvest-potion',   name:'Harvest Brew',          icon:'🍂', cost:8,  desc:'Heals 70 HP. Made from autumn herbs.',
     apply: function() {
-      if (DS && DS.inventory) DS.inventory.push({name:'Harvest Brew',icon:'🍂',type:'potion',heal:70,desc:'Heals 70 HP.'});
+      seasonalGive({name:'Harvest Brew',icon:'🍂',type:'potion',heal:70,desc:'Heals 70 HP.'});
       say('Harvest Brew added to inventory.');
     }
   },
@@ -48117,7 +48264,7 @@ var SHAMROCK_SHOP_ITEMS = [
   { id:'stpat-stout',      name:'Irish Stout',           icon:'🍺', cost:6,  desc:'Heals 50 HP but reduces your ATK by 3 for 2 turns.',
     apply: function() {
       if (DS) { DS.hp = Math.min(DS.maxHp, DS.hp + 50); DS.atkBonus = (DS.atkBonus || 0) - 3; DS._stoutTurns = 2; updatePlayerBar(); }
-      if (DS && DS.inventory) DS.inventory.push({name:'Irish Stout',icon:'🍺',type:'potion',heal:50,desc:'Heals 50 HP. -3 ATK for 2 turns.'});
+      seasonalGive({name:'Irish Stout',icon:'🍺',type:'potion',heal:50,desc:'Heals 50 HP. -3 ATK for 2 turns.'});
       say('Irish Stout! 50 HP restored. ATK reduced by 3 for 2 turns.');
     }
   },
@@ -48153,13 +48300,13 @@ var SHAMROCK_SHOP_ITEMS = [
 var CHOCOLATE_SHOP_ITEMS = [
   { id:'val-love-potion',  name:'Love Potion',       icon:'💘', cost:10, desc:'Charms an enemy to fight for you for 2 turns, then it turns on you.',
     apply: function() {
-      if (DS && DS.inventory) DS.inventory.push({ name:'Love Potion', icon:'💘', type:'love-potion', desc:'Use on an enemy in combat. Charms them for 2 turns.' });
+      seasonalGive({ name:'Love Potion', icon:'💘', type:'love-potion', desc:'Use on an enemy in combat. Charms them for 2 turns.' });
       say('Love Potion added to inventory.');
     }
   },
   { id:'val-chocolate-box', name:'Box of Chocolates', icon:'🍫', cost:6,  desc:'Heals 55 HP. Sweet and simple.',
     apply: function() {
-      if (DS && DS.inventory) DS.inventory.push({name:'Box of Chocolates',icon:'🍫',type:'potion',heal:55,desc:'Heals 55 HP.'});
+      seasonalGive({name:'Box of Chocolates',icon:'🍫',type:'potion',heal:55,desc:'Heals 55 HP.'});
       say('Box of Chocolates added to inventory.');
     }
   },
@@ -51327,7 +51474,10 @@ var SHADOW_ENEMIES = {
   ],
 };
 
+// (no empty first entry like the other dungeons' lists, so every floor showed
+// the next floor's name and "The Place That Wasn't" never appeared)
 var SHADOW_FLOOR_NAMES = [
+  '',
   'The Place That Wasn\'t', 'Where Light Forgot', 'The 3000th Year',
   'Hall of Erased Things', 'The Corridor of What Remains',
   'Chamber of the Twice Dead', 'The Mirror Room', 'Where You End',
@@ -52019,6 +52169,38 @@ function applyBackstoryToRun(ch) {
   if (b.bonusKey === 'sp') { DS.backstorySPBonus = b.bonusVal; DS.maxSp += b.bonusVal; DS.sp = Math.min(DS.maxSp, DS.sp + b.bonusVal); }
   if (b.bonusKey === 'xp') DS.backstoryXPBonus = 0.2;
 }
+// Seasonal shop rewards saved "for your next run" (nothing ever read them).
+function applyNextRunRewards(ch) {
+  if (!ch || hasMidRunSave(ch)) return;
+  if (DDStore.getItem('dd_bonus_life')) {
+    DDStore.removeItem('dd_bonus_life');
+    DS.lives += 1; DS.maxLives += 1;
+    addLog('😈 Demon Revival: +1 life this run.');
+  }
+  var xb = _jsonParseSafe(DDStore.getItem('dd_xp_boost'), 'null');
+  if (xb && xb.mult > 1 && xb.floors > 0) {
+    DDStore.removeItem('dd_xp_boost');
+    DS._xpBoost = { mult: xb.mult, floors: xb.floors };
+    addLog('📜 ' + xb.mult + 'x XP for your next ' + xb.floors + ' floors.');
+  }
+  if (DDStore.getItem('dd_spirit_boost')) {
+    DS._spiritBoost = parseFloat(DDStore.getItem('dd_spirit_boost')) || 2;
+    DDStore.removeItem('dd_spirit_boost');
+    addLog('🌟 Elf Blessing: your spirit deals double damage this run.');
+  }
+  if (DDStore.getItem('dd_sparkler_buff')) {
+    DDStore.removeItem('dd_sparkler_buff');
+    DS._sparklerAtk = true;
+    addLog('✨ Sparkler: +30% attack this run.');
+  }
+  var mod = DDStore.getItem('dd_pending_run_mod');
+  if (mod) {
+    DDStore.removeItem('dd_pending_run_mod');
+    var dm = DAILY_MODIFIERS_POOL.find(function(m){ return m.id === mod; });
+    if (dm) { dm.apply(); addLog('💀 Cursed Modifier: ' + dm.name + ' — ' + dm.desc); }
+  }
+}
+
 // homeSleep's dream, on the run after the one you slept in.
 function applyPendingDream(ch) {
   if (!ch || !ch.pendingDream || hasMidRunSave(ch) || typeof HOME_DREAMS === 'undefined') return;
@@ -52041,6 +52223,7 @@ function applyPendingDream(ch) {
     var r = _baseInitDungeon.apply(this, arguments);
     try { applyBackstoryToRun(ch); } catch (e) {}
     try { applyPendingDream(ch); } catch (e) {}
+    try { applyNextRunRewards(ch); } catch (e) {}
     return r;
   };
 })();
@@ -58994,7 +59177,7 @@ var GAUNTLET_DUNGEONS = [
   'Frosthold Abyss',
   'The Sunken Archives',
   'The Hollow',
-  'Whispering Forest'
+  'The Whispering Forest'
 ];
 
 var DAILY_MODIFIERS_POOL = [
@@ -59114,20 +59297,42 @@ function _renderDailyDungeonInfo() {
   }
 }
 
+// The Gauntlet promised one life for the whole climb and gave the usual lives.
+function gauntletOneLife() { DS.lives = 1; DS.maxLives = 1; }
+// Endless has no boss, so an Endless character could never finish a Challenge.
+function challengeFixEndless() {
+  if (DS.diff === 'Endless') { DS.diff = 'Wanderer'; if (!_gauntletActive) { DS.lives = LIVES_MAP.Wanderer; DS.maxLives = LIVES_MAP.Wanderer; } }
+}
+function endGauntlet() {
+  _gauntletActive = false;
+  _gauntletProgress = 0;
+  var ch = CHARS[_charIdx];
+  if (ch) {
+    if (ch._gauntletOrigDungeon) ch.dungeon = ch._gauntletOrigDungeon;
+    ch._gauntletOrigDungeon = null;
+    ch._gauntlet = null;
+    saveChars();
+  }
+}
+
 function startGauntlet() {
   if (CHARS.length === 0) { say('No characters. Create one first.'); return; }
   var ch = CHARS[_gauntletCharIdx];
   if (!ch) { say('Please select a character.'); return; }
   _gauntletActive = true;
   _gauntletProgress = 0;
-  // Store original dungeon, restore after
-  _gauntletOrigDungeon = ch.dungeon;
+  // Store the home dungeon on the character (it was put in a global and read
+  // back from the character, so the character stayed in the last Gauntlet dungeon).
+  if (!ch._gauntlet) ch._gauntletOrigDungeon = ch.dungeon;
+  ch._gauntlet = { progress: 0 };
   ch.dungeon = GAUNTLET_DUNGEONS[0];
   ch.floor = 1;
   ch.midRunSave = null;
   _charIdx = _gauntletCharIdx;
   saveChars();
   initDungeon(ch);
+  gauntletOneLife();
+  challengeFixEndless();
   goTo('dungeon');
   say('The Gauntlet begins. ' + ch.name + ' enters ' + GAUNTLET_DUNGEONS[0] + '. Survive all 6 dungeons.');
 }
@@ -59142,13 +59347,15 @@ function startDailyDungeon() {
   ch.dungeon = setup.dungeon;
   ch.floor = 1;
   ch.midRunSave = null;
-  // Store modifiers for the run
+  saveChars();
+  initDungeon(ch);
+  // The modifiers (and these flags) were set before initDungeon(), which
+  // rebuilds the run and wiped them, so every Daily Dungeon was a normal run.
   DS._dailyRun = true;
   DS._dailyRunStart = Date.now();
   DS._dailyRunKey = todayKey;
   setup.mods.forEach(function(m){ m.apply(); });
-  saveChars();
-  initDungeon(ch);
+  challengeFixEndless();
   goTo('dungeon');
   say('Daily Dungeon begins. ' + ch.name + ' enters ' + setup.dungeon + '. Active modifiers: ' + setup.mods.map(function(m){ return m.name; }).join(', ') + '.');
 }
@@ -61218,8 +61425,9 @@ var UPGRADE_COSTS = [0, 40, 80, 140, 220, 320, 440, 580, 740, 920, 1150];
 
 function getUpgradeCost(level) {
   var cost = UPGRADE_COSTS[level] || Math.round(3000 * Math.pow(1.4, level - 10));
-  // Blacksmith profession discount
-  if (DS && DS.prof === 'Blacksmith') cost = Math.round(cost * 0.9);
+  // Blacksmith profession discount — only inside a run (from the menu, DS is the
+  // last run's leftover state, and the screen says there's no discount there)
+  if (DS && DS.prof === 'Blacksmith' && !DS._fromMenu) cost = Math.round(cost * 0.9);
   // Seasonal/birthday/event discount code
   try {
     var discRaw = DDStore.getItem('dd_blacksmith_discount');
@@ -61420,9 +61628,36 @@ function rollWeaponRarity() {
   return WEAPON_RARITIES[0]; // common fallback
 }
 
+// Reforging stacked rarities ("Rare Uncommon Iron Sword", attack multiplied
+// twice) and a Common roll changed nothing. The weapon is now rebuilt from its
+// base every time.
+function weaponRarityBase(weapon) {
+  var w = Object.assign({}, weapon);
+  if (w._rarityBase) {
+    w.name = w._rarityBase.name; w.desc = w._rarityBase.desc; w.atkBase = w._rarityBase.atkBase;
+    delete w._rarityBase;
+  }
+  delete w.rarity; delete w.rarityLabel; delete w.rarityColor; delete w.raritySymbol;
+  delete w.rarityEffect; delete w.rarityEffectName; delete w.rarityEffectDesc;
+  return w;
+}
+// Re-forging the equipped weapon: keep your attack bonus and the saved copy in step.
+function setEquippedWeaponForged(w) {
+  var oldAtk = DS.equippedWeaponAtk || getWeaponAtk(DS.equippedWeapon);
+  var newAtk = getWeaponAtk(w);
+  DS.equippedWeapon = w;
+  if (!DS._fromMenu && Array.isArray(oldAtk) && Array.isArray(newAtk)) {
+    DS.atkBonus = (DS.atkBonus || 0) - Math.floor((oldAtk[0] + oldAtk[1]) / 2) + Math.floor((newAtk[0] + newAtk[1]) / 2);
+  }
+  DS.equippedWeaponAtk = newAtk;
+  DDStore.setItem('dd_equipped_weapon', JSON.stringify(w));
+  updateTopBar();
+}
+
 function applyRarityToWeapon(weapon, rarity) {
   if (!rarity || rarity.id === 'common') return weapon;
   var w = Object.assign({}, weapon);
+  if (!w._rarityBase) w._rarityBase = { name: w.name, desc: w.desc, atkBase: w.atkBase };
   w.rarity = rarity.id;
   w.rarityLabel = rarity.label;
   w.rarityColor = rarity.color;
@@ -61593,7 +61828,7 @@ function reforgeWeapon(cost) {
   if (gold < cost) { say('Not enough gold. Need ' + cost + ' gold.'); return; }
   if (DS._fromMenu) addGlobalGold(-cost); else DS.gold -= cost;
   var newRarity = rollWeaponRarity();
-  DS.equippedWeapon = applyRarityToWeapon(DS.equippedWeapon, newRarity);
+  setEquippedWeaponForged(applyRarityToWeapon(weaponRarityBase(DS.equippedWeapon), newRarity));
   updateBsGoldDisplay();
   renderReforgePanel();
   var msg = 'Reforged! New rarity: ' + (newRarity.raritySymbol || '') + ' ' + newRarity.label + '.';
@@ -61607,7 +61842,7 @@ function upgradeWeaponRarity(cost) {
   if (DS._fromMenu) addGlobalGold(-cost); else DS.gold -= cost;
   var currentIdx = WEAPON_RARITIES.findIndex(function(r){ return r.id === (DS.equippedWeapon.rarity || 'common'); });
   var nextRar = WEAPON_RARITIES[Math.min(currentIdx + 1, WEAPON_RARITIES.length - 1)];
-  DS.equippedWeapon = applyRarityToWeapon(DS.equippedWeapon, nextRar);
+  setEquippedWeaponForged(applyRarityToWeapon(weaponRarityBase(DS.equippedWeapon), nextRar));
   updateBsGoldDisplay();
   renderReforgePanel();
   var msg = 'Weapon upgraded to ' + nextRar.label + '! ' + (nextRar.raritySymbol || '') + ' ' + nextRar.label + '.';
@@ -63043,6 +63278,7 @@ function startSpire() {
 
 function spireRestFloor() {
   SPIRE._enemyActive = false;
+  spireFloorRewards();
   var loreBits = [
     'The Time Eater has no name it gave itself. The name came from the first climber who reached floor 900 and came back down. No one knows what they saw.',
     'The Spire predates every map of this region. Cartographers draw around it. They do not draw it.',
@@ -63104,8 +63340,10 @@ function spireGetBoss() {
 }
 
 function spireSpawnEnemy() {
-  // Rest floor every 50 floors (except floor 1800 which is always The Time Eater)
-  if (SPIRE.floor > 0 && SPIRE.floor % 10 === 0 && SPIRE.floor !== 1800) {
+  // A rest floor every tenth floor — except boss floors, which are all
+  // multiples of ten, so the rest floor always won and only The Time Eater
+  // ever appeared.
+  if (SPIRE.floor > 0 && SPIRE.floor % 10 === 0 && !spireGetBoss()) {
     spireRestFloor();
     return;
   }
@@ -63324,16 +63562,11 @@ function spireGunAction() {
   }
 }
 
-function spireEnemyDefeated() {
-  SPIRE._enemyActive = false;
-  var e = SPIRE._currentEnemy;
-  var goldDrop = Math.round(3 + SPIRE.floor * 0.5);
-  SPIRE.gold += goldDrop;
-  addGlobalGold(goldDrop);
-  addGlobalGold(goldDrop);
-  spireLog(e.icon + ' ' + e.name + ' defeated! +' + goldDrop + 'g. Your HP: ' + SPIRE.hp + '/' + SPIRE.maxHp + '.', '#44ff88');
-  spireRenderUI();
-
+// Milestone gold and the every-tenth-floor drops, once per floor. They only
+// ran after a kill, and every tenth floor was a rest floor, so they never ran.
+function spireFloorRewards() {
+  if (SPIRE._rewardedFloor === SPIRE.floor) return;
+  SPIRE._rewardedFloor = SPIRE.floor;
   // Check milestone
   if (SPIRE_MILESTONES[SPIRE.floor]) {
     var ms = SPIRE_MILESTONES[SPIRE.floor];
@@ -63374,6 +63607,19 @@ function spireEnemyDefeated() {
     }
   }
 
+
+}
+
+function spireEnemyDefeated() {
+  SPIRE._enemyActive = false;
+  var e = SPIRE._currentEnemy;
+  var goldDrop = Math.round(3 + SPIRE.floor * 0.5);
+  SPIRE.gold += goldDrop;
+  addGlobalGold(goldDrop); // (it was added twice)
+  spireLog(e.icon + ' ' + e.name + ' defeated! +' + goldDrop + 'g. Your HP: ' + SPIRE.hp + '/' + SPIRE.maxHp + '.', '#44ff88');
+  spireRenderUI();
+
+  spireFloorRewards();
 
   // Check Spire lore fragment unlock
   var fragmentFloors = [100,300,500,750,1000,1500];
@@ -63481,8 +63727,8 @@ function spireVictory() {
     // 1000 gold
     ch.gold = (ch.gold || 0) + 1000;
     addGlobalGold(1000);
-    // 25 Mystery Coins
-    ch.mysteryCoins = (ch.mysteryCoins || 0) + 25;
+    // 25 Mystery Coins — they went on the character, where the Coin Shop never looks
+    DDStore.setItem('dd_mystery_coins', String(parseInt(DDStore.getItem('dd_mystery_coins') || '0') + 25));
     // 25% Blacksmith discount for 2 hours
     var discountExpiry = Date.now() + (2 * 60 * 60 * 1000);
     DDStore.setItem('dd_blacksmith_discount', JSON.stringify({
