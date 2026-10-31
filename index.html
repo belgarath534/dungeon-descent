@@ -16115,6 +16115,7 @@ var DUNGEON_BOSS_SFX = {
 };
 
 function startCombat(isBoss) {
+  fxReset();
   setTimeout(function(){ showDungeonTip(isBoss ? 'first-boss' : (DS.enemy && DS.enemy.isElite) ? 'first-elite' : 'first-combat'); }, 800);
   DS.inCombat = true; DS.defending = false;
   if (isBoss) { DS._eliteKilledFloor10 = false; try { companionOnBossEncounter(); } catch(e2) {} }
@@ -16962,6 +16963,7 @@ function doFight(action) {
     playerDmg = applyEnemyMechanicsOnHit(e, playerDmg);
     // Apply weak point multiplier and deal damage to enemy NOW
     playerDmg = Math.round(playerDmg * _wpMult * getWeaponDamageMult());
+    playerDmg = fxPlayerDamage(playerDmg, false);
     e.hp = Math.max(0, e.hp - playerDmg);
     if (!DS.bestHit || playerDmg > DS.bestHit) DS.bestHit = playerDmg;
     updateEnemyBar();
@@ -17178,6 +17180,7 @@ function doFight(action) {
   // _wpMult already consumed in attack block above
   if (playerDmg > 0 && e.hp > 0 && action !== 'attack') {
     playerDmg = Math.round(playerDmg * _wpMult);
+    playerDmg = fxPlayerDamage(playerDmg, false);
     e.hp = Math.max(0, e.hp - playerDmg);
     // Track best hit
     if (!DS.bestHit || playerDmg > DS.bestHit) DS.bestHit = playerDmg;
@@ -17241,7 +17244,11 @@ function doFight(action) {
       addLog('💚 Regenerating armor heals 3 HP.');
       updatePlayerBar();
     }
+    var _fxT = fxEnemyTurn(e, true);
+    if (_fxT === 'dead') { setTimeout(function() { enemyDead(); }, 300); return; }
+    if (_fxT.skip) { setCombatBtns(true); updateSkillButtons(); return; }
     var rawDmg = rnd(e.atk[0], e.atk[1]);
+    rawDmg = Math.round(rawDmg * _fxT.mult);
     // Rage Tonic — double incoming damage, but player ATK is tripled (applied in attack)
     if (DS._rageTurns && DS._rageTurns > 0) rawDmg = Math.round(rawDmg * 2);
     // Corruption Flask — enemy takes corruption damage before attacking
@@ -17418,6 +17425,7 @@ function doFight(action) {
     }
     DS.hp = Math.max(0, DS.hp - taken);
     if (!DS._floorDmgTaken) DS._floorDmgTaken = 0; DS._floorDmgTaken += taken;
+    var _retaliated = fxAfterTaken(e, taken);
     vibe(taken > (DS.maxHp||100) * 0.3 ? VIBE.bigDamage : (e && e.isBoss ? VIBE.bossAttack : VIBE.takeDamage));
     updatePlayerBar();
     // Daily Quest — took damage this combat (nodmg quest) and low-HP survival
@@ -17466,6 +17474,7 @@ function doFight(action) {
     checkInfernalHpDrain();
     say(e.name + ' dealt ' + taken + ' damage. Your HP: ' + DS.hp + ' of ' + DS.maxHp + '.');
     if (DS.hp <= 0) { setTimeout(function() { handleDeath(); }, 600); }
+    else if (_retaliated && e.hp <= 0) { setTimeout(function() { enemyDead(); }, 300); }
     else { setCombatBtns(true); updateSkillButtons(); }
   }, 700);
 }
@@ -17486,6 +17495,7 @@ function sanitizeGold() {
 }
 
 function enemyDead() {
+  fxReset();
   var e = DS.enemy;
   try { resetGunState(); } catch(e2) {}
   // Daily Quest — defeated an enemy without taking damage this combat
@@ -23618,6 +23628,384 @@ function updateSkillButtons() {
 }
 
 // Helper — call at end of buff/utility skills in multi-combat to trigger enemy turns
+// The specs for skills with no handler of their own (the Swift version's SkillTable).
+var SKILL_SPECS = {
+  'Bard/epic-tale': {"special":"epic-tale"},
+  'DeathKnight/death-strike': {"dmg":1.5,"hits":1,"heal":5},
+  'DeathKnight/unholy-ground': {"free":1,"dot":[10,5,1]},
+  'DeathKnight/unholy-frenzy': {"free":1,"buff":[6,0,3]},
+  'DeathKnight/lichform': {"free":1,"resurrect":1},
+  'DeathKnight/soul-harvest-dk': {"free":1,"heal":50},
+  'DeathKnight/death-and-decay': {"free":1,"decay":[5,5]},
+  'DeathKnight/the-lich-king': {"free":1,"fight":[15,15],"debuffImmune":1},
+  'Ranger/aimed-shot': {"dmg":1.6,"hits":1},
+  'Ranger/rapid-fire': {"dmg":0.9,"hits":2},
+  'Ranger/mark-kill': {"free":1,"empower":[2.0,1]},
+  'Ranger/shadow-step': {"free":1,"escape":1},
+  'Ranger/venom-strike': {"dmg":1.0,"hits":1,"dot":[5,3,1]},
+  'Ranger/eagle-eye': {"free":1,"empower":[1.5,2]},
+  'Sentinel/retribution': {"special":"retribution"},
+  'Wizard/arcane-study': {"free":1,"reveal":1},
+  'Wizard/spell-surge': {"free":1,"freeSkills":1},
+  'Wizard/frost-nova': {"stun":[1,1]},
+  'Wizard/arcane-missiles': {"dmg":0.6,"hits":3},
+  'Wizard/time-warp': {"dmg":1.0,"hits":2},
+  'Wizard/polymorph': {"free":1,"soften":[0.5,3]},
+  'Wizard/mana-drain': {"free":1,"sp":20},
+  'Wizard/arcane-explosion': {"dmg":2.5,"hits":1},
+  'Wizard/spellsteal': {"free":1,"perm":[5,0,0,0]},
+  'Wizard/arcane-singularity': {"pctHp":0.5},
+  'Wizard/meteor': {"dmg":4.0,"hits":1,"killBelow":0.3},
+  'Wizard/arcane-mastery': {"free":1,"mastery":[0.5,0,0]},
+  'Elementalist/fireball': {"dmg":1.8,"hits":1,"dot":[6,3,0.2]},
+  'Elementalist/ice-shard': {"dmg":1.0,"hits":1,"soften":[0.7,1]},
+  'Elementalist/lightning-bolt': {"dmg":1.5,"hits":1},
+  'Elementalist/flame-shield': {"free":1,"retaliate":10},
+  'Elementalist/frost-armor': {"free":1,"buff":[0,6,3]},
+  'Elementalist/meteor-shower': {"dmg":0.8,"hits":3},
+  'Elementalist/blizzard': {"free":1,"dodge":2},
+  'Elementalist/storm-call': {"free":1,"empower":[1.4,2]},
+  'Elementalist/elemental-burst': {"special":"elemental-burst"},
+  'Elementalist/absolute-zero': {"stun":[3,1]},
+  'Elementalist/solar-flare': {"free":1,"dodge":3,"vuln":[1.0,3,1]},
+  'Elementalist/thunderstrike': {"dmg":4.0,"hits":1},
+  'Elementalist/elemental-mastery': {"free":1,"mastery":[1.0,0,0]},
+  'VoidWalker/void-strike': {"dmg":1.6,"hits":1},
+  'VoidWalker/phase': {"free":1,"dodge":1},
+  'VoidWalker/void-pulse': {"dmg":1.4,"hits":1,"heal":10},
+  'VoidWalker/dark-step': {"free":1,"empower":[2.0,1]},
+  'VoidWalker/null-field': {"free":1,"vuln":[0.25,2,1]},
+  'VoidWalker/void-drain': {"dmg":1.2,"hits":1,"sp":8},
+  'VoidWalker/shadow-meld': {"free":1,"heal":20,"sp":10},
+  'VoidWalker/void-rupture': {"dmg":2.5,"hits":1,"weakenBy":5},
+  'VoidWalker/entropy': {"dmg":0.9,"hits":3},
+  'VoidWalker/phase-form': {"free":1,"dodge":2},
+  'VoidWalker/annihilation': {"missing":1.0},
+  'VoidWalker/void-mastery': {"free":1,"perm":[3,3,0,0]},
+  'VoidWalker/the-void': {"free":1,"mastery":[0,1.0,0]},
+  'ShadowMage/darkness': {"free":1,"dodge":1},
+  'ShadowMage/shadow-touch': {"dmg":1.2,"hits":1,"heal":5},
+  'ShadowMage/nightmare': {"free":1,"confuse":[0.5,2]},
+  'ShadowMage/shroud': {"free":1,"reduce":[0.3,3]},
+  'ShadowMage/shadow-clone-sm': {"free":1,"empower":[1.6,1]},
+  'ShadowMage/cursed-touch': {"free":1,"vuln":[0.15,99,1]},
+  'ShadowMage/shadow-world': {"free":1,"dodge":1,"empower":[2.0,1]},
+  'ShadowMage/shadow-storm': {"dmg":0.7,"hits":5},
+  'ShadowMage/void-shadow': {"dmg":3.5,"hits":1,"vuln":[0.15,99,1]},
+  'ShadowMage/night-terror': {"free":1,"dodge":3},
+  'ShadowMage/shadow-mastery': {"free":1,"mastery":[2.0,0,0]},
+  'TimeMage/slow': {"free":1,"soften":[0.5,3]},
+  'TimeMage/haste': {"dmg":1.0,"hits":2},
+  'TimeMage/rewind': {"special":"rewind"},
+  'TimeMage/time-skip': {"stun":[1,1]},
+  'TimeMage/temporal-sight': {"free":1,"reduce":[0.5,1]},
+  'TimeMage/time-lock': {"stun":[2,1],"vuln":[0.5,2,1]},
+  'TimeMage/chronostrike': {"dmg":1.0,"hits":2},
+  'TimeMage/paradox': {"free":1,"empower":[2.0,1]},
+  'TimeMage/age': {"free":1,"weakenBy":5},
+  'TimeMage/time-surge': {"free":1,"buff":[4,0,4]},
+  'TimeMage/time-stop-tm': {"dmg":1.0,"hits":2,"stun":[1,1]},
+  'TimeMage/temporal-rift': {"dmg":3.5,"hits":1},
+  'TimeMage/chrono-mastery': {"free":1,"debuffImmune":1},
+  'TimeMage/rewrite': {"special":"rewrite"},
+  'TimeMage/eternity': {"free":1,"spFull":1},
+  'Shaman/earthshake-sk': {"dmg":1.6,"hits":1,"stun":[1,0.4]},
+  'Shaman/spirit-heal': {"free":1,"heal":25},
+  'Shaman/natures-wrath': {"dmg":1.4,"hits":1,"dot":[8,3,0.3]},
+  'Shaman/stone-skin': {"free":1,"buff":[0,8,3]},
+  'Shaman/spirit-call': {"flat":20},
+  'Shaman/totemic-strike': {"dmg":2.0,"hits":1,"heal":10},
+  'Shaman/earthquake': {"dmg":2.5,"hits":1,"stun":[1,1]},
+  'Shaman/ancestral-guard': {"free":1,"reduce":[0.5,2]},
+  'Shaman/storm-totem': {"free":1,"dot":[12,3,1]},
+  'Shaman/earth-barrier': {"free":1,"shield":40},
+  'Shaman/volcano': {"dmg":4.0,"hits":1,"dot":[10,3,1]},
+  'Shaman/world-shatter': {"dmg":3.5,"hits":1},
+  'Shaman/spirit-army': {"flat":75},
+  'Shaman/earth-mastery': {"free":1,"perm":[0,5,0,0],"mastery":[1.0,0,0]},
+  'Shaman/gaias-wrath': {"dmg":5.0,"hits":1,"once":1},
+  'Arcanist/arcane-pulse': {"dmg":1.3,"hits":1,"sp":8},
+  'Arcanist/spell-echo': {"special":"spell-echo"},
+  'Arcanist/arcane-eye': {"free":1,"reveal":1},
+  'Arcanist/arcane-storm': {"dmg":2.0,"hits":1,"stun":[1,0.3]},
+  'Arcanist/spell-steal-arc': {"special":"spell-steal"},
+  'Arcanist/mana-burn': {"special":"mana-burn"},
+  'Arcanist/pure-destruction': {"dmg":4.0,"hits":1},
+  'Arcanist/arc-singularity': {"pctHp":0.5},
+  'Arcanist/spell-mastery': {"free":1,"mastery":[0.4,0,1]},
+  'Arcanist/arcane-overload': {"dmg":5.0,"hits":1,"selfDmg":30},
+  'Arcanist/omnimancy': {"special":"omnimancy"},
+};
+
+// ── SKILL EFFECTS ENGINE (v11.7.3) ──
+// 105 class skills had no handler in useSkill(): they cost SP, did nothing and
+// gave the enemy a free hit. Each one now runs from its spec below, the same
+// numbers the Swift version uses. DS._fx holds this fight's timed effects and
+// is cleared when a fight starts or ends.
+function fxReset() {
+  var f = DS._fx;
+  if (f) {
+    // Undo stat changes that only last for the fight.
+    DS.atkBonus -= (f.fightAtk || 0) + (f.buffTurns > 0 ? (f.buffAtk || 0) : 0);
+    DS.defBonus -= (f.fightDef || 0) + (f.buffTurns > 0 ? (f.buffDef || 0) : 0);
+  }
+  DS._fx = { stun: 0, dodge: 0, soften: 1, softenHits: 0, reduce: 0, reduceTurns: 0,
+    empower: 1, empowerCount: 0, vuln: 0, vulnTurns: 0, dot: 0, dotTurns: 0,
+    buffAtk: 0, buffDef: 0, buffTurns: 0, fightAtk: 0, fightDef: 0, retaliate: 0,
+    confuse: 0, confuseTurns: 0, decay: 0, decayTurns: 0, damageTaken: 0, recentHits: [] };
+}
+function fxGet() { if (!DS._fx) fxReset(); return DS._fx; }
+
+// Your damage, after a skill or an attack: empower, vulnerable and skill mastery.
+function fxPlayerDamage(dmg, isSkill) {
+  if (!(dmg > 0)) return dmg;
+  var f = fxGet();
+  var m = 1;
+  if (f.empowerCount > 0) { m *= f.empower; f.empowerCount--; }
+  if (f.vulnTurns > 0) m *= 1 + f.vuln;
+  if (isSkill && DS._skillMastery) m *= 1 + DS._skillMastery;
+  if (DS._allMastery) m *= 1 + DS._allMastery;
+  return m === 1 ? dmg : Math.round(dmg * m);
+}
+
+// The start of the enemy's turn. Returns 'dead' if its damage over time killed
+// it, or { skip, mult }. fromAttack: the normal-attack path, which never
+// checked Shadow Form, Wind Step or Holy Light (only the skill path did).
+function fxEnemyTurn(e, fromAttack) {
+  var f = fxGet();
+  if (DS._debuffImmune) { DS.frozen = false; DS.trapDoT = null; }
+  if (f.buffTurns > 0) {
+    f.buffTurns--;
+    if (f.buffTurns === 0) {
+      DS.atkBonus -= f.buffAtk; DS.defBonus -= f.buffDef; f.buffAtk = 0; f.buffDef = 0;
+      addLog('Your skill buff fades.');
+    }
+  }
+  if (f.vulnTurns > 0 && f.vulnTurns < 99) f.vulnTurns--;
+  if (f.dotTurns > 0) {
+    f.dotTurns--;
+    e.hp = Math.max(0, e.hp - f.dot);
+    addLog(e.name + ' takes ' + f.dot + ' damage over time. (' + f.dotTurns + ' turns left)');
+    updateEnemyBar();
+    if (e.hp <= 0) return 'dead';
+  }
+  if (f.decayTurns > 0) {
+    f.decayTurns--;
+    e.atk = [Math.max(1, e.atk[0] - f.decay), Math.max(1, e.atk[1] - f.decay)];
+    addLog('Death and Decay saps ' + e.name + "'s strength.");
+  }
+  if (f.stun > 0) {
+    f.stun--;
+    addLog(e.name + ' cannot act this turn!');
+    say(e.name + ' is stunned.');
+    return { skip: true, mult: 1 };
+  }
+  if (f.dodge > 0) {
+    f.dodge--;
+    addLog('You avoid ' + e.name + "'s attack completely!");
+    say('Attack dodged.');
+    return { skip: true, mult: 1 };
+  }
+  if (fromAttack) {
+    if (DS.shadowForm && DS.shadowForm > 0) {
+      DS.shadowForm--;
+      addLog('Shadow Form! Enemy attack passes through you harmlessly. (' + DS.shadowForm + ' turns left)');
+      return { skip: true, mult: 1 };
+    }
+    if (DS.windStep) {
+      DS.windStep = false;
+      addLog('Wind Step! You dodge the attack completely.');
+      return { skip: true, mult: 1 };
+    }
+  }
+  if (f.confuseTurns > 0) {
+    f.confuseTurns--;
+    if (Math.random() < f.confuse) {
+      var selfHit = rnd(e.atk[0], e.atk[1]);
+      e.hp = Math.max(0, e.hp - selfHit);
+      addLog(e.name + ' is lost in a nightmare and strikes itself for ' + selfHit + '!');
+      updateEnemyBar();
+      if (e.hp <= 0) return 'dead';
+      return { skip: true, mult: 1 };
+    }
+  }
+  var mult = 1;
+  if (fromAttack && DS.holyLight && DS.holyLight > 0) {
+    mult *= 0.5; DS.holyLight--;
+    addLog('Holy Light blinds the enemy — attack halved! (' + DS.holyLight + ' turns left)');
+  }
+  if (f.softenHits > 0) { mult *= f.soften; f.softenHits--; }
+  if (f.reduceTurns > 0) { mult *= 1 - f.reduce; f.reduceTurns--; }
+  return { skip: false, mult: mult };
+}
+
+// After the enemy's hit lands: Rewind and Retribution remember it, and
+// Flame Shield burns the attacker. Returns true if that killed it.
+function fxAfterTaken(e, taken) {
+  var f = fxGet();
+  if (taken > 0) {
+    f.damageTaken += taken;
+    f.recentHits.push(taken);
+    if (f.recentHits.length > 3) f.recentHits.shift();
+  }
+  if (f.retaliate > 0 && taken > 0 && e && e.hp > 0) {
+    e.hp = Math.max(0, e.hp - f.retaliate);
+    addLog(f.retaliate + ' damage is reflected back at ' + e.name + '!');
+    updateEnemyBar();
+    return e.hp <= 0;
+  }
+  return false;
+}
+
+// Runs a skill from SKILL_SPECS. Returns null when the skill has no spec, or
+// { dmg, msg, free, done } (done: the skill already finished the turn).
+function runSkillSpec(skill, e, baseAtk) {
+  var s = SKILL_SPECS[DS.cls + '/' + skill.effect];
+  if (!s) return null;
+  var f = fxGet();
+  var r = { dmg: 0, msg: (skill.icon ? skill.icon + ' ' : '') + skill.name + '!', free: !!s.free, done: false };
+  if (s.once) {
+    DS._onceSkills = DS._onceSkills || {};
+    if (DS._onceSkills[skill.effect]) {
+      DS.sp = Math.min(DS.maxSp, DS.sp + skill.spCost);
+      updateXPBar();
+      r.msg = skill.name + ' can only be used once per run.';
+      r.done = true;
+      return r;
+    }
+    DS._onceSkills[skill.effect] = true;
+  }
+  // Spell Echo repeats your last skill.
+  if (s.special === 'spell-echo') {
+    var last = DS._lastSkill && SKILL_SPECS[DS.cls + '/' + DS._lastSkill.effect];
+    if (!DS._lastSkill || DS._lastSkill.effect === skill.effect) {
+      r.msg = 'Spell Echo has nothing to repeat yet.'; r.free = true; return r;
+    }
+    var echoed = runSkillSpec(DS._lastSkill, e, baseAtk) || { dmg: Math.round(baseAtk * 1.5), msg: '', free: false };
+    echoed.msg = 'Spell Echo repeats ' + DS._lastSkill.name + '! ' + echoed.msg;
+    return echoed;
+  }
+  DS._lastSkill = skill;
+
+  var dmg = 0;
+  if (s.dmg) dmg = Math.round(baseAtk * s.dmg) * (s.hits || 1);
+  if (s.pctHp) dmg += Math.round(e.hp * s.pctHp);
+  if (s.missing) dmg += Math.round((e.maxHp - e.hp) * s.missing);
+  if (s.flat) dmg += s.flat;
+  if (s.killBelow && e.hp <= e.maxHp * s.killBelow) { dmg = Math.max(dmg, e.hp); r.msg += ' Instant kill!'; }
+  switch (s.special) {
+    case 'epic-tale':
+      var legend = Math.min(20, DS.kills || 0);
+      f.fightAtk += legend; DS.atkBonus += legend; dmg += baseAtk;
+      r.msg += ' Your legend grows: +' + legend + ' attack this fight.'; break;
+    case 'retribution':
+      dmg += f.damageTaken; r.msg += ' Payback for ' + f.damageTaken + ' damage taken.'; break;
+    case 'rewind':
+      var back = Math.min(15, f.damageTaken, DS.maxHp - DS.hp);
+      DS.hp += back; r.free = true; r.msg += ' ' + back + ' damage undone.'; break;
+    case 'rewrite':
+      var undo = f.recentHits.reduce(function(a, b) { return a + b; }, 0);
+      undo = Math.min(undo, DS.maxHp - DS.hp);
+      DS.hp += undo; f.recentHits = []; r.free = true;
+      r.msg += ' The last 3 hits are rewritten: +' + undo + ' HP.'; break;
+    case 'elemental-burst':
+      var roll = Math.floor(Math.random() * 3);
+      if (roll === 0) { f.stun = Math.max(f.stun, 1); r.msg += ' Frost: the enemy is frozen!'; }
+      else if (roll === 1) { f.dot = 10; f.dotTurns = 3; r.msg += ' Fire: burning for 3 turns!'; }
+      else { f.vuln = 0.3; f.vulnTurns = 2; r.msg += ' Lightning: the enemy is shocked!'; }
+      dmg += Math.round(baseAtk * 3); break;
+    case 'spell-steal':
+      if (f.buffTurns > 0) { DS.atkBonus -= f.buffAtk; DS.defBonus -= f.buffDef; }
+      f.buffAtk = Math.round(e.atk[1] / 2); f.buffDef = 0; f.buffTurns = 1; DS.atkBonus += f.buffAtk;
+      r.msg += ' You steal ' + e.name + "'s power."; dmg += Math.round(baseAtk * 1.2); break;
+    case 'mana-burn':
+      dmg += Math.round(e.maxHp * 0.2); break;
+    case 'omnimancy':
+      var o = Math.floor(Math.random() * 4);
+      if (o === 0) { r.msg += ' Destruction!'; dmg += baseAtk * 3; }
+      else if (o === 1) { var h = Math.min(30, DS.maxHp - DS.hp); DS.hp += h; r.msg += ' Restoration: +' + h + ' HP.'; }
+      else if (o === 2) { DS.manaShield = (DS.manaShield || 0) + 30; r.msg += ' Protection: a 30-point shield.'; }
+      else { f.stun = Math.max(f.stun, 1); r.msg += ' Control: the enemy is frozen in place.'; }
+      break;
+  }
+  if (dmg > 0) r.msg += (s.hits > 1 ? ' ' + s.hits + ' hits for ' : ' ') + dmg + ' damage.';
+
+  // Your side
+  if (s.selfDmg) { DS.hp = Math.max(1, DS.hp - s.selfDmg); r.msg += ' Costs ' + s.selfDmg + ' HP.'; }
+  if (s.heal) { var hl = Math.min(s.heal, DS.maxHp - DS.hp); if (hl > 0) { DS.hp += hl; r.msg += ' +' + hl + ' HP.'; } }
+  if (s.sp || s.spFull) {
+    var spBefore = DS.sp;
+    DS.sp = s.spFull ? DS.maxSp : Math.min(DS.maxSp, DS.sp + s.sp);
+    if (DS.sp > spBefore) r.msg += ' +' + (DS.sp - spBefore) + ' SP.';
+  }
+  if (s.perm) {
+    DS.atkBonus += s.perm[0]; DS.defBonus += s.perm[1];
+    if (s.perm[2]) { DS.maxHp += s.perm[2]; DS.hp += s.perm[2]; }
+    if (s.perm[3]) { DS.maxSp += s.perm[3]; DS.sp += s.perm[3]; }
+    var pp = [];
+    if (s.perm[0]) pp.push('+' + s.perm[0] + ' attack');
+    if (s.perm[1]) pp.push('+' + s.perm[1] + ' defense');
+    if (s.perm[2]) pp.push('+' + s.perm[2] + ' max HP');
+    if (s.perm[3]) pp.push('+' + s.perm[3] + ' max SP');
+    r.msg += ' Permanent: ' + pp.join(', ') + '.';
+  }
+  if (s.fight) {
+    f.fightAtk += s.fight[0]; f.fightDef += s.fight[1];
+    DS.atkBonus += s.fight[0]; DS.defBonus += s.fight[1];
+    r.msg += ' +' + s.fight[0] + ' attack and +' + s.fight[1] + ' defense this fight.';
+  }
+  if (s.buff) {
+    if (f.buffTurns > 0) { DS.atkBonus -= f.buffAtk; DS.defBonus -= f.buffDef; }
+    f.buffAtk = s.buff[0]; f.buffDef = s.buff[1]; f.buffTurns = s.buff[2];
+    DS.atkBonus += f.buffAtk; DS.defBonus += f.buffDef;
+    r.msg += ' ' + [f.buffAtk ? '+' + f.buffAtk + ' attack' : '', f.buffDef ? '+' + f.buffDef + ' defense' : '']
+      .filter(Boolean).join(' and ') + ' for ' + f.buffTurns + ' turns.';
+  }
+  if (s.shield) { DS.manaShield = (DS.manaShield || 0) + s.shield; r.msg += ' Shield absorbs up to ' + DS.manaShield + ' damage.'; }
+  if (s.dodge) { f.dodge += s.dodge; r.msg += s.dodge === 1 ? ' The next attack will miss you.' : ' The next ' + s.dodge + ' attacks will miss you.'; }
+  if (s.reduce) { f.reduce = s.reduce[0]; f.reduceTurns = s.reduce[1]; r.msg += ' Damage taken -' + Math.round(s.reduce[0] * 100) + '% for ' + s.reduce[1] + ' turns.'; }
+  if (s.resurrect) { DS.resurrection = true; r.msg += ' You will rise once at 50% HP.'; }
+  if (s.retaliate) { f.retaliate = s.retaliate; r.msg += ' Attackers take ' + s.retaliate + ' damage.'; }
+  if (s.freeSkills) { DS.unlimitedPower = (DS.unlimitedPower || 0) + s.freeSkills; r.msg += ' Next skill costs 0 SP.'; }
+  if (s.empower) { f.empower = s.empower[0]; f.empowerCount = s.empower[1]; r.msg += ' Your next ' + (s.empower[1] === 1 ? 'attack deals' : s.empower[1] + ' attacks deal') + ' ' + s.empower[0] + 'x damage.'; }
+  if (s.mastery) {
+    DS._skillMastery = (DS._skillMastery || 0) + s.mastery[0];
+    DS._allMastery = (DS._allMastery || 0) + s.mastery[1];
+    if (s.mastery[2]) DS._halfCostSkills = true;
+    r.msg += ' Empowered for the rest of the run.';
+  }
+  if (s.debuffImmune) { DS._debuffImmune = true; DS.frozen = false; DS.trapDoT = null; r.msg += ' Immune to debuffs.'; }
+  if (s.escape) {
+    fxReset();
+    DS.inCombat = false;
+    playTrack(exploTrackForFloor(DS.floor));
+    showDgPanels(true, false, false);
+    setEvent('', r.msg + ' You escape!');
+    say(r.msg + ' You escape!');
+    setCombatBtns(true);
+    r.done = true;
+    return r;
+  }
+
+  // The enemy's side
+  if (s.stun && Math.random() < s.stun[1]) {
+    f.stun = Math.max(f.stun, s.stun[0]);
+    r.msg += s.stun[0] === 1 ? ' ' + e.name + ' is stunned!' : ' ' + e.name + ' loses ' + s.stun[0] + ' turns!';
+  }
+  if (s.dot && Math.random() < s.dot[2]) { f.dot = s.dot[0]; f.dotTurns = s.dot[1]; r.msg += ' ' + s.dot[0] + ' damage per turn for ' + s.dot[1] + ' turns.'; }
+  if (s.weakenBy) { e.atk = [Math.max(1, e.atk[0] - s.weakenBy), Math.max(1, e.atk[1] - s.weakenBy)]; r.msg += ' ' + e.name + "'s attack is weakened."; }
+  if (s.soften) { f.soften = s.soften[0]; f.softenHits = s.soften[1]; r.msg += ' Its next ' + (s.soften[1] === 1 ? 'hit is' : s.soften[1] + ' hits are') + ' weakened.'; }
+  if (s.vuln && Math.random() < s.vuln[2]) { f.vuln = s.vuln[0]; f.vulnTurns = s.vuln[1]; r.msg += ' It takes ' + Math.round(s.vuln[0] * 100) + '% more damage' + (s.vuln[1] >= 99 ? '.' : ' for ' + s.vuln[1] + ' turns.'); }
+  if (s.confuse) { f.confuse = s.confuse[0]; f.confuseTurns = s.confuse[1]; r.msg += ' Its mind is clouded.'; }
+  if (s.decay) { f.decay = s.decay[0]; f.decayTurns = s.decay[1]; r.msg += ' It weakens every turn.'; }
+  if (s.reveal) r.msg += ' ' + e.name + ': ' + e.hp + ' of ' + e.maxHp + ' HP, hits for ' + e.atk[0] + ' to ' + e.atk[1] + '.';
+  // A stun that lands this turn also stops this turn's counter-attack.
+  if (f.stun > 0 && !r.free) { f.stun--; r.free = true; }
+  updatePlayerBar(); updateXPBar();
+  r.dmg = dmg;
+  return r;
+}
+
 function useSkill(idx) {
   var unlocked = getUnlockedSkills();
   if (idx >= unlocked.length) return;
@@ -23684,6 +24072,7 @@ function useSkill(idx) {
   var _drownedTomeDisc = DS.inventory ? DS.inventory.reduce(function(sum, i){ return sum + (i.spellDiscount || 0); }, 0) : 0;
   var _apocalypseWeapon = DS.equippedWeapon && DS.equippedWeapon.rarityEffect === 'apocalypse';
   var actualCost = ((DS.unlimitedPower && DS.unlimitedPower > 0) || _apocalypseWeapon) ? 0 : Math.max(0, skill.spCost - (DS.tinkererDiscount||0) - traitDisc - gnomeDisc - _weatherSpDiscount - _abyssalSpDiscount - (DS._soulSurge ? 1 : 0) - _drownedTomeDisc);
+  if (DS._halfCostSkills) actualCost = Math.floor(actualCost / 2);
   if (DS.unlimitedPower && DS.unlimitedPower > 0) DS.unlimitedPower--;
   DS.sp -= actualCost;
   updateXPBar();
@@ -23695,6 +24084,7 @@ function useSkill(idx) {
   var msg = '';
   var playerDmg = 0;
   var skipEnemyTurn = false;
+  var _specQuiet = false;
 
   if (skill.effect === 'shield-bash') {
     playerDmg = Math.round(baseAtk * 0.9);
@@ -24214,7 +24604,18 @@ function useSkill(idx) {
   else if (skill.effect === 'divine-judgment'){playerDmg=(DS.def+DS.defBonus)*5; msg='Divine Judgment! '+playerDmg+' based on defense!';}
   else if (skill.effect === 'cleric-resurrection'){DS.resurrection=true; msg='Resurrection! Will survive death with 50% HP.'; addLog(msg); say(msg); setCombatBtns(true); updateSkillButtons(); return;}
   else if (skill.effect === 'wrath-of-god'){playerDmg=Math.round(baseAtk*5); DS.sp=0; updateXPBar(); msg='WRATH OF GOD! '+playerDmg+' — all SP consumed!';}
+  // Every skill without a handler of its own runs from SKILL_SPECS.
+  else {
+    var _spec = runSkillSpec(skill, e, baseAtk);
+    if (_spec && _spec.done) {
+      if (_spec.msg && DS.inCombat) { addLog(_spec.msg); say(_spec.msg); setCombatBtns(true); updateSkillButtons(); }
+      if (_wasMulti) setCombatBtns = _origSetCombatBtns;
+      return;
+    }
+    if (_spec) { playerDmg = _spec.dmg; msg = _spec.msg; if (_spec.free) { skipEnemyTurn = true; _specQuiet = true; } }
+  }
 
+  playerDmg = fxPlayerDamage(playerDmg, true);
   if (playerDmg > 0) {
     e.hp = Math.max(0, e.hp - playerDmg);
     updateEnemyBar();
@@ -24234,7 +24635,7 @@ function useSkill(idx) {
   }
 
   if (skipEnemyTurn) {
-    addLog('The enemy struggles against the roots, unable to strike back.');
+    if (!_specQuiet) addLog('The enemy struggles against the roots, unable to strike back.');
     if (_wasMulti) setCombatBtns = _origSetCombatBtns;
     setCombatBtns(true); updateSkillButtons(); return;
   }
@@ -24256,7 +24657,11 @@ function useSkill(idx) {
     }
     // Distorted — uses special turn
     if (DS.enemy && DS.enemy.isDistorted) { distortedTurn(); return; }
+    var _fxT = fxEnemyTurn(e, false);
+    if (_fxT === 'dead') { setTimeout(function() { enemyDead(); }, 300); return; }
+    if (_fxT.skip) { setCombatBtns(true); updateSkillButtons(); return; }
     var rawDmg = rnd(e.atk[0], e.atk[1]);
+    rawDmg = Math.round(rawDmg * _fxT.mult);
     var diffMult = DS.diff === 'Forsaken' ? 1.5 : DS.diff === 'Condemned' ? 1.25 : DS.diff === 'Ironblood' ? 1.1 : 1.0;
     rawDmg = Math.round(rawDmg * diffMult);
 
@@ -24347,6 +24752,7 @@ function useSkill(idx) {
     DS.hp = Math.max(0, DS.hp - taken);
     if (DS.hp <= 0 && DS.unstoppable && DS.unstoppable >= 0) { DS.hp = 1; addLog('Unstoppable! Death refused.'); }
     updatePlayerBar();
+    if (fxAfterTaken(e, taken) && DS.hp > 0) { setTimeout(function() { enemyDead(); }, 300); return; }
     // Insane Mode — sanity drains on every hit
     if (_insaneMode && taken > 0) {
       var sd = taken > 15 ? 8 : taken > 8 ? 4 : 2;
