@@ -1,4 +1,10 @@
 backup/
 **/README.md
+README.md
 .git/
 functions/
+wrangler.jsonc
+.assetsignore
+.firebaserc
+firebase.json
+LICENSE

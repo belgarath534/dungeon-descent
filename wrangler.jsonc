@@ -1,0 +1,10 @@
+// Cloudflare Workers settings for dungen-descent.org: the site is the static
+// files in this folder (index.html, js/, css/, audio/, lib/ …). Files listed in
+// .assetsignore (the backup, notes, functions/) are not published.
+{
+  "name": "rapid-haze-bfd9",
+  "compatibility_date": "2026-10-23",
+  "assets": {
+    "directory": "."
+  }
+}
