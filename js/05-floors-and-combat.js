@@ -1953,6 +1953,7 @@ function sanitizeGold() {
 }
 
 function enemyDead() {
+  if (DS._fx && DS._fx.bossMinion && DS.enemy && DS.enemy.isBoss) addLog('👹 With its master gone, the ' + DS._fx.bossMinion.name + ' fades into the dark.');
   // Necromancer — Death Follows: 15% a killed enemy fights for you in the next fight (never applied)
   if (DS.cls === 'Necromancer' && ACCESS.classTraits && DS.enemy && !DS.enemy.isBoss && Math.random() < 0.15) {
     DS._necroRisen = { name: DS.enemy.name, atk: [Math.max(1, Math.round(DS.enemy.atk[0] * 0.5)), Math.max(1, Math.round(DS.enemy.atk[1] * 0.5))] };

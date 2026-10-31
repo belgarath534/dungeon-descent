@@ -1632,6 +1632,12 @@ function fxEnemyTurn(e, fromAttack) {
   }
   // Spirit Caller — the spirit heals 8 HP each turn of a fight
   if (DS._spiritCaller && DS.hp > 0 && DS.hp < DS.maxHp) { DS.hp = Math.min(DS.maxHp, DS.hp + 8); updatePlayerBar(); addLog('🌀 Your spirit heals you for 8 HP.'); }
+  // The boss timer's minion strikes too
+  if (f.bossMinion && DS.hp > 0) {
+    var _bm = rnd(f.bossMinion.atk[0], f.bossMinion.atk[1]);
+    DS.hp = Math.max(1, DS.hp - _bm); updatePlayerBar();
+    addLog('👹 The ' + f.bossMinion.name + ' strikes for ' + _bm + '!');
+  }
   // Mask: Void Web — 8 damage every turn of the fight (it was never woven)
   if (DS._maskWeb) {
     e.hp = Math.max(0, e.hp - 8); updateEnemyBar();
