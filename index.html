@@ -19332,7 +19332,7 @@ function renderInv() {
     var item = entry.item;
     var count = entry.count;
     var i = entry.indices[0]; // index of first instance for use/drop
-    var isUsable = item.type === 'potion' || item.type === 'elixir' || item.type === 'enchanter' || item.type === 'music-player' || item.type === 'luck-potion' || item.type === 'fire-potion' || item.type === 'curse-potion' || item.type === 'swift-potion' || item.type === 'def-potion' || item.type === 'atk-potion' || item.type === 'cursed' || item.type === 'rune' || item.type === 'scroll' || item.type === 'skill-orb' || item.type === 'soul-trap' || item.type === 'sp-potion' || item.type === 'gamblers-spirit' || item.type === 'mirror-flask' || item.type === 'phantom-potion' || item.type === 'gravity-tonic' || item.type === 'leech-brew' || item.type === 'rage-tonic' || item.type === 'fog-flask' || item.type === 'time-potion' || item.type === 'corruption-flask' || item.type === 'love-potion' || item.type === 'consumable' || item.isWhisperMusicBox || item.isFirework;
+    var isUsable = item.type === 'potion' || item.type === 'elixir' || item.type === 'enchanter' || item.type === 'music-player' || item.type === 'luck-potion' || item.type === 'fire-potion' || item.type === 'curse-potion' || item.type === 'swift-potion' || item.type === 'def-potion' || item.type === 'atk-potion' || item.type === 'cursed' || item.type === 'rune' || item.type === 'scroll' || item.type === 'skill-orb' || item.type === 'soul-trap' || item.type === 'sp-potion' || item.type === 'gamblers-spirit' || item.type === 'mirror-flask' || item.type === 'phantom-potion' || item.type === 'gravity-tonic' || item.type === 'leech-brew' || item.type === 'rage-tonic' || item.type === 'fog-flask' || item.type === 'time-potion' || item.type === 'corruption-flask' || item.type === 'love-potion' || item.type === 'consumable' || item.type === 'seasonal-buff' || item.type === 'cannon' || item.isWhisperMusicBox || item.isFirework;
     var isRelic = item.type === 'relic';
     var isEquippable = item.isEquippable && (item.type === 'weapon' || item.type === 'armor');
     var row = document.createElement('div');
@@ -19552,6 +19552,10 @@ function useItem(i) {
       return;
     }
     if (DS.hp >= DS.maxHp && !item.applyEffect) { say('Your health is already full.'); return; }
+    // Cursed Day — potions cannot be used in combat (never checked)
+    if (DS.dailyChallenge === 'cursedDay' && DS.inCombat && item.heal > 0) { say('Cursed Day — potions cannot be used in combat.'); return; }
+    // Freedom Potion — debuff immunity for 3 turns (never given)
+    if (item.debuffImmune) { fxGet().debuffTurns = item.debuffImmune; DS.frozen = false; DS.trapDoT = null; addLog('🔵 Immune to debuffs for ' + item.debuffImmune + ' turns.'); }
     var heal = item.heal > 0 ? Math.round((item.heal || 40) * DS.potionMult * (DS._brewmaster ? 2 : 1) * weatherPotionMult()) : 0;
     if (heal > 0 && isWhisperForest() && _corruption > 0) { reduceCorruption(10); addLog('🌲 The potion pushes the corruption back 10%.'); }
     if (heal > 0) DS.hp = Math.min(DS.maxHp, DS.hp + heal);
@@ -19724,10 +19728,38 @@ function useItem(i) {
     setEvent('good', '💜 Corruption seeps into ' + cfe.name + '. They will not last long.');
     renderInv(); saveProgress(); setCombatBtns(true); updateSkillButtons();
 
+  } else if (item.type === 'seasonal-buff') {
+    var sb = item.buff, sbMsg = '';
+    if (sb === 'stout') { DS.hp = Math.min(DS.maxHp, DS.hp + 50); fxTempStat('atk', -3, 2); sbMsg = 'Irish Stout! +50 HP, -3 attack for 2 turns.'; }
+    else if (sb === 'crit') { DS.markedKill = true; sbMsg = item.name + '! Your next attack is a guaranteed critical.'; }
+    else if (sb === 'shield') { DS.manaShield = (DS.manaShield || 0) + (item.amount || 40); sbMsg = item.name + '! Absorbs the next ' + (item.amount || 40) + ' damage.'; }
+    else if (sb === 'rose') { fxTempStat('atk', 8, 4); sbMsg = 'Enchanted Rose! +8 attack for 4 turns.'; }
+    DS.inventory.splice(i, 1);
+    addLog(item.icon + ' ' + sbMsg); say(sbMsg);
+    updatePlayerBar(); updateTopBar(); renderInv(); saveProgress();
+    if (DS.inCombat) { setCombatBtns(true); updateSkillButtons(); }
+  } else if (item.type === 'cannon') {
+    // The Patriot Cannon could never be used
+    var ce2 = DS.enemy;
+    if (!DS.inCombat || !ce2) { say('Use the Patriot Cannon in combat.'); return; }
+    if (ce2.isBoss) { say('The Patriot Cannon cannot defeat a boss.'); return; }
+    DS.inventory.splice(i, 1);
+    ce2.hp = 0; updateEnemyBar(); sfx('sfx-trap');
+    addLog('💣 PATRIOT CANNON! ' + ce2.name + ' is blasted away!');
+    say('Patriot Cannon! ' + ce2.name + ' is defeated.');
+    renderInv(); saveProgress();
+    setTimeout(function(){ enemyDead(); }, 400);
   } else if (item.type === 'love-potion') {
+    // (it just ended the fight; the charmed enemy now strikes itself for 2 turns)
     var lpe = DS.enemy;
     if (!lpe) { say('No enemy to charm.'); return; }
     if (lpe.isBoss) { say('Bosses cannot be charmed. Their will is too strong.'); return; }
+    fxGet().controlled = Math.max(fxGet().controlled || 0, 2);
+    DS.inventory.splice(i, 1);
+    addLog('💘 Love Potion! ' + lpe.name + ' is charmed — it will strike itself for 2 turns.');
+    say('Love Potion! ' + lpe.name + ' is charmed and will strike itself for 2 turns.');
+    renderInv(); saveProgress(); setCombatBtns(true); updateSkillButtons();
+    return;
     DS._charmedAlly = { name: lpe.name, icon: lpe.icon || '💘', atk: lpe.atk, turns: 2 };
     var charmedEnemyName = lpe.name;
     DS.inventory.splice(i, 1);
@@ -19744,38 +19776,36 @@ function useItem(i) {
     else say('Unknown rune.');
     setCombatBtns(true); updateSkillButtons(); return;
   } else if (item.type === 'scroll') {
-    // Spell scroll — has a spellId, teaches the spell
+    // Spell scroll — has a spellId. (This looked spells up in SPELLS, which
+    // doesn't exist, so reading any spell scroll threw an error and did nothing.)
     if (item.spellId) {
       if (!DS.inCombat) {
-        // Learn the spell outside combat
-        if (!DS.spells) DS.spells = [];
-        var alreadyKnows = DS.spells.find(function(s){ return s.id === item.spellId; });
-        if (alreadyKnows) {
-          say('You already know ' + item.name + '. Sell or drop it.');
-        } else {
-          var spellData = SPELLS ? SPELLS.find(function(s){ return s.id === item.spellId; }) : null;
-          if (spellData) {
-            DS.spells.push(JSON.parse(JSON.stringify(spellData)));
-            DS.inventory.splice(i, 1);
+        // A magic class with a Spell Book can try to learn it
+        if (hasLearnedSpell(item.spellId)) {
+          say('You already know ' + item.name + '. Sell it, or read it in combat for one cast.');
+        } else if (hasSpellBookNow() && isMagicClass(DS.cls)) {
+          DS.inventory.splice(i, 1);
+          if (Math.random() < getSpellLearnChance(DS.cls)) {
+            learnSpell(item.spellId);
             addLog('📜 ' + item.name + ' learned! Spell added to your book.');
             say(item.name + ' learned. Spell added to your book.');
-            renderInv(); saveProgress(); updateTopBar();
           } else {
-            say('Cannot read this scroll right now.');
+            addLog('📜 Failed to learn ' + item.name + '. The scroll dissolved.');
+            say('Failed to learn ' + item.name + '. The scroll dissolved.');
           }
+          renderInv(); saveProgress(); updateTopBar();
+        } else {
+          say(item.name + ' can be read in combat for one cast.' + (isMagicClass(DS.cls) ? ' With a Spell Book you could learn it.' : ''));
         }
       } else {
-        // Use spell scroll in combat — cast the spell directly
-        var combatSpell = SPELLS ? SPELLS.find(function(s){ return s.id === item.spellId; }) : null;
-        if (combatSpell && DS.sp >= combatSpell.sp) {
-          DS.inventory.splice(i, 1);
-          castSpell(combatSpell);
-          renderInv(); saveProgress();
-        } else if (combatSpell) {
-          say('Not enough SP to cast ' + combatSpell.name + '. Need ' + combatSpell.sp + ' SP.');
-        } else {
-          say('Cannot cast this spell.');
-        }
+        // Read in combat: one cast, no cooldown
+        DS.inventory.splice(i, 1);
+        var _cdBefore = DS._spellCooldown || 0;
+        castSpell(item.spellId);
+        DS._spellCooldown = _cdBefore;
+        renderInv(); saveProgress();
+        if (DS.inCombat && DS.enemy && DS.enemy.hp > 0) { setCombatBtns(true); updateSkillButtons(); }
+        return;
       }
       setCombatBtns(true); updateSkillButtons(); return;
     }
@@ -24233,6 +24263,36 @@ function fxReset() {
     crusade: 0, crusadeTurns: 0, warlord: false, stickyBomb: 0, lethalTempo: 0 };
 }
 function fxGet() { if (!DS._fx) fxReset(); return DS._fx; }
+
+// Attack and defense potions that last a few turns (counted on enemy turns).
+function fxTempStat(kind, amt, turns) {
+  var key = kind === 'atk' ? '_tempAtk' : '_tempDef';
+  var cur = DS[key];
+  if (cur && cur.turns > 0) { if (kind === 'atk') DS.atkBonus -= cur.n; else DS.defBonus -= cur.n; }
+  DS[key] = { n: amt, turns: turns };
+  if (kind === 'atk') DS.atkBonus += amt; else DS.defBonus += amt;
+}
+function fxTickTemp() {
+  ['_tempAtk', '_tempDef'].forEach(function(key) {
+    var t = DS[key];
+    if (!t || t.turns <= 0) return;
+    t.turns--;
+    if (t.turns === 0) {
+      if (key === '_tempAtk') DS.atkBonus -= t.n; else DS.defBonus -= t.n;
+      addLog(key === '_tempAtk' ? 'Your attack boost wears off.' : 'Your defense boost wears off.');
+    }
+  });
+}
+// The Poison Dart (and other trap poison, and burns) promised damage every turn but never ticked.
+function fxTickTrapPoison() {
+  var p = DS.trapDoT;
+  if (!p || !(p.turns > 0) || DS.hp <= 0) return;
+  p.turns--;
+  DS.hp = Math.max(1, DS.hp - p.dmg);
+  addLog('☠️ ' + p.name + ' — ' + p.dmg + ' damage. (' + p.turns + ' turns left)');
+  updatePlayerBar();
+  if (p.turns <= 0) DS.trapDoT = null;
+}
 function fxFightBonus(kind) {
   var f = DS._fx;
   if (!f) return 0;
@@ -24341,7 +24401,13 @@ function fxPlayerDamage(dmg, isSkill) {
 // checked Shadow Form, Wind Step or Holy Light (only the skill path did).
 function fxEnemyTurn(e, fromAttack) {
   var f = fxGet();
-  if (DS._debuffImmune) { DS.frozen = false; DS.trapDoT = null; }
+  if (DS._debuffImmune || f.debuffTurns > 0) { DS.frozen = false; DS.trapDoT = null; if (f.debuffTurns > 0) f.debuffTurns--; }
+  fxTickTemp();
+  fxTickTrapPoison();
+  if (e._cursed > 0) {
+    e._cursed--;
+    if (e._cursed === 0 && e._preCurseAtk) { e.atk = e._preCurseAtk; e._preCurseAtk = null; addLog('The curse on ' + e.name + ' fades.'); }
+  }
   if (f.buffTurns > 0) {
     f.buffTurns--;
     if (f.buffTurns === 0) {
@@ -24456,6 +24522,8 @@ function fxEnemyTurn(e, fromAttack) {
     addLog('Holy Light blinds the enemy — attack halved! (' + DS.holyLight + ' turns left)');
   }
   if (f.softenHits > 0) { mult *= f.soften; f.softenHits--; }
+  // Speed Run daily challenge — enemies hit 25% harder (never applied)
+  if (DS.dailyChallenge === 'speedRun') mult *= 1.25;
   // Frozen Floors (-20%) and Death March (+25%) enemy damage
   if (DS.runModEnemyDmgMult && DS.runModEnemyDmgMult !== 1) mult *= DS.runModEnemyDmgMult;
   // Blood Moon — you take 25% more damage (shown, never applied)
@@ -48576,9 +48644,10 @@ var SHAMROCK_SHOP_ITEMS = [
   },
   { id:'stpat-stout',      name:'Irish Stout',           icon:'🍺', cost:6,  desc:'Heals 50 HP but reduces your ATK by 3 for 2 turns.',
     apply: function() {
-      if (DS) { DS.hp = Math.min(DS.maxHp, DS.hp + 50); DS.atkBonus = (DS.atkBonus || 0) - 3; DS._stoutTurns = 2; updatePlayerBar(); }
-      seasonalGive({name:'Irish Stout',icon:'🍺',type:'potion',heal:50,desc:'Heals 50 HP. -3 ATK for 2 turns.'});
-      say('Irish Stout! 50 HP restored. ATK reduced by 3 for 2 turns.');
+      // (these buffs applied the moment you bought them — from the menu, to no run at all;
+      // they now wait in your bag and work when you use them)
+      seasonalGive({name:'Irish Stout',icon:'🍺',type:'seasonal-buff',buff:'stout',desc:'Heals 50 HP. -3 ATK for 2 turns.'});
+      say('Irish Stout added to your bag.');
     }
   },
   { id:'stpat-pot',        name:'Pot of Gold',           icon:'🌈', cost:8,  desc:'Gain 300 gold but lose 20 HP. High risk, high reward.',
@@ -48590,16 +48659,14 @@ var SHAMROCK_SHOP_ITEMS = [
   },
   { id:'stpat-charm',      name:'Leprechaun\'s Charm',   icon:'🧝', cost:10, desc:'Your next attack is guaranteed to critically hit.',
     apply: function() {
-      if (DS) { DS._huntersMarkReady = true; }
-      addLog('🧝 Leprechaun\'s Charm! Next attack is a guaranteed crit.');
-      say('Leprechaun\'s Charm active. Your next attack will critically hit.');
+      seasonalGive({name:'Leprechaun\'s Charm',icon:'🧝',type:'seasonal-buff',buff:'crit',desc:'Your next attack is guaranteed to critically hit.'});
+      say('Leprechaun\'s Charm added to your bag.');
     }
   },
   { id:'stpat-rainbow',    name:'Rainbow Shield',        icon:'🌈', cost:12, desc:'Absorbs the next 40 damage taken.',
     apply: function() {
-      if (DS) { DS.manaShield = (DS.manaShield || 0) + 40; }
-      addLog('🌈 Rainbow Shield! Absorbs 40 damage.');
-      say('Rainbow Shield active. Absorbs 40 incoming damage.');
+      seasonalGive({name:'Rainbow Shield',icon:'🌈',type:'seasonal-buff',buff:'shield',amount:40,desc:'Absorbs the next 40 damage taken.'});
+      say('Rainbow Shield added to your bag.');
     }
   },
   { id:'stpat-title',      name:'The Lucky One',         icon:'☘️', cost:25, desc:'Earn the title "The Lucky One". Exclusive to St. Patrick\'s Day.',
@@ -48625,23 +48692,20 @@ var CHOCOLATE_SHOP_ITEMS = [
   },
   { id:'val-rose',          name:'Enchanted Rose',    icon:'🌹', cost:12, desc:'+8 ATK for 4 turns. Beautiful and dangerous.',
     apply: function() {
-      if (DS) { DS.atkBonus = (DS.atkBonus||0) + 8; DS._roseTurns = 4; updatePlayerBar(); }
-      addLog('🌹 Enchanted Rose! +8 ATK for 4 turns.');
-      say('Enchanted Rose active. ATK boosted for 4 turns.');
+      seasonalGive({name:'Enchanted Rose',icon:'🌹',type:'seasonal-buff',buff:'rose',desc:'+8 ATK for 4 turns.'});
+      say('Enchanted Rose added to your bag.');
     }
   },
   { id:'val-cupid-arrow',   name:"Cupid's Arrow",     icon:'🏹', cost:15, desc:'Guaranteed critical hit on your next attack.',
     apply: function() {
-      if (DS) DS.markedKill = true;
-      addLog("🏹 Cupid's Arrow! Next attack guaranteed critical.");
-      say("Cupid's Arrow active. Next attack is a guaranteed crit.");
+      seasonalGive({name:"Cupid's Arrow",icon:'🏹',type:'seasonal-buff',buff:'crit',desc:'Guaranteed critical hit on your next attack.'});
+      say("Cupid's Arrow added to your bag.");
     }
   },
   { id:'val-heart-shield',  name:'Heart Shield',      icon:'💗', cost:14, desc:'Absorbs the next 45 damage taken.',
     apply: function() {
-      if (DS) DS.manaShield = (DS.manaShield || 0) + 45;
-      addLog('💗 Heart Shield! Absorbs 45 damage.');
-      say('Heart Shield active. Absorbs 45 incoming damage.');
+      seasonalGive({name:'Heart Shield',icon:'💗',type:'seasonal-buff',buff:'shield',amount:45,desc:'Absorbs the next 45 damage taken.'});
+      say('Heart Shield added to your bag.');
     }
   },
   { id:'val-title',         name:'The Beloved',       icon:'💘', cost:28, desc:'Earn the title "The Beloved". Exclusive to Valentine\'s Day.',
