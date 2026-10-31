@@ -28037,7 +28037,8 @@ function getTournamentSeason() {
     boss: boss,
     seasonName: ['Winter', 'Spring', 'Summer', 'Autumn'][seasonIdx] + ' ' + year,
     hoursLeft: isActive ? Math.max(0, Math.ceil((tournamentEnd - now) / 3600000)) : 0,
-    daysUntil: !isActive ? Math.ceil((seasonStarts[(seasonIdx+1)%4].getTime() - now.getTime()) / 86400000) : 0,
+    // (from October the next season wrapped to January of this year, so the countdown went negative)
+    daysUntil: !isActive ? Math.ceil(((seasonIdx === 3 ? new Date(year + 1, 0, 1) : seasonStarts[seasonIdx + 1]).getTime() - now.getTime()) / 86400000) : 0,
   };
 }
 
@@ -28064,6 +28065,12 @@ function saveTournamentScore(score) {
   }
 }
 
+// Never show an email address — older entries still have one in this field
+function tnShownName(s) {
+  var n = s.name || s.email || 'Anonymous';
+  return n.indexOf('@') !== -1 ? n.split('@')[0].replace(/[^A-Za-z0-9]/g, '').slice(0, 3) + '***' : n;
+}
+
 async function uploadTournamentScore(score) {
   var user = getFirebaseUser();
   if (!user || !window._fbDb) return;
@@ -28074,7 +28081,10 @@ async function uploadTournamentScore(score) {
       .collection('scores').doc(user.uid)
       .set({
         uid: user.uid,
-        email: user.email || 'Anonymous',
+        // The leaderboard stored and showed players' real email addresses; it now
+        // keeps the leaderboard name (the field name stays for older app versions)
+        email: getLeaderboardName(user) || 'Anonymous',
+        name: getLeaderboardName(user) || 'Anonymous',
         score: score,
         updatedAt: Date.now(),
         seasonName: season.seasonName,
@@ -28336,11 +28346,11 @@ function renderTournamentScreen() {
       scores.forEach(function(s, i) {
         html += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #1a1a1a;">' +
           '<span style="color:' + (i===0?'#ffdd44':i===1?'#aaaaaa':i===2?'#cc8844':'#666') + ';">' +
-          (i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)) + ' ' + (s.email || 'Anonymous') + '</span>' +
+          (i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)) + ' ' + tnShownName(s) + '</span>' +
           '<span style="color:#ffdd44;">' + s.score + ' pts</span></div>';
       });
       if (lbEl) lbEl.innerHTML = html;
-      say('Leaderboard loaded. Top score: ' + scores[0].score + ' points by ' + (scores[0].email || 'Anonymous'));
+      say('Leaderboard loaded. Top score: ' + scores[0].score + ' points by ' + tnShownName(scores[0]));
     });
   }
 }
