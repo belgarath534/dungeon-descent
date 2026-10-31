@@ -14876,7 +14876,8 @@ function initDungeon(ch) {
     // Dragonborn — +15% all damage
     if (ch.cls === 'Dragonborn') DS.dragonbornBonus = 1.15;
     // Sorcerer — starts with less HP
-    if (ch.cls === 'Sorcerer') { DS.maxHp = Math.round(DS.maxHp * 0.85); DS.hp = DS.maxHp; }
+    // (the Sorcerer's Glass Cannon trait already caps HP at 80%; cutting it here too left 68%)
+    if (ch.cls === 'Sorcerer' && !ACCESS.classTraits) { DS.maxHp = Math.round(DS.maxHp * 0.85); DS.hp = DS.maxHp; }
     // Wizard — starts with even less HP but high atk
     if (ch.cls === 'Wizard') { DS.maxHp = Math.round(DS.maxHp * 0.80); DS.hp = DS.maxHp; }
     if (ch.cls === 'Elementalist') { DS.maxHp = Math.round(DS.maxHp * 0.85); DS.hp = DS.maxHp; }
@@ -14990,6 +14991,7 @@ function enterRoom() {
     return;
   }
   try { fxTickTrapPoison(); } catch(eTick) {}
+  if (DS.druidHollowTrait && DS.dungeon === 'The Hollow' && DS.hp > 0 && DS.hp < DS.maxHp) { DS.hp = Math.min(DS.maxHp, DS.hp + 3); updatePlayerBar(); }
   // CRITICAL — never enter a new room during an active Chimera fight
   // The Chimera uses _chimeraParts instead of DS.enemy, so the check above misses it
   if (_chimeraActive) {
@@ -16152,6 +16154,25 @@ var DUNGEON_BOSS_SFX = {
 
 function startCombat(isBoss) {
   fxReset();
+  if (ACCESS.classTraits && DS.enemy) {
+    // Wizard — Arcane Study reveals the enemy (the flag was never read)
+    if (DS.wizardStudy) setTimeout(function(){ if (DS.enemy) addLog('🔮 Arcane Study: ' + DS.enemy.name + ' — ' + DS.enemy.hp + ' HP, hits for ' + DS.enemy.atk[0] + ' to ' + DS.enemy.atk[1] + '.'); }, 400);
+    // Necromancer — the risen enemy fights beside you in this fight
+    if (DS._necroRisen) { fxGet().ally = DS._necroRisen; DS._necroRisen = null; addLog('💀 Your risen ' + fxGet().ally.name + ' fights beside you.'); }
+    // Bard — Silver Tongue: 10% of enemies leave without fighting
+    if (DS.cls === 'Bard' && !isBoss && !DS.enemy.isBoss && !DS.enemy.isElite && Math.random() < 0.10) {
+      var _leaver = DS.enemy.name;
+      setTimeout(function() {
+        if (!DS.inCombat || !DS.enemy || DS.enemy.name !== _leaver || DS.enemy.hp < DS.enemy.maxHp) return;
+        DS.inCombat = false; fxReset();
+        playTrack(exploTrackForFloor(DS.floor));
+        showDgPanels(true, false, false);
+        setEvent('good', '🎵 Silver Tongue — you talk ' + _leaver + ' out of the fight. It leaves.');
+        say('Silver Tongue. ' + _leaver + ' leaves without fighting.');
+        setCombatBtns(true);
+      }, 1200);
+    }
+  }
   // Bloodfire Potion and Glacier Tonic: "the next enemy" burns / is stunned (set, never read)
   if (DS._potionBurnNext) { DS._potionBurnNext = false; fxGet().dot = 8; fxGet().dotTurns = 3; addLog('🔥 Bloodfire! The enemy burns for 8 damage a turn for 3 turns.'); }
   if (DS._potionStunNext) { DS._potionStunNext = false; fxGet().stun = Math.max(fxGet().stun, 1); addLog('❄️ Glacier Tonic! The enemy is frozen for a turn.'); }
@@ -16951,7 +16972,8 @@ function doFight(action) {
   var _wpMult = checkInfernalWeakPoint(action);
 
   if (action === 'attack') {
-    if (DS.assassinFirstBlood) { DS.assassinFirstBlood = false; DS.markedKill = true; }
+    // First Blood — "every combat" (it was used up after the first fight of the run)
+    if (DS.cls === 'Assassin' && ACCESS.classTraits && !fxGet().firstBloodDone) { fxGet().firstBloodDone = true; DS.markedKill = true; }
     // Weapon rarity effect — resolved once per attack, checked by id below
     var _wre = DS.equippedWeapon && DS.equippedWeapon.rarityEffect;
     // Keen — +5% critical hit chance
@@ -17219,8 +17241,8 @@ function doFight(action) {
     var heal = Math.round((pot.heal || 40) * DS.potionMult * (DS._brewmaster ? 2 : 1) * weatherPotionMult());
     // "Find the Music Box or use a potion" — potions never touched the forest's corruption
     if (isWhisperForest() && _corruption > 0) { reduceCorruption(10); addLog('🌲 The potion pushes the corruption back 10%.'); }
-    // Alchemist — potions heal 60% more
-    if (DS.cls === 'Alchemist' && ACCESS.classTraits) heal = Math.round(heal * 1.35);
+    // (the Alchemist's Master Brewer already doubles potions through potionMult; this
+    // second boost made them heal 2.7 times)
     // Merfolk — potions heal 20% more
     if (DS.merfolkRace && ACCESS.classTraits) heal = Math.round(heal * 1.20);
     DS.hp = Math.min(DS.maxHp, DS.hp + heal);
@@ -17580,6 +17602,11 @@ function sanitizeGold() {
 }
 
 function enemyDead() {
+  // Necromancer — Death Follows: 15% a killed enemy fights for you in the next fight (never applied)
+  if (DS.cls === 'Necromancer' && ACCESS.classTraits && DS.enemy && !DS.enemy.isBoss && Math.random() < 0.15) {
+    DS._necroRisen = { name: DS.enemy.name, atk: [Math.max(1, Math.round(DS.enemy.atk[0] * 0.5)), Math.max(1, Math.round(DS.enemy.atk[1] * 0.5))] };
+    addLog('💀 Death Follows — ' + DS.enemy.name + ' rises to serve you in your next fight.');
+  }
   // Death March's legendary boss drop and the Corruption Run's prize
   if ((DS._corruptionRun || DS.runModLegendaryBoss) && DS.enemy && DS.enemy.isBoss && !DS._corruptionPrize) {
     DS._corruptionPrize = true;
@@ -24269,6 +24296,8 @@ function subOnHit(e, dmg) {
 
 // The enemy's hit, before it lands: Wind Walker and Phase Walker dodges.
 function subDodges() {
+  // Void Walker — Void Touched: 15% to phase through an attack (never read)
+  if (DS._voidWalker && Math.random() < (DS._voidPhaseChance || 0.15)) { addLog('🌌 You phase through the attack!'); return true; }
   if (DS._windWalker && Math.random() < 0.15) { addLog('💨 You dodge the attack!'); return true; }
   if (DS._phaseWalker && Math.random() < 0.20) { addLog('👁️ You phase through the attack!'); return true; }
   return false;
@@ -24290,13 +24319,20 @@ function fxPlayerDamage(dmg, isSkill) {
   if (isSkill && DS._skillMastery) m *= 1 + DS._skillMastery;
   if (DS._allMastery) m *= 1 + DS._allMastery;
   if (isSkill && DS._archmage) m *= 1.20;
+  // Paladin — Divine Presence: holy skills 20% stronger (never applied)
+  if (isSkill && DS.cls === 'Paladin' && ACCESS.classTraits && DS._lastSkill && /holy|divine|smite|judg|consecrat|bless|light|sacred/i.test(DS._lastSkill.name + ' ' + DS._lastSkill.effect)) m *= 1.20;
+  // Shadow Mage — attacks from darkness (at night) deal +25%
+  if (!isSkill && DS._shadowMage && isNightTime()) m *= 1.25;
   if (f.crusadeTurns > 0 && f.crusade > 0) {
     if (f.crusadeTurns < 99) f.crusadeTurns--;
     DS.hp = Math.min(DS.maxHp, DS.hp + f.crusade); updatePlayerBar();
     addLog('Holy Crusade heals ' + f.crusade + ' HP.');
   }
   var out = m === 1 ? dmg : Math.round(dmg * m);
-  if (!isSkill) { out = forgeDamage(DS.enemy, out); subOnHit(DS.enemy, out); forgeAfterHit(DS.enemy, out); }
+  if (!isSkill) {
+    out = forgeDamage(DS.enemy, out); subOnHit(DS.enemy, out); forgeAfterHit(DS.enemy, out);
+    if (f.ally && DS.enemy && DS.enemy.hp > 0) { var _ad = rnd(f.ally.atk[0], f.ally.atk[1]); DS.enemy.hp = Math.max(0, DS.enemy.hp - _ad); updateEnemyBar(); addLog('💀 Your risen ' + f.ally.name + ' strikes for ' + _ad + '!'); }
+  }
   return out;
 }
 
@@ -28289,6 +28325,8 @@ function applyClassTraits(ch) {
     case 'Shaman':
       DS._shaman = true;
       DS._earthshakeAlwaysBuff = true;
+      // +4 DEF outdoors (the Ashbound Wastes, Frosthold and the Whispering Forest) — never applied
+      if (['The Ashbound Wastes','Frosthold Abyss','The Whispering Forest'].indexOf(DS.dungeon) !== -1) DS.defBonus += 4;
       break;
     case 'Arcanist':
       DS._arcanist = true;
@@ -28312,10 +28350,7 @@ function applyTraitPerFloor() {
     updatePlayerBar();
     addLog('Blood Harvest — -2 HP this floor.');
   }
-  if (DS.druidHollowTrait && DS.dungeon === 'The Hollow') {
-    DS.hp = Math.min(DS.maxHp, DS.hp + 3);
-    updatePlayerBar();
-  }
+  // (Nature's Bond says "+3 HP per room"; it healed once a floor — now in enterRoom)
   if (DS.cls === 'Dragonborn' && ACCESS.classTraits) {
     DS.dragonbornBonus = 1 + (DS.floor * 0.05);
   }
@@ -47167,6 +47202,8 @@ function spellSubclassPower(id, e) {
   if (DS._pureMagic) m *= 1.5;
   if (DS._firelord && SPELL_FIRE.indexOf(id) !== -1) m *= 1.6;
   if (DS._earthbound && id === 'earthshake') m *= 1.8;
+  // Elementalist — fire, ice and lightning spells +40% (never read)
+  if (DS._elementalist && (SPELL_FIRE.indexOf(id) !== -1 || id === 'frost-lance' || id === 'earthshake')) m *= 1.4;
   if (DS._voidBorn && SPELL_VOID.indexOf(id) !== -1 && e && /Ghost|Spirit|Wraith|Spect|Phantom|Shade|Wisp|Banshee/.test(e.name || '')) m *= 1.5;
   return m;
 }
@@ -47174,6 +47211,10 @@ function spellSubclassPower(id, e) {
 // Spell Weaver: two spells before the cooldown starts.
 function spellFreeCooldown(id) {
   if (DS._phaseWalker && SPELL_VOID.indexOf(id) !== -1 && DS.floor >= 8 && DS.floor <= 10) return true;
+  // Shadow Mage — shadow spells cost no cooldown (never read)
+  if (DS._shadowCooldownFree && SPELL_SHADOW.indexOf(id) !== -1) return true;
+  // Time Mage — time spells: 3 turns of cooldown instead of 6
+  if (DS._timeMageCooldownReduction && ['time-stop','time-echo','time-fracture'].indexOf(id) !== -1 && DS._spellCooldown > 3) DS._spellCooldown = 3;
   if (DS._nightShroud && SPELL_SHADOW.indexOf(id) !== -1 && isNightTime()) return true;
   if (DS._spellWeaver) { DS._weaveCount = (DS._weaveCount || 0) + 1; if (DS._weaveCount % 2 === 1) return true; }
   return false;
