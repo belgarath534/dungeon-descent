@@ -20580,7 +20580,8 @@ function showVictory() {
   // Track DDDI defeated
   if (DS.dddiDefeated) incrementAchievementStat('dddiDefeated', 1);
   // Mark market sprite as used if it was active this run
-  if (DS.activeSpirit && DS.activeSpirit.rarity === 'rare') {
+  // rare, elite or forged spirits all count (elite and forged ones were ignored)
+  if (DS.activeSpirit && (DS.activeSpirit.rarity === 'rare' || DS.activeSpirit.rarity === 'elite' || DS.activeSpirit.isCustom || DS.activeSpirit.forged)) {
     updateDailyQuestProgress('rarespirit', 1);
   }
   if (DS.activeSpirit && DS.activeSpirit.isMarketSprite && _charIdx !== null) {
@@ -41784,6 +41785,8 @@ var DUNGEON_EVENTS = [
     choices: [
       { label:'Study the inscription', outcome: function(){
         var xp=rnd(20,35); gainXP(xp);
+        // In the Sunken Archives this is the lore fragment the daily quest asks for (nothing counted it)
+        if (DS.dungeon === 'The Sunken Archives') { try { updateDailyQuestProgress('fragment', 1); } catch (eQ) {} addLog('📜 You found a lore fragment in the inscription.'); }
         setEvent('encounter','You spend time translating. Most of it is a warning. Some of it is a map. +'+xp+' XP.');
         say('Studied the inscription. Gained '+xp+' experience.');
       }},
@@ -56347,9 +56350,12 @@ var _ccClasses = ['Warrior','Monk','Assassin','Paladin','Naturalist','Sorcerer',
 var _ccRaces = ['Human','Elf','Dwarf','Orc','Tiefling','Shade','Vampire','Goblin','Angel','Demon','Golem','Halfling','Dragonborn','Gnome','Merfolk'];
 var _ccProfs = ['Blacksmith','Herbalist','Scholar','Mercenary','Gravedigger','Thief','Pilgrim','Grave Robber','Street Rat','Tinkerer','Warden'];
 var _ccDungeons = ['Crypt of Malachar','The Ashbound Wastes','Frosthold Abyss','The Sunken Archives','The Hollow','The Whispering Forest','The Infernal Descent','The Abyssal Deep','The Shadow World'];
-var _ccDiffs = ['Wanderer','Explorer','Forsaken','Condemned','Nightmare'];
+// ("Explorer" isn't a difficulty, and Ironblood and Insane were missing)
+var _ccDiffs = ['Wanderer','Ironblood','Condemned','Forsaken','Nightmare','Endless','Insane'];
 
 function ccStartCharacterCreation() {
+  // It let a sixth character be made past the limit
+  if (CHARS.length >= MAX_CHARS) { ccPrint('Maximum of ' + MAX_CHARS + ' characters. Delete one first.', 'cc-line-err'); return; }
   _ccChar = {};
   _ccStep = 'class';
   ccPrint('', 'cc-line-info');
