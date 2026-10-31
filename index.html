@@ -17554,6 +17554,17 @@ function sanitizeGold() {
 }
 
 function enemyDead() {
+  if (DS._fx && DS._fx.soulLeash && DS.enemy && DS.hp > 0) {
+    var leash = Math.round((DS.enemy.maxHp || DS.enemy.hp || 0) * 0.5);
+    DS.hp = Math.min(DS.maxHp, DS.hp + leash);
+    addLog('🔗 Soul Leash — you heal ' + leash + ' HP from its fall.');
+  }
+  if (DS._hungerKills > 0 && DS.hp > 0) {
+    DS._hungerKills--;
+    DS.hp = Math.min(DS.maxHp, DS.hp + 15);
+    addLog('🖤 The Hunger feeds — you heal 15 HP.' + (DS._hungerKills === 0 ? ' It is not satisfied. It turns on you.' : ''));
+    if (DS._hungerKills === 0) DS._hungerDrain = 3;
+  }
   if (DS._fx && DS._fx.warlord && DS.hp > 0) {
     DS.hp = Math.min(DS.maxHp, DS.hp + 10); DS.sp = Math.min(DS.maxSp, DS.sp + 3);
     addLog('Warlord! The kill restores 10 HP and 3 SP.');
@@ -19364,6 +19375,9 @@ function renderInv() {
 }
 
 function useItem(i) {
+  // Scrolls bought without a Spell Book (or dropped) were "spell-scroll" items
+  // that nothing knew how to read; they are ordinary spell scrolls.
+  if (DS.inventory && DS.inventory[i] && DS.inventory[i].type === 'spell-scroll') DS.inventory[i].type = 'scroll';
   var item = DS.inventory[i];
   if (item.isInsanityPotion) { useInsanityPotion(); DS.inventory.splice(DS.inventory.indexOf(item),1); renderInv(); return; }
   if (item.type === 'consumable' && item.shadowItem === 'shapeshifterMask') {
@@ -24176,6 +24190,12 @@ function fxPlayerDamage(dmg, isSkill) {
   var f = fxGet();
   var m = 1;
   if (f.empowerCount > 0) { m *= f.empower; f.empowerCount--; }
+  if (!isSkill && f.forgotten > 0) { f.forgotten = 0; addLog('🌫️ You strike — and the enemy remembers you.'); }
+  if (!isSkill && f.bloodOath > 0) {
+    f.bloodOath--; m *= 1.5;
+    DS.hp = Math.max(1, DS.hp - 20); updatePlayerBar();
+    addLog('🩸 Blood Oath strike! 150% damage — the oath takes 20 HP.');
+  }
   if (f.vulnTurns > 0) m *= 1 + f.vuln;
   if (isSkill && DS._skillMastery) m *= 1 + DS._skillMastery;
   if (DS._allMastery) m *= 1 + DS._allMastery;
@@ -24230,6 +24250,38 @@ function fxEnemyTurn(e, fromAttack) {
   }
   // Spirit Caller — the spirit heals 8 HP each turn of a fight
   if (DS._spiritCaller && DS.hp > 0 && DS.hp < DS.maxHp) { DS.hp = Math.min(DS.maxHp, DS.hp + 8); updatePlayerBar(); addLog('🌀 Your spirit heals you for 8 HP.'); }
+  if (f.soulDrain > 0) {
+    f.soulDrain--;
+    var steal = Math.min(e.hp, Math.max(8, Math.round(e.maxHp * 0.12)));
+    e.hp -= steal; DS.hp = Math.min(DS.maxHp, DS.hp + steal);
+    addLog('💀 Soul Drain steals ' + steal + ' HP from ' + e.name + '!');
+    updateEnemyBar(); updatePlayerBar();
+    if (e.hp <= 0) return 'dead';
+  }
+  if (f.fireballReturn > 0) {
+    var fb = f.fireballReturn; f.fireballReturn = 0;
+    if (DS.defending) addLog('🔥 The fireball comes back — you defend and it scatters!');
+    else { DS.hp = Math.max(1, DS.hp - fb); addLog('🔥 Your missed fireball comes back for ' + fb + ' damage!'); updatePlayerBar(); }
+  }
+  if (DS._hungerDrain > 0 && DS.hp > 0) {
+    DS._hungerDrain--;
+    DS.hp = Math.max(1, DS.hp - 15); updatePlayerBar();
+    addLog('🖤 The Hunger drains 15 HP.');
+  }
+  if (f.forgotten > 0) {
+    f.forgotten--;
+    addLog('🌫️ ' + e.name + ' has forgotten you exist.');
+    return { skip: true, mult: 1 };
+  }
+  if (f.controlled > 0) {
+    if (f.controlled < 99) f.controlled--;
+    var ctl = rnd(e.atk[0], e.atk[1]);
+    e.hp = Math.max(0, e.hp - ctl);
+    addLog('🕸️ Under your control, ' + e.name + ' strikes itself for ' + ctl + '!');
+    updateEnemyBar();
+    if (e.hp <= 0) return 'dead';
+    return { skip: true, mult: 1 };
+  }
   if (f.stun > 0) {
     f.stun--;
     addLog(e.name + ' cannot act this turn!');
@@ -24290,6 +24342,20 @@ function fxAfterTaken(e, taken) {
   if (f.capTurns > 0) {
     f.capTurns--;
     if (taken > f.cap) { DS.hp = Math.min(DS.maxHp, DS.hp + (taken - f.cap)); taken = f.cap; addLog('No hit can do more than ' + f.cap + '.'); }
+  }
+  if (f.voidMirror > 0 && taken > 0) {
+    f.voidMirror--;
+    DS.hp = Math.min(DS.maxHp, DS.hp + taken * 2);
+    addLog('🪞 Void Mirror — the blow heals you for ' + taken + ' instead!');
+    taken = 0;
+  }
+  if (f.curseEchoes > 0 && taken > 0 && e && e.hp > 0) {
+    f.curseEchoes--;
+    var echo = Math.max(1, Math.round(taken * 0.30));
+    e.hp = Math.max(0, e.hp - echo);
+    addLog('🔁 Curse of Echoes — ' + e.name + ' takes ' + echo + ' of its own damage!');
+    updateEnemyBar();
+    if (e.hp <= 0) return true;
   }
   if (DS.hp <= 0 && f.unstoppable > 0) { DS.hp = 1; addLog('Unstoppable! Death refused.'); }
   // Paradox — once per fight, the killing blow is rewound
@@ -46559,12 +46625,24 @@ var SPELL_COOLDOWN_POWERFUL = 6; // turns
 
 var POWERFUL_SPELLS = ['time-stop','redeemed-souls','final-boss','legend-of-echoes','shadow-blast','lose-reality','grave-pact','void-collapse-sp','shadow-blast-sp'];
 
+function hasSpellBookNow() {
+  var ch = _charIdx !== null ? CHARS[_charIdx] : null;
+  return !!((DS && DS.spellBook) || (ch && ch.spellBook));
+}
+
 var ARCANE_SHOP_ITEMS = [
   // Spell Book
   { id:'spell-book',     name:'Spell Book',           icon:'📖', cost:200,  type:'book',   rarity:'common',
     desc:'Allows magic classes to learn spells permanently. Required to build a spellbook.',
     apply: function() {
-      if (!DS.spellBook) { DS.spellBook = true; saveChars(); addLog('📖 Spell Book acquired. Magic classes can now learn spells permanently.'); say('Spell Book acquired.'); }
+      // The book was only set on the current run, so from the menu it failed and
+      // in a run it was forgotten when the run ended. It now lives on the character.
+      var _bookCh = _charIdx !== null ? CHARS[_charIdx] : null;
+      if (!hasSpellBookNow()) {
+        DS.spellBook = true;
+        if (_bookCh) _bookCh.spellBook = true;
+        saveChars(); addLog('📖 Spell Book acquired. Magic classes can now learn spells permanently.'); say('Spell Book acquired.');
+      }
       else { say('You already have a Spell Book.'); }
     }
   },
@@ -46652,8 +46730,6 @@ var ARCANE_SHOP_ITEMS = [
   { id:'scroll-the-sacrifice',name:'Scroll of The Sacrifice', icon:'💔', cost:320,  type:'scroll', rarity:'rare',   spellId:'the-sacrifice',
     desc:'Rare. Instantly kill any non-boss enemy. You lose 40% current HP.' },
   // Additional legendary scrolls
-  { id:'scroll-shadow-blast',name:'Scroll of Shadow Blast', icon:'👤', cost:1000, type:'scroll', rarity:'legendary', spellId:'shadow-blast',
-    desc:'Legendary. Summon a void spirit. 30-40% you control it — massive damage. 60-70% it defeats YOU instantly.' },
   { id:'scroll-void-mirror',  name:'Scroll of Void Mirror',   icon:'🖤', cost:1400, type:'scroll', rarity:'legendary', spellId:'void-mirror',
     desc:'Legendary. For 2 turns — your weaknesses become strengths and strengths become weaknesses.' },
   { id:'scroll-abyss-stares', name:'Scroll of The Abyss Stares Back',icon:'👁️',cost:1300,type:'scroll',rarity:'legendary',spellId:'abyss-stares',
@@ -46717,7 +46793,7 @@ function openArcaneShop() {
   if (goldEl) goldEl.textContent = '💰 ' + gold + ' gold';
 
   var sbStatus = document.getElementById('as-spellbook-status');
-  var hasBook = DS ? DS.spellBook : false;
+  var hasBook = hasSpellBookNow();
   var cls = DS ? DS.cls : (_charIdx !== null && CHARS[_charIdx] ? CHARS[_charIdx].cls : '');
   if (sbStatus) {
     if (hasBook) sbStatus.textContent = '📖 ' + t('Spell Book owned · ') + Math.round(getSpellLearnChance(cls)*100) + t('% learn chance as ') + cls;
@@ -46760,7 +46836,7 @@ function openArcaneShop() {
             item.apply();
           } else {
             var cls2 = DS ? DS.cls : (_charIdx !== null && CHARS[_charIdx] ? CHARS[_charIdx].cls : '');
-            var hasBook2 = DS ? DS.spellBook : (_charIdx !== null && CHARS[_charIdx] ? CHARS[_charIdx].spellBook : false);
+            var hasBook2 = hasSpellBookNow();
             if (hasBook2 && isMagicClass(cls2)) {
               var chance = getSpellLearnChance(cls2);
               if (Math.random() < chance) {
@@ -46772,8 +46848,7 @@ function openArcaneShop() {
                 say('Failed to learn ' + item.name + '. The scroll dissolved.');
               }
             } else {
-              var inv = DS ? DS.inventory : (_charIdx !== null && CHARS[_charIdx] ? CHARS[_charIdx].inventory : null);
-              if (inv) inv.push({ name: item.name, icon: item.icon, type:'spell-scroll', spellId: item.spellId, desc: item.desc });
+              seasonalGive({ name: item.name, icon: item.icon, type:'scroll', spellId: item.spellId, desc: item.desc });
               saveChars();
               say(item.name + ' added to inventory. One time use in combat.');
             }
@@ -46818,7 +46893,7 @@ function openSpellBook() {
   var info = document.getElementById('spellbook-class-info');
 
   var cls = DS ? DS.cls : (_charIdx !== null && CHARS[_charIdx] ? CHARS[_charIdx].cls : '');
-  var hasBook = DS ? DS.spellBook : (_charIdx !== null && CHARS[_charIdx] ? CHARS[_charIdx].spellBook : false);
+  var hasBook = hasSpellBookNow();
   var learnChance = Math.round(getSpellLearnChance(cls) * 100);
 
   if (info) {
@@ -46941,8 +47016,78 @@ function castSpell(spellId) {
   var spellItem = ARCANE_SHOP_ITEMS.find(function(i){ return i.spellId === spellId; });
   var spellName = spellItem ? spellItem.name : spellId;
 
-  // Apply spell effect
+  // Spell subclass passives (they only set flags): spell power, cooldowns, Stormcaller's longer freeze
+  var _spE = DS.enemy, _spHpBefore = _spE ? _spE.hp : 0;
   applySpellEffect(spellId, spellName);
+  try {
+    var _spPow = spellSubclassPower(spellId, _spE);
+    if (_spE && _spPow > 1 && _spE.hp > 0 && _spE.hp < _spHpBefore) {
+      var _spExtra = Math.round((_spHpBefore - _spE.hp) * (_spPow - 1));
+      _spE.hp = Math.max(0, _spE.hp - _spExtra);
+      addLog('✨ Your path empowers the spell: +' + _spExtra + ' damage.');
+      updateEnemyBar();
+      if (_spE.hp <= 0) setTimeout(function(){ enemyDead(); }, 500);
+    }
+    var _spStunBefore = fxGet().stun;
+    spellPostEffects(spellId);
+    if (DS._stormcaller && fxGet().stun > _spStunBefore) fxGet().stun++;
+    if (spellFreeCooldown(spellId)) DS._spellCooldown = 0;
+  } catch (e) {}
+}
+
+var SPELL_FIRE = ['soulfire', 'agony', 'fireball'];
+var SPELL_VOID = ['void-bolt', 'void-echo', 'void-anchor', 'void-mirror', 'void-collapse', 'extraction'];
+var SPELL_SHADOW = ['shadow-step', 'shadow-blast', 'nightmare-weave', 'phantom-step', 'the-forgotten', 'soul-drain'];
+function spellSubclassPower(id, e) {
+  var m = 1;
+  if (DS._pureMagic) m *= 1.5;
+  if (DS._firelord && SPELL_FIRE.indexOf(id) !== -1) m *= 1.6;
+  if (DS._earthbound && id === 'earthshake') m *= 1.8;
+  if (DS._voidBorn && SPELL_VOID.indexOf(id) !== -1 && e && /Ghost|Spirit|Wraith|Spect|Phantom|Shade|Wisp|Banshee/.test(e.name || '')) m *= 1.5;
+  return m;
+}
+// Phase Walker: void spells free on floors 8–10; Night Shroud: shadow spells free at night;
+// Spell Weaver: two spells before the cooldown starts.
+function spellFreeCooldown(id) {
+  if (DS._phaseWalker && SPELL_VOID.indexOf(id) !== -1 && DS.floor >= 8 && DS.floor <= 10) return true;
+  if (DS._nightShroud && SPELL_SHADOW.indexOf(id) !== -1 && isNightTime()) return true;
+  if (DS._spellWeaver) { DS._weaveCount = (DS._weaveCount || 0) + 1; if (DS._weaveCount % 2 === 1) return true; }
+  return false;
+}
+
+// ── SPELL FOLLOW-THROUGH (v11.7.3) ──
+// Most spells set a flag after their message that nothing ever read: Frost
+// Lance's freeze, Blood Shield, Phantom Step, Void Anchor, Chain Curse, Soul
+// Drain, The Forgotten, Blood Oath, Soul Bound, Nightmare Weave, Curse of
+// Echoes, Void Mirror, Time Fracture, The Hunger, Soul Leash, Soul Echo,
+// Extraction, Void Bolt's stun and the Fireball that comes back. Each flag is
+// turned into the effect its scroll describes.
+function spellPostEffects(spellId) {
+  var f = fxGet();
+  var stunFor = Math.max(DS._enemyStunned || 0, DS._enemyFrozen || 0, DS._enemyAnchored || 0, DS._enemyNightmare || 0);
+  if (stunFor > 0) f.stun = Math.max(f.stun, stunFor);
+  DS._enemyStunned = 0; DS._enemyFrozen = 0; DS._enemyAnchored = 0; DS._enemyNightmare = 0;
+  if (DS._enemyForgot) { f.forgotten = DS._enemyForgot; DS._enemyForgot = 0; }
+  if (DS._playerFrozen) { DS.frozen = true; DS._playerFrozen = 0; }
+  if (DS._bloodShield) { f.dodge += 1; DS._bloodShield = false; }
+  if (DS._phantomStep) { f.dodge += DS._phantomStep; DS._phantomStep = 0; }
+  if (DS._dodgeNext) { f.dodge += 1; DS._dodgeNext = false; }
+  if (DS._soulEchoPerfect) { f.dodge += 1; DS._soulEchoPerfect = false; }
+  if (DS._soulEchoPartial) { f.soften = 1 - DS._soulEchoPartial; f.softenHits = 1; DS._soulEchoPartial = 0; }
+  if (DS._chainCurse) { f.thorns = 0.5; f.thornsTurns = DS._chainCurse; DS._chainCurse = 0; }
+  if (DS._soulDrain) { f.soulDrain = DS._soulDrain; DS._soulDrain = 0; }
+  if (DS._enemyControlled) { f.controlled = DS._enemyControlled; DS._enemyControlled = 0; }
+  if (DS._extractControl) { f.controlled = Math.max(f.controlled || 0, 1); DS._extractControl = false; }
+  if (DS._bloodOath) { f.bloodOath = DS._bloodOath; DS._bloodOath = 0; }
+  if (DS._curseEchoes) { f.curseEchoes = DS._curseEchoes; DS._curseEchoes = 0; }
+  if (DS._voidMirror) { f.voidMirror = DS._voidMirror; DS._voidMirror = 0; }
+  if (DS._soulLeash) { f.soulLeash = true; DS._soulLeash = false; }
+  if (DS._hungerActive) { DS._hungerKills = 3; DS._hungerActive = 0; }
+  if (DS._furyActive) {
+    var fury = Math.floor(DS.atk[1] * 0.5);
+    f.fightAtk += fury; DS.atkBonus += fury; DS._furyActive = false;
+  }
+  if (DS._fireballReturn > 0) { f.fireballReturn = DS._fireballReturn; DS._fireballReturn = 0; }
 }
 
 function applySpellEffect(spellId, spellName) {
@@ -47059,7 +47204,8 @@ function applySpellEffect(spellId, spellName) {
       updatePlayerBar();
       break;
     case 'time-stop':
-      if (Math.random() < 0.50) {
+      // Time Lord — time obeys you: Time Stop always works
+      if (DS._timeLord || Math.random() < 0.50) {
         DS._timeStop = 3;
         addLog('⌛ Time Stop! 3 free attacks — enemy cannot respond!');
         say('Time Stop! Time freezes. You have 3 free attacks.');
@@ -47107,9 +47253,13 @@ function applySpellEffect(spellId, spellName) {
         addLog('👑 THE FINAL BOSS! ' + fbDmg + ' unstoppable damage!');
         say('The Final Boss! ' + fbDmg + ' devastating damage.');
       } else {
-        DS.skills = []; DS._buffActive = false; DS._gravePactActive = false;
-        addLog('👑 The Final Boss laughed. All your buffs and skills stripped!');
-        say('The Final Boss failed. The boss stripped all your buffs and abilities. Fight with raw power alone.');
+        // (this took your skills away for the whole run; the scroll says buffs)
+        DS._buffActive = false; DS._gravePactActive = false;
+        fxReset();
+        if (DS._tempAtk && DS._tempAtk.turns > 0) { DS.atkBonus -= DS._tempAtk.n; DS._tempAtk = null; }
+        if (DS._tempDef && DS._tempDef.turns > 0) { DS.defBonus -= DS._tempDef.n; DS._tempDef = null; }
+        addLog('👑 The Final Boss laughed. All your buffs are stripped!');
+        say('The Final Boss failed. The boss stripped all your buffs. Fight with raw power alone.');
       }
       break;
     case 'void-collapse':
@@ -47148,8 +47298,9 @@ function applySpellEffect(spellId, spellName) {
       break;
     case 'dungeon-echo':
       if (Math.random() < 0.50) {
-        if (e.def) e.def = Math.floor(e.def * 0.7);
-        addLog('🏰 Dungeon Echo! The dungeon answered. Enemy defense reduced.');
+        // (enemies have no defense to lower, so this did nothing; it now lays them open)
+        fxGet().vuln = Math.max(fxGet().vuln, 0.30); fxGet().vulnTurns = Math.max(fxGet().vulnTurns, 3);
+        addLog('🏰 Dungeon Echo! The dungeon answered. The enemy takes 30% more damage for 3 turns.');
         say('Dungeon Echo! The dungeon answered your question.');
       } else {
         var tDmg = 60;
@@ -47515,7 +47666,7 @@ function checkSpellScrollDrop() {
 
   var scroll = pool[Math.floor(Math.random() * pool.length)];
   if (DS.inventory) DS.inventory.push({
-    name: scroll.name, icon: scroll.icon, type: 'spell-scroll',
+    name: scroll.name, icon: scroll.icon, type: 'scroll',
     spellId: scroll.spellId, desc: scroll.desc, rarity: scroll.rarity
   });
   addLog('📜 ' + scroll.name + ' dropped! [' + scroll.rarity.toUpperCase() + ']');
@@ -52224,6 +52375,7 @@ function applyPendingDream(ch) {
     try { applyBackstoryToRun(ch); } catch (e) {}
     try { applyPendingDream(ch); } catch (e) {}
     try { applyNextRunRewards(ch); } catch (e) {}
+    if (ch && ch.spellBook) DS.spellBook = true;
     return r;
   };
 })();
