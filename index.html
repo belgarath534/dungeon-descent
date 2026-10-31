@@ -52612,8 +52612,11 @@ function applyBackstoryToRun(ch) {
 // their extras. Each "+STAT" is one level point on that stat; "-STAT" takes one away.
 var RACE_STAT_IDS = { STR:'strength', AGI:'agility', INT:'intelligence', DEF:'defense', LCK:'luck', STA:'stamina' };
 function applyRaceStats(ch) {
-  if (!ch || hasMidRunSave(ch)) return;
+  if (!ch) return;
+  // Abilities are flags (kept on a resumed run); the stats are saved with the run
   DS.golemRace = ch.race === 'Golem';
+  DS.angelRace = ch.race === 'Angel';
+  if (hasMidRunSave(ch)) return;
   var desc = (typeof _raceDescs !== 'undefined' && _raceDescs[ch.race]) || '';
   var lp = function(id, sign) {
     var st = LP_STATS.find(function(s){ return s.id === id; });
@@ -52633,7 +52636,6 @@ function applyRaceStats(ch) {
   if (ch.race === 'Golem') DS.defBonus = (DS.defBonus || 0) + 5;
   if (ch.race === 'Vampire') { DS.maxHp = Math.round(DS.maxHp * 0.80); DS.hp = Math.min(DS.hp, DS.maxHp); }
   if (ch.race === 'Goblin') { DS.gold += 30; addGlobalGold(30); }
-  DS.angelRace = ch.race === 'Angel';
 }
 
 // Seasonal shop rewards saved "for your next run" (nothing ever read them).
