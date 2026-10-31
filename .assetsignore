@@ -1,0 +1,4 @@
+backup/
+**/README.md
+.git/
+functions/
