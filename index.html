@@ -1660,6 +1660,7 @@
       </div>
       <div class="dg-actions" role="group" aria-label="Dungeon actions">
         <button type="button" class="dg-act-btn" onclick="voiceCommand()" aria-label="Speak a command — say north, south, east, west, search, echo-locate, or inventory" style="border-color:#44aacc;color:#66ccff;">🎤 Voice</button>
+        <button type="button" class="dg-act-btn" onclick="audioMap()" aria-label="Audio map — plays this floor as sounds around you, best with headphones. Alt plus M." style="border-color:#44aa88;color:#66ddaa;">🗺 Audio Map</button>
         <button type="button" class="dg-act-btn" onclick="echoLocate()" aria-label="Echo-locate — sense the walls and doors of the room you're in, using 3D Mode's room layout data. Alt plus E.">📡 Echo-locate</button>
         <button type="button" class="dg-act-btn" onclick="toggleInv()" aria-label="Toggle inventory">🎒 Inventory</button>
         <button type="button" class="dg-act-btn" onclick="showStats()" aria-label="View character stats">📊 Stats</button>
@@ -1996,6 +1997,7 @@
         <li>🏆 Battle Pass — an 8-week season of 50 tiers, earned by playing, never bought. Everything you do gives Pass XP, five weekly quests give a lot more, and every tier pays as you reach it: gold, Mystery Coins, Soul Fragments, and season titles at tiers 25 and 50. Find it on the main menu.</li>
         <li>⭐ Prestige — a character at their level cap can start over at level 1 for a permanent star, up to 10. Each star is +5% health, +5% attack and +10% gold in every run, and pays 1,000 gold a star and a Mystery Coin. Find the Prestige button on the character's card.</li>
         <li>☁️ Cloud sync — your whole save now travels between the web and the iPhone, Mac and Apple Vision Pro apps: gold, Endless Descent, your inventory, spells, guns, prestige stars and the Battle Pass, not only your characters. Opening the game loads a newer save from another device by itself, and asks only when you played on both.</li>
+        <li>🗺 Audio Map — a new button in the dungeon (or Alt+M) plays the whole floor as sounds around you: the rooms you've been in, the ones you haven't, the stairs or the boss, and the hunter if it's after you. In 3D Mode every room sounds from where it really is. Best with headphones.</li>
         <li>🔧 Fixed: opening the game no longer uploads its save over newer progress from another device.</li>
       </ul>
     </div>
@@ -7664,6 +7666,7 @@
 <script src="js/29-prestige.js?v=12.0.1"></script>
 <script src="js/30-battle-pass.js?v=12.0.1"></script>
 <script src="js/31-coop.js?v=12.0.1"></script>
+<script src="js/32-audio-map.js?v=12.0.2"></script>
 
 
 
