@@ -103,7 +103,7 @@
 </script>
 <title>Dungeon Descent</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/game.css?v=11.8">
+<link rel="stylesheet" href="css/game.css?v=11.9">
 <!-- FIREBASE SDK -->
 <!-- Capacitor -->
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js" crossorigin="anonymous"></script>
@@ -178,7 +178,7 @@
 })();
 </script>
 
-<script src="js/01-storage.js?v=11.8"></script>
+<script src="js/01-storage.js?v=11.9"></script>
 
 </head>
 <body>
@@ -232,7 +232,7 @@
     <!-- Title -->
     <div class="loading-title" data-i18n="game-title" style="font-size:2.4rem;line-height:1.1;margin-bottom:6px;">Dungeon<br>Descent</div>
     <div class="loading-sub" data-i18n="game-subtitle" style="margin-bottom:6px;">Into the dark. Again.</div>
-    <div style="font-family:Cinzel,serif;font-size:0.58rem;color:#333;letter-spacing:0.2em;margin-bottom:40px;" aria-hidden="true" id="loading-version-tag">v11.8</div>
+    <div style="font-family:Cinzel,serif;font-size:0.58rem;color:#333;letter-spacing:0.2em;margin-bottom:40px;" aria-hidden="true" id="loading-version-tag">v11.9</div>
 
     <!-- Loading bar -->
     <div class="loading-bar-wrap">
@@ -346,7 +346,10 @@
       <button data-lang="Obituary" data-pt="Obituário" class="menu-btn" id="menu-btn-obituary" onclick="goTo('obituary')" aria-label="Obituary, see recent deaths from players around the world">
         <span data-i18n="btn-obituary">☠️ Obituary</span>
       </button>
-      <button data-lang="Challenges" data-pt="Desafios" class="menu-btn" id="menu-btn-challenges" onclick="goTo('challenges')" aria-label="Challenges — The Gauntlet and Daily Dungeon">
+      <button data-lang="World Boss" data-pt="Chefe Mundial" class="menu-btn" id="menu-btn-worldboss" onclick="openWorldBoss()" aria-label="Daily World Boss, one boss a day that every player fights together" style="color:#ff8866;border-color:#883322;">
+        <span>🐉 World Boss</span>
+      </button>
+      <button data-lang="Challenges" data-pt="Desafios" class="menu-btn" id="menu-btn-challenges" onclick="goTo('challenges')" aria-label="Challenges — The Gauntlet, Daily Dungeon and Weekly Ladder">
         <span data-i18n="btn-challenges">🔥 Challenges</span>
       </button>
 
@@ -411,7 +414,7 @@
         <span data-i18n="btn-quit">🕯 Quit</span>
       </button>
     </nav>
-    <p class="version-tag" id="menu-version-tag" aria-label="Version 11 point 8, Release">v11.8 · Release</p>
+    <p class="version-tag" id="menu-version-tag" aria-label="Version 11 point 9, Release">v11.9 · Release</p>
     <p id="menu-online-count" style="font-family:Cinzel,serif;font-size:0.55rem;color:#444;margin-top:4px;letter-spacing:0.1em;" aria-live="polite" aria-label="Players currently online"></p>
     <p style="font-family:Cinzel,serif;font-size:0.7rem;color:#ffdd44;margin-top:6px;" aria-label="Your global gold" aria-live="polite"><span data-i18n="lbl-gold">💰 </span><span class="global-gold-display">0</span></p>
     <p style="font-family:Cinzel,serif;font-size:0.7rem;color:#88ddff;margin-top:2px;" aria-label="Your diamonds" aria-live="polite">💎 <span class="global-diamond-display">0</span></p>
@@ -1977,8 +1980,19 @@
       <button class="back-btn" onclick="goTo('menu')" aria-label="Back to main menu">← Menu</button>
       <h2 class="screen-title">What's New</h2>
     </div>
-    <div class="version-block latest" tabindex="0" aria-label="Version 11.8">
-      <div class="version-num">v11.8 — Latest</div>
+    <div class="version-block latest" tabindex="0" aria-label="Version 11.9">
+      <div class="version-num">v11.9 — Latest</div>
+      <div class="version-date">The Together Update</div>
+      <ul class="version-changes">
+        <li>🐉 Daily World Boss — a new boss every day that every player fights together, on the web and in the iPhone app. 30,000 shared HP and 10 strikes each a day. If it falls, everyone who struck it gets 750 gold and 2 Soul Fragments. Find it on the main menu.</li>
+        <li>📆 Weekly Ladder — the third tab in Challenges. One dungeon all week, one life, and a top 10 that starts over every Monday. The same ladder as the iPhone app.</li>
+        <li>🏁 Endless Descent rivals — the Endless Descent screen shows the next player above your floor, and tells you when you pass someone.</li>
+        <li>❓ What just happened — in a run, press Alt+W to hear the last few lines again.</li>
+        <li>📱 New in the iPhone app: Game Center challenges, Siri and Shortcuts, an Apple Watch complication, Apple Music in My Tracks, and much more Portuguese.</li>
+      </ul>
+    </div>
+    <div class="version-block" tabindex="0" aria-label="Version 11.8">
+      <div class="version-num">v11.8</div>
       <div class="version-date">The Festival Update</div>
       <ul class="version-changes">
         <li>🎉 Nine new events come to the dungeon, each with its own enemies, bonuses and twist. Check the Events screen to see when each one is on.</li>
@@ -7216,29 +7230,29 @@
   </div>
 </div>
 
-<script src="js/02-core-data-and-utilities.js?v=11.8"></script>
-<script src="js/03-character-creation.js?v=11.8"></script>
-<script src="js/04-dungeons-and-run-start.js?v=11.8"></script>
-<script src="js/05-floors-and-combat.js?v=11.8"></script>
-<script src="js/06-shadow-world-and-inventory.js?v=11.8"></script>
-<script src="js/07-shop.js?v=11.8"></script>
-<script src="js/08-global-chat-system.js?v=11.8"></script>
-<script src="js/09-multi-stage-boss.js?v=11.8"></script>
-<script src="js/10-tournament-system.js?v=11.8"></script>
-<script src="js/11-translations-pt-br.js?v=11.8"></script>
-<script src="js/12-translate-function.js?v=11.8"></script>
-<script src="js/13-mystery-coin-shop.js?v=11.8"></script>
-<script src="js/14-daily-challenge-and-events.js?v=11.8"></script>
-<script src="js/15-tutorial-system.js?v=11.8"></script>
-<script src="js/16-pvp-multiplayer.js?v=11.8"></script>
-<script src="js/17-menu-event-banner.js?v=11.8"></script>
-<script src="js/18-hunting-grounds.js?v=11.8"></script>
-<script src="js/19-death-cinematic-system.js?v=11.8"></script>
-<script src="js/20-restored-session-systems.js?v=11.8"></script>
-<script src="js/21-command-center.js?v=11.8"></script>
-<script src="js/22-endless-descent-afk-mode.js?v=11.8"></script>
-<script src="js/23-multi-enemy-combat-system.js?v=11.8"></script>
-<script src="js/24-embers-and-startup.js?v=11.8"></script>
+<script src="js/02-core-data-and-utilities.js?v=11.9"></script>
+<script src="js/03-character-creation.js?v=11.9"></script>
+<script src="js/04-dungeons-and-run-start.js?v=11.9"></script>
+<script src="js/05-floors-and-combat.js?v=11.9"></script>
+<script src="js/06-shadow-world-and-inventory.js?v=11.9"></script>
+<script src="js/07-shop.js?v=11.9"></script>
+<script src="js/08-global-chat-system.js?v=11.9"></script>
+<script src="js/09-multi-stage-boss.js?v=11.9"></script>
+<script src="js/10-tournament-system.js?v=11.9"></script>
+<script src="js/11-translations-pt-br.js?v=11.9"></script>
+<script src="js/12-translate-function.js?v=11.9"></script>
+<script src="js/13-mystery-coin-shop.js?v=11.9"></script>
+<script src="js/14-daily-challenge-and-events.js?v=11.9"></script>
+<script src="js/15-tutorial-system.js?v=11.9"></script>
+<script src="js/16-pvp-multiplayer.js?v=11.9"></script>
+<script src="js/17-menu-event-banner.js?v=11.9"></script>
+<script src="js/18-hunting-grounds.js?v=11.9"></script>
+<script src="js/19-death-cinematic-system.js?v=11.9"></script>
+<script src="js/20-restored-session-systems.js?v=11.9"></script>
+<script src="js/21-command-center.js?v=11.9"></script>
+<script src="js/22-endless-descent-afk-mode.js?v=11.9"></script>
+<script src="js/23-multi-enemy-combat-system.js?v=11.9"></script>
+<script src="js/24-embers-and-startup.js?v=11.9"></script>
 
 <!-- AFK SKILL PICK OVERLAY -->
 <div id="ov-afk-skill" role="dialog" aria-modal="true" aria-label="Choose skills from AFK level up" style="display:none;position:fixed;inset:0;background:#050505ee;z-index:985;flex-direction:column;align-items:center;justify-content:center;padding:20px;">
@@ -7624,8 +7638,9 @@
 </div>
 
 
-<script src="js/25-notification-preferences.js?v=11.8"></script>
-<script src="js/26-events-11-8.js?v=11.8"></script>
+<script src="js/25-notification-preferences.js?v=11.9"></script>
+<script src="js/26-events-11-8.js?v=11.9"></script>
+<script src="js/27-update-11-9.js?v=11.9"></script>
 
 
 
