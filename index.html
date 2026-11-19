@@ -1615,6 +1615,7 @@
         <div id="dg-shadow-corruption" style="display:none;font-family:Cinzel,serif;font-size:0.65rem;color:#9966cc;margin-top:4px;" aria-live="assertive"></div>
       </div>
       <div class="dg-combat-log" id="dg-combat-log" role="log" aria-live="polite" aria-label="Combat log"></div>
+      <button type="button" class="dg-btn" id="dg-recap-btn" onclick="whatJustHappened()" aria-label="What just happened? Reads the last five lines again. Alt+W on a keyboard." style="width:100%;margin:6px 0;font-size:0.7rem;">❓ What just happened</button>
       <div class="dg-combat-actions" role="group" aria-label="Combat actions">
         <button type="button" class="dg-combat-btn" onclick="voiceCommand()" aria-label="Speak a combat command — say attack, heavy, defend, potion, flee, or skill" style="border-color:#44aacc;color:#66ccff;">🎤 Voice</button>
         <button type="button" class="dg-combat-btn" id="cbtn-attack" onclick="doFight('attack')" aria-label="Attack">⚔ Attack</button>
@@ -1645,6 +1646,7 @@
         <span></span>
         <button type="button" class="dg-btn" onclick="moveRoom('west')" aria-label="Move west">◄ West</button>
         <button type="button" class="dg-btn accent" onclick="searchRoom()" aria-label="Search this room">🔍 Search</button>
+        <button type="button" class="dg-btn" id="dg-recap-btn-nav" onclick="whatJustHappened()" aria-label="What just happened? Reads the last five lines again. Alt+W on a keyboard.">❓ What just happened</button>
         <button type="button" class="dg-btn" onclick="moveRoom('east')" aria-label="Move east">East ►</button>
         <span></span>
         <button type="button" class="dg-btn" onclick="moveRoom('south')" aria-label="Move south">▼ South</button>
@@ -1987,7 +1989,7 @@
         <li>🐉 Daily World Boss — a new boss every day that every player fights together, on the web and in the iPhone app. 30,000 shared HP and 10 strikes each a day. If it falls, everyone who struck it gets 750 gold and 2 Soul Fragments. Find it on the main menu.</li>
         <li>📆 Weekly Ladder — the third tab in Challenges. One dungeon all week, one life, and a top 10 that starts over every Monday. The same ladder as the iPhone app.</li>
         <li>🏁 Endless Descent rivals — the Endless Descent screen shows the next player above your floor, and tells you when you pass someone.</li>
-        <li>❓ What just happened — in a run, press Alt+W to hear the last few lines again.</li>
+        <li>❓ What just happened — in a run, tap the new ❓ What just happened button (or press Alt+W) to hear the last few lines again.</li>
         <li>📱 New in the iPhone app: Game Center challenges, Siri and Shortcuts, an Apple Watch complication, Apple Music in My Tracks, and much more Portuguese.</li>
       </ul>
     </div>
