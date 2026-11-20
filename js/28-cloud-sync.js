@@ -21,6 +21,9 @@ var CS = {
   dirtyKey: 'dd_sync_dirty_at',
   deviceOnly: ['dd_presence_id', 'dd_dev_mode', 'dd_lang', 'dd_notif_prefs', 'dd_icloud_backup_enabled',
                'dd_last_seen', 'dd_version_seen', 'dd_shake', 'dd_music_loop'],
+  // Saved by just having the game open, not by playing: synced, but not
+  // progress (or every device looks changed and the game keeps asking).
+  passive: ['dd_total_playtime'],
   maxBytes: 900000,
   launchDone: false,
   lastCheck: 0
@@ -29,17 +32,18 @@ var CS = {
 function csSynced(k) {
   return k && k.indexOf('dd_') === 0 && k.indexOf('dd_sync_') !== 0 && CS.deviceOnly.indexOf(k) === -1;
 }
+function csProgress(k) { return csSynced(k) && CS.passive.indexOf(k) === -1; }
 function csNum(v) { var n = Number(v); return isNaN(n) ? 0 : n; }
 
 // Note when the save changes (not this browser's own settings).
 (function() {
   var _set = DDStore.setItem, _remove = DDStore.removeItem;
   DDStore.setItem = function(k, v) {
-    if (csSynced(k) && DDStore.getItem(k) !== String(v)) _set.call(DDStore, CS.dirtyKey, String(Date.now()));
+    if (csProgress(k) && DDStore.getItem(k) !== String(v)) _set.call(DDStore, CS.dirtyKey, String(Date.now()));
     return _set.apply(DDStore, arguments);
   };
   DDStore.removeItem = function(k) {
-    if (csSynced(k) && DDStore.getItem(k) !== null) _set.call(DDStore, CS.dirtyKey, String(Date.now()));
+    if (csProgress(k) && DDStore.getItem(k) !== null) _set.call(DDStore, CS.dirtyKey, String(Date.now()));
     return _remove.apply(DDStore, arguments);
   };
 })();
