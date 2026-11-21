@@ -938,6 +938,20 @@ function closeTitlePicker() {
   if (ov) ov.style.display = 'none';
 }
 
+// Titles earned outside the coin list: the Gauntlet's reward (also for
+// anyone who cleared it before it was given), the Descent Shop's two, the
+// seasonal ones. The picker only listed TITLE_TAGS, so none of these showed.
+var EARNED_TITLES = { gauntlet_champion: 'Gauntlet Champion' };
+function extraOwnedTitles() {
+  var out = [];
+  function add(t) { if (t && TITLE_TAGS.indexOf(t) === -1 && out.indexOf(t) === -1) out.push(t); }
+  _jsonParseSafe(DDStore.getItem('dd_owned_titles'), '["Wanderer"]').forEach(add);
+  _jsonParseSafe(DDStore.getItem('dd_unlocked_titles'), '[]').forEach(add);
+  var unlocked = (typeof getUnlockedAchievements === 'function') ? getUnlockedAchievements() : [];
+  Object.keys(EARNED_TITLES).forEach(function(id) { if (unlocked.indexOf(id) !== -1) add(EARNED_TITLES[id]); });
+  return out;
+}
+
 function renderTitlePicker() {
   var firstName = getPlayerFirstName();
   var current = getPlayerTitle();
@@ -954,9 +968,10 @@ function renderTitlePicker() {
   if (!grid) return;
   grid.innerHTML = '';
 
-  TITLE_TAGS.forEach(function(tag) {
+  var extras = extraOwnedTitles();
+  TITLE_TAGS.concat(extras).forEach(function(tag) {
     var cost = TITLE_COSTS[tag] || 0;
-    var isOwned = owned.indexOf(tag) !== -1 || cost === 0;
+    var isOwned = owned.indexOf(tag) !== -1 || cost === 0 || extras.indexOf(tag) !== -1;
     var isCurrent = tag === current;
     var canAfford = coins >= cost;
 

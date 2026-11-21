@@ -1888,7 +1888,7 @@ function showVictory() {
       saveAchievementStats(gAch);
       awardAchievement('gauntlet_champion');
       DDStore.setItem('dd_gauntlet_best', Date.now());
-      say('THE GAUNTLET IS COMPLETE! All 6 dungeons cleared. You are the Gauntlet Champion.');
+      say('THE GAUNTLET IS COMPLETE! All 6 dungeons cleared. You are the Gauntlet Champion. Title unlocked: Gauntlet Champion. Wear it from Account, Change Title.');
     }
   }
 
