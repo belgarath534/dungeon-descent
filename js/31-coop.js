@@ -387,15 +387,21 @@ function coopRender() {
     });
     var m = coopMe();
     if (m && m.hp > 0) {
-      if (COOP.myAction) {
+      // The buttons stay after you choose (disabled), so the screen reader
+      // stays on the one you pressed instead of jumping away.
+      var picked = COOP.myAction;
+      function act(id, label, aria, primary) {
+        var b = _coBtn(label, picked ? '' : "coopAct('" + id + "')", aria + (picked === id ? '. Chosen.' : ''), primary);
+        return picked ? b.replace('<button ', '<button aria-disabled="true" ') : b;
+      }
+      h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px;">' +
+        act('attack', '⚔ Attack', 'Attack, ' + m.atkLo + ' to ' + m.atkHi + ' damage', true) +
+        act('heavy', '💥 Heavy', 'Heavy strike, much harder but can miss', true) +
+        act('defend', '🛡 Defend', 'Defend: strike for half and take half') +
+        act('potion', '🧪 Potion (' + m.potions + ')', 'Potion, heal 40 percent. ' + m.potions + ' left.') + '</div>';
+      if (picked) {
         var waiting = COOP.party.filter(function(p) { return p.hp > 0 && !COOP.actions[p.id]; }).map(function(p) { return p.name; });
-        h += '<p style="font-style:italic;color:#888;margin-top:10px;">You chose ' + COOP.myAction + '. Waiting for ' + (waiting.length ? _u119Esc(waiting.join(', ')) : 'the round') + '.</p>';
-      } else {
-        h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px;">' +
-          _coBtn('⚔ Attack', "coopAct('attack')", 'Attack, ' + m.atkLo + ' to ' + m.atkHi + ' damage', true) +
-          _coBtn('💥 Heavy', "coopAct('heavy')", 'Heavy strike, much harder but can miss', true) +
-          _coBtn('🛡 Defend', "coopAct('defend')", 'Defend: strike for half and take half') +
-          _coBtn('🧪 Potion (' + m.potions + ')', "coopAct('potion')", 'Potion, heal 40 percent. ' + m.potions + ' left.') + '</div>';
+        h += '<p style="font-style:italic;color:#888;margin-top:10px;">You chose ' + picked + '. Waiting for ' + (waiting.length ? _u119Esc(waiting.join(', ')) : 'the round') + '.</p>';
       }
     } else h += '<p style="font-style:italic;color:#888;">You\'re down. You get back up on the next floor.</p>';
     h += _coH('WHAT HAPPENED') + '<div aria-label="Co-op log">' + COOP.log.slice(0, 12).map(function(l) {
@@ -407,6 +413,10 @@ function coopRender() {
       (COOP.endText ? '<p style="color:#bbb;">' + _u119Esc(COOP.endText) + '</p>' : '') +
       _coBtn('🤝 Play Again', 'coopLeave()', null, true) + _coBtn('← Main Menu', "coopLeave();goTo('menu')");
   }
+  // Nothing changed (most room updates are only heartbeats): don't redraw,
+  // or the screen reader loses its place.
+  if (h === COOP._lastHtml && el.innerHTML) return;
+  COOP._lastHtml = h;
   // Keep focus where it was when the screen redraws.
   var focusedLabel = document.activeElement && document.activeElement.closest && document.activeElement.closest('#screen-coop') ? document.activeElement.getAttribute('aria-label') : null;
   var typed = (document.getElementById('coop-code') || {}).value;
