@@ -671,12 +671,12 @@ function updateAFKUI() {
   var lvlEl = document.getElementById('afk-level-display');
   if (lvlEl) lvlEl.textContent = AFK.level || 1;
   // XP bar
-  var xpNeeded = [0,100,220,380,580,820,1100,1430,1810,2240,9999][AFK.level || 1];
-  var xpPct = AFK.level >= 10 ? 100 : Math.min(100, Math.round(((AFK.xp || 0) / xpNeeded) * 100));
+  var xpNeeded = afkXpToLevelUp(AFK.level || 1);
+  var xpPct = xpNeeded === null ? 100 : Math.min(100, Math.round(((AFK.xp || 0) / xpNeeded) * 100));
   var xpBar = document.getElementById('afk-xp-bar');
   if (xpBar) xpBar.style.width = xpPct + '%';
   var xpText = document.getElementById('afk-xp-text');
-  if (xpText) xpText.textContent = (AFK.xp || 0) + ' / ' + (AFK.level >= 10 ? 'MAX' : xpNeeded);
+  if (xpText) xpText.textContent = (AFK.xp || 0) + ' / ' + (xpNeeded === null ? 'MAX' : xpNeeded);
   var potBtn = document.getElementById('afk-potion-btn');
   if (potBtn) {
     potBtn.textContent = '🧪 Potion (' + AFK.potions + ')';
@@ -898,14 +898,23 @@ function afkDoBossFight() {
 }
 
 // ── AFK LEVEL UP ──
+// The Endless level cap: 50 since 12.0.1 (it stopped at 10). Past level 9
+// each level needs 500 more XP than the last; the same table as the apps.
+var AFK_MAX_LEVEL = 50;
+function afkXpToLevelUp(level) {
+  var t = [0,100,220,380,580,820,1100,1430,1810,2240];
+  if (level < 1 || level >= AFK_MAX_LEVEL) return null;
+  return level < t.length ? t[level] : t[t.length - 1] + (level - 9) * 500;
+}
+
 function afkCheckLevelUp() {
-  if (AFK.level >= 10) return;
-  var needed = [0,100,220,380,580,820,1100,1430,1810,2240,9999][AFK.level];
-  while (AFK.xp >= needed && AFK.level < 10) {
+  if (AFK.level >= AFK_MAX_LEVEL) return;
+  var needed = afkXpToLevelUp(AFK.level);
+  while (needed !== null && AFK.xp >= needed && AFK.level < AFK_MAX_LEVEL) {
     AFK.xp -= needed;
     AFK.level++;
     AFK.levelsGainedThisRun++;
-    needed = [0,100,220,380,580,820,1100,1430,1810,2240,9999][AFK.level];
+    needed = afkXpToLevelUp(AFK.level);
 
     // HP increases and heals in real time
     var hpGain = 10;
