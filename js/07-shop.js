@@ -125,8 +125,10 @@ function renderShop() {
     costEl.className = 'shop-item-cost';
     costEl.setAttribute('aria-hidden','true');
     costEl.textContent = item.sold ? '—' : finalCost + 'g';
-    if (nightDisc && !item.sold) {
-      costEl.innerHTML = '<span style="text-decoration:line-through;color:#555;font-size:0.65rem;">' + item.cost + 'g</span> <span style="color:#6ab0f0;">🌙' + finalCost + 'g</span>';
+    // Crossed out: the daytime price (with Gold Curse), not the base price,
+    // or a cursed potion looked like it went up at night.
+    if (nightDisc && !item.sold && finalCost < rawCost) {
+      costEl.innerHTML = '<span style="text-decoration:line-through;color:#555;font-size:0.65rem;">' + rawCost + 'g</span> <span style="color:#6ab0f0;">🌙' + finalCost + 'g</span>';
     }
     rightEl.appendChild(costEl);
     if (!item.sold) {
