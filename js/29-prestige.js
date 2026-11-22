@@ -57,6 +57,7 @@ function doPrestige(i) {
   ch.persistLevel = 1;
   ch.persistXp = 0;
   ch.persistSkills = [];
+  ch.lpSpent = {};
   if (ch.dungeonTier) ch.dungeonTier = 1;
   saveChars();
   addGlobalGold(1000 * s);

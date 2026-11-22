@@ -281,19 +281,28 @@ function renderShopSell() {
     list.innerHTML = '<div style="font-family:Cinzel,serif;font-size:0.68rem;color:#555;padding:8px;">Nothing in inventory to sell.</div>';
     return;
   }
+  // 12.0.2: identical items (name, type and price) are one row with a count;
+  // selling sells one. Ten elixirs were ten rows. The apps do the same.
+  var stacks = [], at = {};
   inv.forEach(function(item, idx) {
+    var key = item.name + '|' + (item.type || '') + '|' + getSellPrice(item);
+    if (at[key] !== undefined) stacks[at[key]].count++;
+    else { at[key] = stacks.length; stacks.push({ item: item, idx: idx, count: 1 }); }
+  });
+  stacks.forEach(function(st) {
+    var item = st.item, idx = st.idx, count = st.count;
     var price = getSellPrice(item);
     var row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #1a1a00;';
     row.setAttribute('tabindex','0');
-    row.setAttribute('aria-label', item.name + '. Sell for ' + price + ' gold.');
+    row.setAttribute('aria-label', item.name + (count > 1 ? ', ' + count + ' of them' : '') + '. Sell for ' + price + ' gold.');
     var info = document.createElement('div');
     info.style.cssText = 'flex:1;font-family:Cinzel,serif;font-size:0.68rem;color:#cc9944;';
-    info.textContent = (item.icon||'') + ' ' + item.name;
+    info.textContent = (item.icon||'') + ' ' + item.name + (count > 1 ? ' ×' + count : '');
     var btn = document.createElement('button');
     btn.style.cssText = 'padding:4px 10px;background:#1a0800;border:1px solid #aa6622;color:#cc8844;font-family:Cinzel,serif;font-size:0.62rem;cursor:pointer;';
     btn.textContent = price + 'g';
-    btn.setAttribute('aria-label', 'Sell ' + item.name + ' for ' + price + ' gold');
+    btn.setAttribute('aria-label', count > 1 ? 'Sell one ' + item.name + ' for ' + price + ' gold. You have ' + count : 'Sell ' + item.name + ' for ' + price + ' gold');
     btn.onclick = function() {
       DS.inventory.splice(idx, 1);
       DS.gold += price;

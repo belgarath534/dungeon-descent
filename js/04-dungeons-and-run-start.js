@@ -2315,12 +2315,23 @@ function initDungeon(ch) {
       DS.level = _lgLv;
       DS.xp = Math.max(0, ch.persistXp || 0);
       if (ch.persistSkills && ch.persistSkills.length) DS.unlockedSkills = ch.persistSkills.slice();
-      DS.levelPoints = (DS.levelPoints || 0) + 3 * (_lgLv - 1);
+      // Points already spent go back on their stats (lpSpent, the same as
+      // the apps); only the rest are free to spend.
+      var _budget = 3 * (_lgLv - 1), _used = 0, _spent = ch.lpSpent || {};
+      LP_STATS.forEach(function(st) {
+        var n = Math.min(_spent[st.id] || 0, _budget - _used);
+        for (var k = 0; k < n; k++) st.apply();
+        _used += Math.max(0, n);
+      });
+      DS.levelPoints = (DS.levelPoints || 0) + (_budget - _used);
       setTimeout(function() {
-        setEvent('good', '🌑 Legacy — you return at level ' + _lgLv + '. ' + (3 * (_lgLv - 1)) + ' level points to spend.');
-        say('Legacy. You return at level ' + _lgLv + ', with ' + (3 * (_lgLv - 1)) + ' level points to spend at your next level up.');
+        setEvent('good', '🌑 Legacy — you return at level ' + _lgLv + '. ' + (_used ? _used + ' spent level points stay on your stats. ' : '') + DS.levelPoints + ' to spend.');
+        say('Legacy. You return at level ' + _lgLv + '. ' + (_used ? _used + ' spent level points stay on your stats. ' : '') + DS.levelPoints + ' level points to spend.');
       }, 1200);
     }
+  } else if (ch.lpSpent) {
+    // A fresh level-1 run starts its points over.
+    ch.lpSpent = {};
   }
 
   // ── LEGACY MODE: dungeon tier scaling ──
