@@ -140,6 +140,11 @@ function startAFKRun() {
 
   AFK.atk = 28 + Math.round((ch.atkBonus || 0) * 0.7) + (ch.level ? (ch.level - 1) * 2 : 0) + (atkBoosts * 5) + persistAtkBonus + _afkWepBonus;
   AFK.def = (ch.defBonus || 0) + _afkDefBonus;
+  // 12.0.1: stat points spent after earlier runs (the apps use the same afkStats).
+  var _tr = afkTrained(ch);
+  AFK.maxHp += _tr.hp * 20; AFK.hp = AFK.maxHp;
+  AFK.atk += _tr.atk * 2;
+  AFK.def += _tr.def;
   AFK.points = 0;
   AFK.potions = 5 + extraPotions; // Bumped from 2 — need more for long runs
   AFK.FIGHT_MS = slowFight ? 20000 : 15000; // Slowed from 12/15s — more time per fight = longer runs
@@ -436,6 +441,11 @@ function afkEndRun() {
 
   // Save persistent level progress
   saveCharPersistentLevel(AFK.level, AFK.xp, AFK.skills, AFK.maxHp, AFK.atk - 20, AFK.charIdx);
+  // One stat point for every level gained, spent on the summary.
+  if (AFK.levelsGainedThisRun > 0 && CHARS[AFK.charIdx]) {
+    var _t = afkTrained(CHARS[AFK.charIdx]); _t.points += AFK.levelsGainedThisRun;
+    CHARS[AFK.charIdx].afkStats = _t; saveChars();
+  }
 
   // If levels were gained this run — show skill pick screen first
   if (AFK.levelsGainedThisRun > 0) {
@@ -519,6 +529,58 @@ function afkShowSkillPick() {
   }, 150);
 }
 
+// ── 12.0.1: STAT POINTS ── one per level gained in a run: +20 max HP, +2
+// attack or +1 defense for every later Endless run, kept on the character as
+// afkStats {hp, atk, def, points} (the same object as the apps, so it syncs).
+var AFK_STATS = [
+  { id: 'hp',  label: '❤️ +20 Max HP', spoken: '20 more max HP' },
+  { id: 'atk', label: '⚔️ +2 Attack',  spoken: '2 more attack' },
+  { id: 'def', label: '🛡 +1 Defense', spoken: '1 more defense' }
+];
+function afkTrained(ch) {
+  var t = (ch && ch.afkStats) || {};
+  return { hp: t.hp || 0, atk: t.atk || 0, def: t.def || 0, points: t.points || 0 };
+}
+function afkTrain(id) {
+  var ch = CHARS[AFK.charIdx];
+  if (!ch) return;
+  var t = afkTrained(ch);
+  if (t.points <= 0) { say('No stat points left.'); return; }
+  t.points -= 1; t[id] += 1;
+  ch.afkStats = t; saveChars();
+  sfx('sfx-select');
+  var st = AFK_STATS.filter(function(s) { return s.id === id; })[0];
+  afkRenderStatPoints(id);
+  say(st.spoken + ' for every Endless run. ' + t.points + ' point' + (t.points === 1 ? '' : 's') + ' left.');
+}
+function afkRenderStatPoints(focusId) {
+  var box = document.getElementById('afk-stat-points');
+  var host = document.getElementById('afk-summary-content');
+  if (!box && host) {
+    box = document.createElement('div');
+    box.id = 'afk-stat-points';
+    box.style.cssText = 'border:1px solid #332a00;padding:12px;margin:18px 0 0;';
+    host.parentNode.insertBefore(box, host.nextSibling);
+  }
+  if (!box) return;
+  var ch = CHARS[AFK.charIdx];
+  var t = afkTrained(ch);
+  if (!ch || (t.points <= 0 && t.hp + t.atk + t.def === 0)) { box.innerHTML = ''; box.style.display = 'none'; return; }
+  box.style.display = '';
+  var h = '<h3 style="font-family:Cinzel,serif;font-size:0.75rem;letter-spacing:0.15em;color:#ffdd44;margin:0 0 6px;" aria-label="Stat points to spend: ' + t.points + '">STAT POINTS: ' + t.points + '</h3>' +
+    '<p style="font-family:\'Crimson Text\',serif;font-style:italic;color:#a89070;margin:0 0 8px;">One point for every level gained. Each one makes this character stronger in every Endless run.</p>';
+  AFK_STATS.forEach(function(s) {
+    var n = t[s.id];
+    // The buttons stay when the points run out (disabled), so the screen
+    // reader doesn't lose its place.
+    h += '<button class="menu-btn' + (t.points > 0 ? ' primary' : '') + '" id="afk-stat-' + s.id + '" style="width:100%;margin-bottom:6px;"' +
+      (t.points > 0 ? '' : ' aria-disabled="true"') + ' onclick="afkTrain(\'' + s.id + '\')" aria-label="' + s.label + '. Trained: ' + n + '.' + (t.points > 0 ? '' : ' No points left.') + '">' +
+      s.label + ' ×' + n + '</button>';
+  });
+  box.innerHTML = h;
+  if (focusId) { var b = document.getElementById('afk-stat-' + focusId); if (b) b.focus(); }
+}
+
 function afkShowSummary() {
   var save = getAFKSave();
   var summaryEl = document.getElementById('afk-summary-content');
@@ -556,9 +618,12 @@ function afkShowSummary() {
     });
   }
 
+  afkRenderStatPoints();
   goTo('afk-summary');
   window.scrollTo(0, 0);
-  say('Run ended. Floor ' + AFK.floor + ' reached. Level ' + AFK.level + '. ' + AFK.levelsGainedThisRun + ' levels gained. ' + AFK.points + ' descent points earned. Your progress is saved and carries into all game modes.');
+  var _pts = CHARS[AFK.charIdx] ? afkTrained(CHARS[AFK.charIdx]).points : 0;
+  say('Run ended. Floor ' + AFK.floor + ' reached. Level ' + AFK.level + '. ' + AFK.levelsGainedThisRun + ' levels gained. ' + AFK.points + ' descent points earned. Your progress is saved and carries into all game modes.' +
+    (_pts > 0 ? ' You have ' + _pts + ' stat point' + (_pts === 1 ? '' : 's') + ' to spend below.' : ''));
   stopAmbient();
   playTrack(getMenuTrack());
 }
