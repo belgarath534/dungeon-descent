@@ -58,6 +58,10 @@ function doPrestige(i) {
   ch.persistXp = 0;
   ch.persistSkills = [];
   ch.lpSpent = {};
+  // A run in progress brought the old level back when resumed, so the
+  // prestige looked like it hadn't worked. It ends here (the apps too).
+  ch.midRunSave = null;
+  ch.floor = 1;
   if (ch.dungeonTier) ch.dungeonTier = 1;
   saveChars();
   addGlobalGold(1000 * s);
