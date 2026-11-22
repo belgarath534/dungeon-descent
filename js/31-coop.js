@@ -150,8 +150,10 @@ function coopResolve(party, foe, actions) {
   foe = Object.assign({ phase: 1, stun: 0, dot: 0, dotTurns: 0, weaken: 1 }, foe);
   var lines = [], defending = {}, guardOf = {};
   function byId(id) { return party.filter(function(p) { return p.id === id; })[0]; }
-  party.forEach(function(p) {
-    if (p.hp <= 0) return;
+  // Only those standing when the round starts act (a friend revived this
+  // round gets up, but doesn't swing until the next one).
+  var acting = party.filter(function(p) { return p.hp > 0; });
+  acting.forEach(function(p) {
     var raw = actions[p.id] || 'attack', a = raw.split(':')[0], arg = raw.indexOf(':') > 0 ? raw.slice(raw.indexOf(':') + 1) : '';
     var sk = a === 'skill' ? p.skills.filter(function(s) { return s.id === arg; })[0] : null;
     if (a === 'potion' && p.potions <= 0) a = 'attack';
