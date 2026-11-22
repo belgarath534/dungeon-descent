@@ -96,14 +96,14 @@ function openShop() {
 }
 
 function renderShop() {
-  var nightDisc = shopNightDiscount();
+  var nightDisc = shopNightOn();
   document.getElementById('shop-gold-display').textContent = '💰 ' + DS.gold + 'g' + (nightDisc ? (getActiveEvent() === 'nightmarket' && !isNightTime() ? '  🏮 Night Market — 25% off' : '  🌙 Night Discount Active') : '');
   document.getElementById('shop-msg').textContent = '';
   var list = document.getElementById('shop-items');
   list.innerHTML = '';
   shopSession.forEach(function(item, i) {
-    var rawCost = shopItemCost(item);
-    var finalCost = nightDisc ? Math.floor(rawCost * 0.75) : rawCost;
+    var rawCost = shopItemDayCost(item);
+    var finalCost = shopItemCost(item);
     var canAfford = DS.gold >= finalCost;
     // Row container
     var row = document.createElement('div');
@@ -148,26 +148,38 @@ function renderShop() {
   });
 }
 
-// Gold Curse — potions cost double (announced, never applied)
-function shopItemCost(item) {
+// THE MERCHANT'S PRICE, the same everywhere (shown, checked, charged) and the
+// same as the apps (Inventory.price, RunModel.price): the night discount
+// (8 PM to 8 AM, the Night Market, the Longest Night) takes 25% off, rounded
+// down; Gold Curse doubles potions; Market Sprite takes 20% off; a Dwarf 10%.
+// It used to be three different sums: one when the shop opened, one after a
+// refresh (adding the Blacksmith's discount too), one when you paid.
+var SHOP_CURSED_TYPES = { potion: 1, elixir: 1, heal: 1, 'sp-potion': 1 };
+function shopNightOn() { return shopNightDiscount() || (typeof getActiveEvent === 'function' && getActiveEvent() === 'longestnight'); }
+function shopItemPrice(item, night) {
   var c = item.cost || 0;
-  if (DS.runModPotionCostMult && /potion|elixir/.test(item.type || '')) c = c * DS.runModPotionCostMult;
+  if (night) c = Math.floor(c * 0.75);
+  if (DS.runModPotionCostMult && SHOP_CURSED_TYPES[item.type]) c = c * DS.runModPotionCostMult;
+  if (DS.activeSpirit && DS.activeSpirit.isMarketSprite) c = Math.max(1, Math.round(c * 0.80));
+  if (DS.race === 'Dwarf') c = Math.max(1, Math.round(c * 0.90));
   return c;
 }
+// What it costs now, and what it costs in the day (the price the discount is shown off).
+function shopItemCost(item) { return shopItemPrice(item, shopNightOn()); }
+function shopItemDayCost(item) { return shopItemPrice(item, false); }
 
 function buyItem(i) {
   var item = shopSession[i];
   if (!item || item.sold) return;
-  if (DS.runModPotionCostMult && /potion|elixir/.test(item.type || '') && !item._curseCost) { item._curseCost = true; item.cost = shopItemCost(item); }
-  if (DS.gold < item.cost && !(DS.activeSpirit && DS.activeSpirit.isMarketSprite)) {
-    document.getElementById('shop-msg').textContent = 'Not enough gold. You need ' + item.cost + 'g.';
-    say('Not enough gold. You need ' + item.cost + ' gold. You have ' + DS.gold + '.');
+  var dayCost = shopItemDayCost(item);
+  var finalCost = shopItemCost(item);
+  if (DS.gold < finalCost) {
+    document.getElementById('shop-msg').textContent = 'Not enough gold. You need ' + finalCost + 'g.';
+    say('Not enough gold. You need ' + finalCost + ' gold. You have ' + DS.gold + '.');
     return;
   }
-  var finalCost = shopNightDiscount() ? Math.floor(item.cost * 0.75) : item.cost;
   if (DS.activeSpirit && DS.activeSpirit.isMarketSprite) {
-    finalCost = Math.max(1, Math.round(finalCost * 0.80));
-    if (finalCost < item.cost) addLog('Market Sprite negotiates — price reduced to ' + finalCost + 'g!');
+    addLog('Market Sprite negotiates — 20% off.');
     // Mark the discount as spent the moment it's actually used, not just at
     // run victory — otherwise swapping away and back to Market Sprite
     // mid-run (see the reactivation fee in openPauseSpirits()) never
@@ -177,12 +189,7 @@ function buyItem(i) {
       saveChars();
     }
   }
-  if (shopNightDiscount() && finalCost < item.cost) addLog('🌙 Night discount applied — ' + finalCost + 'g instead of ' + item.cost + 'g.');
-  if (DS.gold < finalCost) {
-    document.getElementById('shop-msg').textContent = 'Not enough gold. You need ' + finalCost + 'g.';
-    say('Not enough gold. You need ' + finalCost + ' gold.');
-    return;
-  }
+  if (shopNightOn() && finalCost < dayCost) addLog('🌙 Night discount applied — ' + finalCost + 'g instead of ' + dayCost + 'g.');
   DS.gold -= finalCost; spendGlobalGold(finalCost);
   item.sold = true;
   sfx('sfx-purchase'); vibe(VIBE.shopBuy);
@@ -368,8 +375,7 @@ function renderShopItems() {
   if (!list) return;
   list.innerHTML = '';
   shopSession.forEach(function(item, i) {
-    var discount = getShopDiscount();
-    var finalCost = Math.round(item.cost * (1 - discount));
+    var finalCost = shopItemCost(item);
     var canAfford = DS.gold >= finalCost;
     var div = document.createElement('div');
     div.className = 'shop-item' + (item.sold ? ' sold' : '') + (canAfford ? '' : ' cant-afford');
