@@ -2821,15 +2821,23 @@ function gainXP(amount) {
   updateXPBar();
 }
 
+// 12.0.2: the XP to the next level is Endless Descent's curve (the same
+// table to level 10, then 500 more a level), up to the character's cap:
+// 10, or 50 in Legacy. The apps use the same.
+function dungeonXpNeeded(level) {
+  var n = typeof afkXpToLevelUp === 'function' ? afkXpToLevelUp(Math.max(1, level)) : null;
+  return n === null ? 9999 : n;
+}
+
 function checkLevelUp() {
   var cap = DS.levelCap || 10;
   if (DS.level >= cap) return;
-  var needed = XP_TABLE[Math.min(DS.level, XP_TABLE.length - 1)];
+  var needed = dungeonXpNeeded(DS.level);
   var leveledUp = false;
   while (DS.xp >= needed && DS.level < cap) {
     DS.xp -= needed;
     DS.level++;
-    needed = XP_TABLE[Math.min(DS.level, XP_TABLE.length - 1)];
+    needed = dungeonXpNeeded(DS.level);
     leveledUp = true;
     // Angel — heals 15 HP each level
     if (DS.angelRace && ACCESS.classTraits) DS.hp = Math.min(DS.maxHp, DS.hp + 15);

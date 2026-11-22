@@ -2305,6 +2305,24 @@ function initDungeon(ch) {
   if (ch2 && ch2.corruptionMode && ch2.corruption >= 75) DS._skillsBackfire = true;
   if (ch2 && ch2.corruptionMode && ch2.corruption >= 100) DS._corruptionRun = true;
 
+  // ── LEGACY MODE: level cap 50 (12.0.2; was 25, and the web never used
+  // it, so Legacy stopped at 10) and the saved level, XP and skills carry
+  // into the run with 3 level points a level, like the apps. ──
+  DS.levelCap = ch.runMode === 'legacy' ? 50 : 10;
+  if (ch.runMode === 'legacy') {
+    var _lgLv = Math.min(DS.levelCap, Math.max(1, ch.persistLevel || 1));
+    if (_lgLv > 1) {
+      DS.level = _lgLv;
+      DS.xp = Math.max(0, ch.persistXp || 0);
+      if (ch.persistSkills && ch.persistSkills.length) DS.unlockedSkills = ch.persistSkills.slice();
+      DS.levelPoints = (DS.levelPoints || 0) + 3 * (_lgLv - 1);
+      setTimeout(function() {
+        setEvent('good', '🌑 Legacy — you return at level ' + _lgLv + '. ' + (3 * (_lgLv - 1)) + ' level points to spend.');
+        say('Legacy. You return at level ' + _lgLv + ', with ' + (3 * (_lgLv - 1)) + ' level points to spend at your next level up.');
+      }, 1200);
+    }
+  }
+
   // ── LEGACY MODE: dungeon tier scaling ──
   if (ch.runMode === 'legacy' && ch.dungeonTier && ch.dungeonTier > 1) {
     DS.dungeonTier = ch.dungeonTier;

@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════
 // v12.0 — PRESTIGE (the same rules as the iPhone app's Prestige.swift)
-// A character at their level cap (10, or 25 in Legacy) can start over at
+// A character at level 10 (25 in Legacy, whose cap is 50 since 12.0.2) can start over at
 // level 1 for a permanent star, up to 10. Each star is +5% max HP, +5%
 // attack and +10% gold in every run; prestiging pays 1,000 gold a star and
 // a Mystery Coin. The stars are on the character ("prestige"), so they
@@ -10,7 +10,8 @@
 var PRESTIGE = { max: 10, hp: 0.05, atk: 0.05, gold: 0.10 };
 
 function prestigeStars(ch) { return Math.min(PRESTIGE.max, Math.max(0, parseInt(ch && ch.prestige, 10) || 0)); }
-function prestigeCap(ch) { return ch.levelCap || (ch.runMode === 'legacy' ? 25 : 10); }
+// 12.0.2: Legacy's level cap went up to 50, but a prestige still needs 25.
+function prestigeCap(ch) { return Math.min(ch.levelCap || 10, 25, ch.runMode === 'legacy' ? 25 : 10); }
 function prestigeBlocker(ch) {
   if (prestigeStars(ch) >= PRESTIGE.max) return ch.name + ' already has every star there is.';
   var lv = ch.persistLevel || 1, cap = prestigeCap(ch);

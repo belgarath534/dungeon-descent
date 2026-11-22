@@ -715,6 +715,10 @@ function getEndlessBestStr(ch) {
 function saveCharPersistentLevel(level, xp, skills, maxHp, atkBonus, charIdx) {
   var idx = charIdx !== undefined ? charIdx : _charIdx;
   if (idx === null || idx === undefined || !CHARS[idx]) return;
+  // 12.0.2: never lower the saved level. A normal dungeon run starts at
+  // level 1, and its first level-up used to overwrite a level 28 from
+  // Endless Descent or Legacy with 2.
+  if ((level || 1) < (CHARS[idx].persistLevel || 1)) return;
   CHARS[idx].persistLevel  = level;
   CHARS[idx].persistXp     = xp;
   CHARS[idx].persistSkills = skills || [];
