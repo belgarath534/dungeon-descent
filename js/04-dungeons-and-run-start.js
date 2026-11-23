@@ -970,6 +970,61 @@ function extend3DRoomGraph(n) {
   }
 }
 
+// An event still waiting for a choice (the same check enterRoom() uses).
+function _eventPending() {
+  var el = document.getElementById('dg-event');
+  return !!(el && el.style.display !== 'none' && el.querySelector('button'));
+}
+function _sayEventPending() {
+  var el = document.getElementById('dg-event');
+  var btns = el ? Array.prototype.slice.call(el.querySelectorAll('button')) : [];
+  var labels = btns.map(function(b){ return (b.textContent || '').trim(); }).filter(Boolean);
+  say('Choose what to do first.' + (labels.length ? ' ' + labels.join(' or ') + '.' : ''));
+  if (btns[0]) setTimeout(function(){ btns[0].focus(); }, 60);
+}
+
+// Never run out of new rooms before the floor is done: a room walked into
+// while an event blocked it (or a Wander) could leave every room visited
+// with the floor still short, stranding the player.
+function _ensure3DRooms() {
+  if (!DS._roomGraph) return;
+  var needed = (DS.floorRoomsNeeded || 7) - (DS.roomsOnFloor || 0);
+  var cells = DS._roomGraph.cells, unvisited = 0;
+  Object.keys(cells).forEach(function(k){ if (!cells[k].visited) unvisited++; });
+  if (needed > unvisited) extend3DRoomGraph(needed - unvisited);
+}
+
+// The first step toward the nearest room not yet visited.
+function _room3DWayToNew() {
+  if (!DS._roomGraph || !DS._gridPos) return '';
+  var cells = DS._roomGraph.cells;
+  var start = _room3DKey(DS._gridPos.gx, DS._gridPos.gy);
+  var seen = {}; seen[start] = true;
+  var queue = [];
+  var here = cells[start];
+  if (!here) return '';
+  for (var i = 0; i < ROOM3D_DIRS.length; i++) {
+    var d = ROOM3D_DIRS[i];
+    if (!here.doors[d.name]) continue;
+    var k = _room3DKey(here.gx + d.dx, here.gy + d.dy), c = cells[k];
+    if (!c || seen[k]) continue;
+    if (!c.visited) return ' A new room is right through the ' + d.word + ' door.';
+    seen[k] = true; queue.push({ c: c, first: d.word });
+  }
+  for (var q = 0; q < queue.length; q++) {
+    var cur = queue[q].c;
+    for (var j = 0; j < ROOM3D_DIRS.length; j++) {
+      var dd = ROOM3D_DIRS[j];
+      if (!cur.doors[dd.name]) continue;
+      var kk = _room3DKey(cur.gx + dd.dx, cur.gy + dd.dy), n = cells[kk];
+      if (!n || seen[kk]) continue;
+      if (!n.visited) return ' The way to a new room is ' + queue[q].first + '.';
+      seen[kk] = true; queue.push({ c: n, first: queue[q].first });
+    }
+  }
+  return '';
+}
+
 function _room3DExitsText(cell) {
   var exits = [];
   ROOM3D_DIRS.forEach(function(d) { if (cell.doors[d.name]) exits.push(d.word); });
@@ -986,7 +1041,7 @@ function moveRoom3D(dir) {
   var cur = DS._roomGraph.cells[_room3DKey(DS._gridPos.gx, DS._gridPos.gy)];
   if (!d || !cur || !cur.doors[d]) {
     sfx('sfx-heavy-miss');
-    say('There is a wall to the ' + dir + '. ' + (cur ? _room3DExitsText(cur) : ''));
+    say('There is a wall to the ' + dir + '. ' + (cur ? _room3DExitsText(cur) : '') + _room3DWayToNew());
     if (cur) play3DExitCues(cur);
     _flash3DWallBump();
     vibe && vibe(VIBE.wallBump);
@@ -1019,7 +1074,8 @@ function moveRoom3D(dir) {
     say('Moving ' + dir + '. ' + exitText);
     enterRoom(); // unchanged — same combat/loot/event/floor-completion pipeline every dungeon uses
   } else {
-    say('Moving ' + dir + '. You are back in a room you already cleared. ' + exitText);
+    _ensure3DRooms();
+    say('Moving ' + dir + '. You are back in a room you already cleared. ' + exitText + _room3DWayToNew());
   }
   play3DExitCues(target);
   hunterTurn(false);
@@ -1918,6 +1974,8 @@ function _check3DCellCrossing() {
   if (!target) return;
   DS._gridPos = { gx: pos.gx, gy: pos.gy };
   var wasVisited = target.visited;
+  // An event is waiting: the room stays new until it can really be entered.
+  if (!wasVisited && _eventPending()) { _sayEventPending(); return; }
   target.visited = true;
   _syncVisibleRooms(target);
   var exitText = _room3DExitsText(target);
@@ -1925,7 +1983,8 @@ function _check3DCellCrossing() {
     say('Entering. ' + exitText);
     enterRoom();
   } else {
-    say('Back in a cleared room. ' + exitText);
+    _ensure3DRooms();
+    say('Back in a cleared room. ' + exitText + _room3DWayToNew());
   }
   play3DExitCues(target);
   hunterTurn(false);
