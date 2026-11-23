@@ -398,6 +398,9 @@ function showDgPanels(nav, combat, inv) {
 // ── NAVIGATION ──
 function moveRoom(dir) {
   if (DS.inCombat) return;
+  // An event is waiting: say so (moving now used to use up a room without
+  // entering it, which could strand you on the floor).
+  if (typeof _eventPending === 'function' && _eventPending()) { _sayEventPending(); return; }
   if (shouldUse3DMode()) {
     // Self-healing: _roomGraph is normally generated once, lazily, the
     // moment the player first reaches the dungeon screen — but if 3D Mode
