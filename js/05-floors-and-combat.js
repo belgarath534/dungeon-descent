@@ -711,6 +711,7 @@ function startCombat(isBoss) {
       setTimeout(function() { sfx(_archetypeSfx); }, e.isBoss ? 400 : 300);
     }
   }
+  try { if (typeof listeningFoeBegin === 'function') listeningFoeBegin(DS.enemy); } catch (eLf) {}
 }
 
 var _combatBtnSafetyTimer = null;
@@ -1106,6 +1107,8 @@ function raidGunAction() {
 }
 
 function doFight(action) {
+  // 12.1: the Silent One only cries out if it was really hurt this turn.
+  if (DS.enemy && DS.enemy._nf) DS.enemy._hpBefore = DS.enemy.hp;
   if (!DS.inCombat) return;
   // Berserk Mode — no defending (only the keyboard shortcut checked it)
   if (action === 'defend' && DS.runModNoDefend) { say('Cannot defend in Berserk Mode.'); return; }
@@ -1715,6 +1718,13 @@ function doFight(action) {
     if (_fxT.skip) { setCombatBtns(true); updateSkillButtons(); return; }
     var rawDmg = rnd(e.atk[0], e.atk[1]);
     rawDmg = Math.round(rawDmg * _fxT.mult);
+    // 12.1: the Counting Thing's count and the Bell Choir's bells.
+    if (e._nf && typeof listeningFoeBeforeAttack === 'function') {
+      var _lfr = listeningFoeBeforeAttack(e);
+      if (_lfr.flee) { listeningFoeFled(e); return; }
+      if (_lfr.skip) { say(listeningFoeAnnouncement(e, 0, 0)); setCombatBtns(true); updateSkillButtons(); return; }
+      rawDmg = Math.round(rawDmg * _lfr.mult);
+    }
     // Rage Tonic — double incoming damage, but player ATK is tripled (applied in attack)
     if (DS._rageTurns && DS._rageTurns > 0) rawDmg = Math.round(rawDmg * 2);
     // Corruption Flask — enemy takes corruption damage before attacking
@@ -1883,7 +1893,9 @@ function doFight(action) {
       addLog('Mana Shield absorbs ' + absorbed + '. You take ' + taken + ' damage.');
     } else {
       sfx('sfx-hurt');
-      if (blocked > 0) {
+      if (typeof listeningFoeHidesHit === 'function' && listeningFoeHidesHit(e)) {
+        // The Liar and the Silent One: the log is read aloud, so the real hit stays out of it.
+      } else if (blocked > 0) {
         addLog(e.name + t(' strikes for ') + rawDmg + t(' — you absorb ') + blocked + t('. You take ') + taken + t(' damage.'));
       } else {
         addLog(e.name + t(' attacks for ') + taken + t(' damage.'));
@@ -1938,7 +1950,9 @@ function doFight(action) {
       say('Ghost Shroud activated — you phased through the attack!');
     }
     checkInfernalHpDrain();
-    say(e.name + ' dealt ' + taken + ' damage. Your HP: ' + DS.hp + ' of ' + DS.maxHp + '.');
+    var _lfSay = (e._nf && typeof listeningFoeAnnouncement === 'function')
+      ? listeningFoeAnnouncement(e, taken, (e._hpBefore || 0) - e.hp) : null;
+    say(_lfSay || (e.name + ' dealt ' + taken + ' damage. Your HP: ' + DS.hp + ' of ' + DS.maxHp + '.'));
     if (DS.hp <= 0) { setTimeout(function() { handleDeath(); }, 600); }
     else if (_retaliated && e.hp <= 0) { setTimeout(function() { enemyDead(); }, 300); }
     else { setCombatBtns(true); updateSkillButtons(); }

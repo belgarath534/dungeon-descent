@@ -3086,6 +3086,13 @@ function enterRoom() {
         atk: [Math.round(base.atk[0]*(1+(DS.floor-1)*0.06)*ngMult*lvlMult), Math.round(base.atk[1]*(1+(DS.floor-1)*0.06)*ngMult*lvlMult)]
       };
       enemy.maxHp = enemy.hp;
+      // 12.1: the four enemies built around listening (5% from floor 3, each in its own dungeon).
+      var _lf = (typeof listeningFoeRoll === 'function') ? listeningFoeRoll(spawnElite) : null;
+      if (_lf) {
+        enemy = makeListeningFoe({ hp: Math.round(_lf.hp * (1 + (DS.floor-1)*0.09) * ngMult * dcMult * lvlMult),
+          atk: [Math.round(_lf.atk[0]*(1+(DS.floor-1)*0.06)*ngMult*lvlMult), Math.round(_lf.atk[1]*(1+(DS.floor-1)*0.06)*ngMult*lvlMult)] }, _lf);
+        enemy.maxHp = enemy.hp;
+      }
       DS.enemy = enemy;
       // Special Hollow enemies — unique spawn handling
       if (enemy.isMusicBox) {
