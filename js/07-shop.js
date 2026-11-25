@@ -1745,6 +1745,9 @@ function ecSubmit() {
     hp: _ecCurrentStats.hp, atk: _ecCurrentStats.atk, def: _ecCurrentStats.def,
     kills: 0, createdAt: Date.now(), approved: true
   };
+  // 12.2: who made it, so they can edit it later (My Enemies). Signed in only:
+  // the online rules can only trust an account.
+  if (window._fbAuth && window._fbAuth.currentUser) enemyData.ownerUid = window._fbAuth.currentUser.uid;
 
   var submitBtn = document.getElementById('ec-submit-btn');
   if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Unleashing...'; }
