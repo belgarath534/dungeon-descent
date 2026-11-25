@@ -1427,6 +1427,7 @@ function doFight(action) {
     // Apply weak point multiplier and deal damage to enemy NOW
     playerDmg = Math.round(playerDmg * _wpMult * getWeaponDamageMult());
     playerDmg = fxPlayerDamage(playerDmg, false);
+    if (typeof mountainbreakerOnHit === 'function') playerDmg = mountainbreakerOnHit(e, playerDmg);
     e.hp = Math.max(0, e.hp - playerDmg);
     if (!DS.bestHit || playerDmg > DS.bestHit) DS.bestHit = playerDmg;
     updateEnemyBar();
@@ -1650,6 +1651,7 @@ function doFight(action) {
   if (playerDmg > 0 && e.hp > 0 && action !== 'attack') {
     playerDmg = Math.round(playerDmg * _wpMult);
     playerDmg = fxPlayerDamage(playerDmg, false);
+    if (typeof mountainbreakerOnHit === 'function') playerDmg = mountainbreakerOnHit(e, playerDmg);
     e.hp = Math.max(0, e.hp - playerDmg);
     // Track best hit
     if (!DS.bestHit || playerDmg > DS.bestHit) DS.bestHit = playerDmg;
@@ -1975,6 +1977,7 @@ function sanitizeGold() {
 }
 
 function enemyDead() {
+  try { if (typeof mountainbreakerOnKill === 'function') mountainbreakerOnKill(); } catch (eMb) {}
   if (DS._fx && DS._fx.bossMinion && DS.enemy && DS.enemy.isBoss) addLog('👹 With its master gone, the ' + DS._fx.bossMinion.name + ' fades into the dark.');
   // Necromancer — Death Follows: 15% a killed enemy fights for you in the next fight (never applied)
   if (DS.cls === 'Necromancer' && ACCESS.classTraits && DS.enemy && !DS.enemy.isBoss && Math.random() < 0.15) {

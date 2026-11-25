@@ -1115,7 +1115,41 @@ var MINE_ENEMIES = [
   { name:'The Deep Hunger',       icon:'🕳️', hp:420,  atk:[28,44], gold:400, depth:[30,30], isBoss:true, isMilestone:true, milestoneDepth:30,  lore:'It has been waiting in the dark since before the mine existed. It is very hungry.' },
   { name:'The Vein Titan',        icon:'⛰️', hp:600,  atk:[36,55], gold:600, depth:[50,50], isBoss:true, isMilestone:true, milestoneDepth:50,  lore:'The mountain itself has decided you have gone far enough.' },
   { name:'The Mine\'s Heart',     icon:'❤️', hp:900,  atk:[48,72], gold:1000,depth:[100,100],isBoss:true,isMilestone:true, milestoneDepth:100, lore:'You found it. The thing at the center of everything. It does not want to be found.' },
+  // 12.2 (the same as the apps): deeper still.
+  { name:'The Lantern Widow', icon:'🕯️', hp:750,  atk:[42,62],   gold:800,  depth:[75,75],   isBoss:true, isMilestone:true, milestoneDepth:75,  drainsSP:true, lifesteal:true,
+    lore:'She carries the lantern her husband dropped in the collapse. She is still looking for him. She thinks you might be him.' },
+  { name:'The Hollow Drill',  icon:'⚙️', hp:1200, atk:[60,85],   gold:1400, depth:[150,150], isBoss:true, isMilestone:true, milestoneDepth:150, grows:true, burn:6, burnTurns:2,
+    lore:'The company\'s great drill was never switched off. It kept digging for a hundred years, and somewhere along the way it started wanting to.' },
+  { name:'The Bone Seam',     icon:'🦴', hp:1600, atk:[70,100],  gold:1800, depth:[200,200], isBoss:true, isMilestone:true, milestoneDepth:200, immuneFirstHit:true, physResist:0.30,
+    lore:'A vein of something that is not ore. The miners who found it stayed down here. They are part of it now.' },
+  { name:'The Pale Queen',    icon:'💠', hp:2200, atk:[85,120],  gold:2500, depth:[300,300], isBoss:true, isMilestone:true, milestoneDepth:300, dodgeEvery:3, poisonChance:0.30,
+    lore:'Crystal grows in her shape all through the deepest caves. Nobody carved them. She has been building herself a kingdom, one reflection at a time.' },
+  { name:'The First Stone',   icon:'🌑', hp:3500, atk:[110,150], gold:5000, depth:[500,500], isBoss:true, isMilestone:true, milestoneDepth:500, immuneFirstHit:true, physResist:0.20, grows:true, lifesteal:true,
+    lore:'Before the mountain, there was this. The mountain grew around it to keep it in.' },
 ];
+
+// 12.2: from depth 600, every hundred depths, The Unending Dark, stronger each time.
+function mineUnendingDark(depth) {
+  if (depth < 600 || depth % 100 !== 0) return null;
+  var n = (depth - 500) / 100;
+  return { name:'The Unending Dark', icon:'🌌', hp:3500 + n * 900, atk:[110 + n * 12, 150 + n * 16], gold:5000 + n * 1500,
+    depth:[depth, depth], isBoss:true, isMilestone:true, milestoneDepth:depth, grows:true, dodgeEvery:4, drainsSP:true,
+    lore:'Past the First Stone there is no mine, only dark that goes on. It has noticed you. Each time you go deeper, it brings more of itself.' };
+}
+
+// 12.2: Heartstone Shards for the Mountainbreaker (Mine bosses from depth 100, and 2% of digs below depth 50).
+var MINE_HEARTSTONE = { name:'Heartstone Shard', icon:'🔶', type:'mine-heartstone', weight:1 };
+function getHeartstones() { return parseInt(DDStore.getItem('dd_heartstones') || '0', 10) || 0; }
+function addHeartstones(n) { if (n > 0) DDStore.setItem('dd_heartstones', String(getHeartstones() + n)); }
+
+// A milestone boss's loot: a Mega Potion, more diamonds the deeper it was (a 25th of the depth, at least 3), and a shard from depth 100.
+function mineMilestoneLoot() {
+  var ms = _mineState._milestoneDepth || _mineState.depth || 0;
+  var gems = Math.max(3, Math.floor(ms / 25));
+  mineCollectItem({ name:'Mega Potion', icon:'🧪', type:'mine-potion', heal:120, weight:1 });
+  mineCollectItem({ name:'Diamonds ×' + gems, icon:'💎', type:'mine-diamond', value:gems, weight:1 });
+  if (ms >= 100) { mineCollectItem(Object.assign({}, MINE_HEARTSTONE)); mineAddLog('🔶 A Heartstone Shard glows in the rubble.', '#ffaa44'); }
+}
 
 var MINE_ATMOSPHERES = [
   'The tunnels stretch before you. Pickaxe rings echo off stone.',
@@ -1388,8 +1422,7 @@ function mineUseSkill(sk, ch) {
       document.getElementById('mine-combat-area').style.display = 'none';
       document.getElementById('mine-dig-area').style.display = '';
       if (_mineState._wasMilestoneBoss) {
-        mineCollectItem({ name:'Mega Potion', icon:'🧪', type:'mine-potion', heal:120, weight:1 });
-        mineCollectItem({ name:'Diamonds ×3', icon:'💎', type:'mine-diamond', value:3, weight:1 });
+        mineMilestoneLoot();
         mineAddLog('👑 Milestone boss defeated! Special loot dropped.', '#ffdd44');
         _mineState._wasMilestoneBoss = false;
       } else if (Math.random() < 0.5) {
@@ -1590,8 +1623,7 @@ function mineCombatAction(action) {
       document.getElementById('mine-dig-area').style.display = '';
       // Milestone boss — guaranteed special loot
       if (_mineState._wasMilestoneBoss) {
-        mineCollectItem({ name:'Mega Potion', icon:'🧪', type:'mine-potion', heal:120, weight:1 });
-        mineCollectItem({ name:'Diamonds ×3', icon:'💎', type:'mine-diamond', value:3, weight:1 });
+        mineMilestoneLoot();
         mineAddLog('👑 Milestone boss defeated! Special loot dropped.', '#ffdd44');
         _mineState._wasMilestoneBoss = false;
       } else if (Math.random() < 0.5) {
@@ -1683,7 +1715,8 @@ function mineDig() {
     var numItems = Math.random() < 0.3 ? 2 : 1;
     for (var i = 0; i < numItems; i++) {
       if (_mineState.hand.length >= MINE_MAX_CARRY) break;
-      var loot = mineWeightedPick(mineGetLootTable());
+      // 12.2: below depth 50, a Heartstone Shard now and then (2%).
+      var loot = (_mineState.depth > 50 && Math.random() < 0.02) ? Object.assign({}, MINE_HEARTSTONE) : mineWeightedPick(mineGetLootTable());
       var collected = mineCollectItem(loot);
       if (collected) {
         mineAddLog(loot.icon + ' Found: ' + loot.name + '!', '#c8a832');
@@ -1712,7 +1745,7 @@ function mineDescend() {
   mineUpdatePlayerBar();
 
   // Check for milestone boss
-  var milestoneBoss = MINE_ENEMIES.find(function(e) { return e.isMilestone && e.milestoneDepth === _mineState.depth; });
+  var milestoneBoss = MINE_ENEMIES.find(function(e) { return e.isMilestone && e.milestoneDepth === _mineState.depth; }) || mineUnendingDark(_mineState.depth);
   if (milestoneBoss) {
     mineAddLog('⚠️ Something stirs in the darkness below. A presence. Old. Heavy. Wrong.', '#cc2222');
     say('You feel something wrong at depth ' + _mineState.depth + '. A boss awaits.');
@@ -1727,8 +1760,14 @@ function mineDescend() {
         gold: milestoneBoss.gold,
         isBoss: true,
         isMilestone: true,
-        lore: milestoneBoss.lore
+        lore: milestoneBoss.lore,
+        // 12.2: the deep bosses use the Mine's special moves too.
+        dodgeEvery: milestoneBoss.dodgeEvery || 0, poisonChance: milestoneBoss.poisonChance || 0,
+        immuneFirstHit: !!milestoneBoss.immuneFirstHit, drainsSP: !!milestoneBoss.drainsSP, grows: !!milestoneBoss.grows,
+        lifesteal: !!milestoneBoss.lifesteal, burn: milestoneBoss.burn || 0, burnTurns: milestoneBoss.burnTurns || 0,
+        physResist: milestoneBoss.physResist || 0, _hits: 0
       };
+      _mineState._milestoneDepth = milestoneBoss.milestoneDepth;
       _mineState.inCombat = true;
       _mineState._wasMilestoneBoss = true;
       try { playTrack('mine-combat'); } catch(e) {}
@@ -1779,6 +1818,7 @@ function mineSurface(defeated) {
   var partsFound = {};
 
   var potionsFound = 0;
+  var heartstonesEarned = 0;
   allItems.forEach(function(item) {
     if (item.type === 'mine-gold') { goldEarned += item.value || 0; }
     else if (item.type === 'mine-diamond') { diamondsEarned += item.value || 0; }
@@ -1789,8 +1829,9 @@ function mineSurface(defeated) {
       partsFound[item.partId] = (partsFound[item.partId] || 0) + 1;
     } else if (item.type === 'mine-ingredient') {
       try { addAlchemyIngredient && addAlchemyIngredient('herb'); } catch(e) {}
-    }
+    } else if (item.type === 'mine-heartstone') { heartstonesEarned++; }
   });
+  if (heartstonesEarned > 0) addHeartstones(heartstonesEarned);
 
   if (goldEarned > 0) addGlobalGold(goldEarned);
   if (diamondsEarned > 0) addDiamonds(diamondsEarned);
@@ -1821,6 +1862,7 @@ function mineSurface(defeated) {
   if (diamondsEarned) summary += '💎 Diamonds: +' + diamondsEarned + '\n';
   if (coinsEarned) summary += '🪙 Mystery Coins: +' + coinsEarned + '\n';
   if (potionsFound) summary += '🧪 Potions saved to inventory: ' + potionsFound + '\n';
+  if (heartstonesEarned) summary += '🔶 Heartstone Shards: +' + heartstonesEarned + ' (you have ' + getHeartstones() + ')\n';
   var partNames = { barrel:'Gun Barrel', mechanism:'Firing Mechanism', stock:'Gun Stock', trigger:'Trigger Assembly' };
   Object.keys(partsFound).forEach(function(p) {
     summary += '🔩 ' + (partNames[p] || p) + ': +' + partsFound[p] + '\n';
@@ -1841,6 +1883,7 @@ function mineSurface(defeated) {
     if (diamondsEarned) lines.push('<div>💎 Diamonds <span style="float:right;color:#88ddff;">+' + diamondsEarned + '</span></div>');
     if (coinsEarned)    lines.push('<div>🪙 Mystery Coins <span style="float:right;color:#cc8844;">+' + coinsEarned + '</span></div>');
     if (potionsFound)   lines.push('<div>🧪 Potions → Inventory <span style="float:right;color:#44cc88;">+' + potionsFound + '</span></div>');
+    if (heartstonesEarned) lines.push('<div>🔶 Heartstone Shards <span style="float:right;color:#ffaa44;">+' + heartstonesEarned + ' (' + getHeartstones() + ' total)</span></div>');
     var partNames = { barrel:'Gun Barrel', mechanism:'Firing Mechanism', stock:'Gun Stock', trigger:'Trigger Assembly' };
     Object.keys(partsFound).forEach(function(p) {
       lines.push('<div>🔩 ' + (partNames[p]||p) + ' <span style="float:right;color:#aaa;">+' + partsFound[p] + '</span></div>');
