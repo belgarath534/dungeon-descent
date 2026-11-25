@@ -878,6 +878,8 @@ function gunAction() {
     // Apply ATK bonus
     dmg = Math.round(dmg * (1 + (DS.atkBonus || 0) / 100));
     dmg = Math.max(1, dmg);
+    // 12.2: the Tesla Coil builds charge with every shot in a row.
+    if (typeof gunShotDamage === 'function') dmg = gunShotDamage(gun, dmg);
 
     DS.enemy.hp = Math.max(0, DS.enemy.hp - dmg);
     updateEnemyBar();
@@ -885,10 +887,13 @@ function gunAction() {
     DS._floorBestHit = Math.max(DS._floorBestHit || 0, dmg);
     trackGlobalStat('totalDmgDealt', dmg);
 
-    _playGunSfx('shot');
+    // 12.2: every gun has its own sound.
+    if (typeof playGunShot === 'function') playGunShot(gun.id); else _playGunSfx('shot');
     addLog('🔫 ' + gun.name + ' fires! ' + dmg + ' damage!');
     say(gun.name + ' fires for ' + dmg + ' damage.');
     addRunLog('Shot ' + DS.enemy.name + ' for ' + dmg + ' with ' + gun.name + '.', 'good');
+    // 12.2: pin, burn, spread and the coil's charge.
+    if (typeof gunShotEffect === 'function') gunShotEffect(gun, dmg);
 
     if (DS.enemy.hp <= 0) {
       _gunState.charged = false; _gunState.shotsLeft = 0;
