@@ -15,7 +15,8 @@
 // ═══════════════════════════════════════════════════════════════════════
 
 var COOP = {
-  kind: 'coop2', max: 4, floors: 10, fightsPerFloor: 2, roundMs: 30000, startPotions: 2, maxPotions: 6,
+  // 12.2: rooms hold 5. A room without "max" (made before 12.2) holds 4.
+  kind: 'coop2', max: 5, legacyMax: 4, roomMax: 5, floors: 10, fightsPerFloor: 2, roundMs: 30000, startPotions: 2, maxPotions: 6,
   potionPrice: 40, spPerRound: 3,
   myId: 'c' + Math.random().toString(36).slice(2, 11),
   code: null, isHost: false, hostId: '', stage: 'choose', status: 'lobby',
@@ -301,11 +302,12 @@ function coopHost() {
   COOP.code = coopCode(); COOP.isHost = true; COOP.hostId = COOP.myId; COOP.dungeon = COOP.dungeons[COOP.dungeonIdx];
   var me = coopPlayer(ch), players = {}, beat = {};
   players[COOP.myId] = me; beat[COOP.myId] = _coNow();
-  coopRef().set({ kind: COOP.kind, version: 2, code: COOP.code, status: 'lobby', host: COOP.myId, dungeon: COOP.dungeon, floor: 1, round: 0,
+  COOP.roomMax = COOP.max;
+  coopRef().set({ kind: COOP.kind, version: 2, code: COOP.code, status: 'lobby', host: COOP.myId, dungeon: COOP.dungeon, max: COOP.max, floor: 1, round: 0,
                   createdAt: _coNow(), players: players, beat: beat }).then(function() {
     COOP.stage = 'lobby';
     try { sfx('sfx-confirm'); } catch (e) {}
-    say('Room created. Your code is ' + COOP.code.split('').join(' ') + '. Share it with up to three friends, then press Start when everyone is ready.');
+    say('Room created. Your code is ' + COOP.code.split('').join(' ') + '. Share it with up to four friends, then press Start when everyone is ready.');
     coopListen();
   }).catch(function() { say('Couldn\'t create the room. Check your connection.'); });
 }
@@ -322,7 +324,9 @@ function coopJoin() {
     if (r && r.kind === 'coop') { COOP.code = null; say('That room is from an older version of Dungeon Descent. Ask the host to update, then make a new room.'); return; }
     if (!r || r.kind !== COOP.kind) { COOP.code = null; say('No co-op room with that code. Check it and try again.'); return; }
     if (r.status !== 'lobby') { COOP.code = null; say('That run has already started.'); return; }
-    if (Object.keys(r.players || {}).length >= COOP.max) { COOP.code = null; say('That room is full.'); return; }
+    var lim = typeof r.max === 'number' ? Math.max(2, Math.min(r.max, COOP.max)) : COOP.legacyMax;
+    if (Object.keys(r.players || {}).length >= lim) { COOP.code = null; say('That room is full.'); return; }
+    COOP.roomMax = lim;
     coopRef().child('players/' + COOP.myId).set(coopPlayer(ch));
     coopRef().child('beat/' + COOP.myId).set(_coNow());
     COOP.stage = 'lobby';
@@ -570,7 +574,7 @@ function openCoop() {
   }
   goTo('coop');
   coopRender();
-  say('Co-op Dungeon. Fight through ten floors with up to three friends, on the web or the app. Choose a character, then host a room or join one with its code.');
+  say('Co-op Dungeon. Fight through ten floors with up to four friends, on the web or the app. Choose a character, then host a room or join one with its code.');
 }
 
 function _coBtn(label, onclick, aria, primary, selected) {
@@ -603,7 +607,7 @@ function coopRender() {
     }
   } else if (COOP.stage === 'lobby') {
     h += '<p style="font-family:Cinzel,serif;font-size:1.1rem;color:#66ddcc;" aria-label="Room code: ' + (COOP.code || '').split('').join(' ') + '">Room code: ' + COOP.code + '</p>' +
-      '<p style="font-family:\'Crimson Text\',serif;font-style:italic;color:#aaa;">' + _u119Esc(COOP.dungeon) + ' · up to ' + COOP.max + ' players</p>' + _coH('THE PARTY');
+      '<p style="font-family:\'Crimson Text\',serif;font-style:italic;color:#aaa;">' + _u119Esc(COOP.dungeon) + ' · up to ' + COOP.roomMax + ' players</p>' + _coH('THE PARTY');
     COOP.party.forEach(function(p) {
       var ok = p.ready || (COOP.isHost && p.id === COOP.myId);
       h += '<p style="font-family:\'Crimson Text\',serif;color:#bbb;">' + (ok ? '✓ ' : '… ') + _u119Esc(p.name) + ' — ' + _u119Esc(p.cls) + ', Lv ' + p.level + ', ' + p.maxHp + ' HP' + (p.id === COOP.myId ? ' (you)' : '') + '</p>';
