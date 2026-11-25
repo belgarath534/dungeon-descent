@@ -2177,7 +2177,7 @@ function renderBlacksmith() {
     // 12.2: weapons upgrade without end (past 10, gold only, and enemies grow with them).
     var atMax = false;
     var cost = getUpgradeCost(lvl);
-    var hasEnchanter = lvl < 10 && (fromMenu ? getGlobalInventory() : DS.inventory).some(function(i){ return i.type === 'enchanter' && i.charges > 0; });
+    var hasEnchanter = (fromMenu ? getGlobalInventory() : DS.inventory).some(function(i){ return i.type === 'enchanter' && i.charges > 0; });
     var canAfford = !atMax && (playerGold >= cost || hasEnchanter);
     var div = document.createElement('div');
     div.style.cssText = 'background:#0a0a0a;border:1px solid #3a2a1a;padding:14px;margin-bottom:10px;';
@@ -2261,8 +2261,7 @@ function upgradeEquipped(type) {
 
   // Check if player has an Enchanter — use it instead of gold
   var inv = fromMenu ? getGlobalInventory() : DS.inventory;
-  // Enchanters only work up to level 10.
-  var hasEnchanter = lvl < 10 && inv.some(function(i){ return i.type === 'enchanter' && i.charges > 0; });
+  var hasEnchanter = inv.some(function(i){ return i.type === 'enchanter' && i.charges > 0; });
 
   if (playerGold < cost && !hasEnchanter) { say('Not enough gold. Need ' + cost + 'g but you have ' + playerGold + 'g. Find an Enchanter to upgrade for free.'); return; }
 
