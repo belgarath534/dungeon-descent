@@ -890,6 +890,7 @@ function gunAction() {
     // Apply ATK bonus
     dmg = Math.round(dmg * (1 + (DS.atkBonus || 0) / 100));
     dmg = Math.max(1, dmg);
+    if (typeof prestigeHit === 'function') dmg = prestigeHit(dmg);
     // 12.2: the Tesla Coil builds charge with every shot in a row.
     if (typeof gunShotDamage === 'function') dmg = gunShotDamage(gun, dmg);
 

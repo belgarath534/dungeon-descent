@@ -9,6 +9,14 @@
 
 var PRESTIGE = { max: 10, hp: 0.05, atk: 0.05, gold: 0.10 };
 
+// A hit with the stars' attack bonus: 5% a star on the whole hit, weapon
+// included (always at least 1 more).
+function prestigeHit(dmg) {
+  var s = (typeof DS !== 'undefined' && DS._prestige) || 0;
+  if (!(s > 0) || !(dmg > 0)) return dmg;
+  return Math.max(dmg + 1, Math.round(dmg * (1 + PRESTIGE.atk * s)));
+}
+
 function prestigeStars(ch) { return Math.min(PRESTIGE.max, Math.max(0, parseInt(ch && ch.prestige, 10) || 0)); }
 // 12.0.2: Legacy's level cap went up to 50, but a prestige still needs 25.
 function prestigeCap(ch) { return Math.min(ch.levelCap || 10, 25, ch.runMode === 'legacy' ? 25 : 10); }
@@ -129,10 +137,8 @@ function doPrestige(i) {
       if (s > 0) {
         DS.maxHp = Math.round((DS.maxHp || 100) * (1 + PRESTIGE.hp * s));
         DS.hp = DS.maxHp;
-        if (Array.isArray(DS.atk)) {
-          DS.atk[0] = Math.round(DS.atk[0] * (1 + PRESTIGE.atk * s));
-          DS.atk[1] = Math.max(DS.atk[0], Math.round(DS.atk[1] * (1 + PRESTIGE.atk * s)));
-        }
+        // 12.2: attack goes on every hit (prestigeHit), not the base range,
+        // where 5% of 5 to 8 rounded to nothing and players saw no change.
         setTimeout(function() {
           addLog('⭐ Prestige ' + s + ' — +' + _pPct(PRESTIGE.hp, s) + '% health, +' + _pPct(PRESTIGE.atk, s) + '% attack, +' + _pPct(PRESTIGE.gold, s) + '% gold.');
         }, 400);
@@ -140,6 +146,8 @@ function doPrestige(i) {
     } catch (e) { console.warn('[prestige] run', e); }
     return r;
   };
+  var _fx = fxPlayerDamage;
+  fxPlayerDamage = function() { return prestigeHit(_fx.apply(this, arguments)); };
   var _gold = resolveGold;
   resolveGold = function(val) {
     var g = _gold.apply(this, arguments);
