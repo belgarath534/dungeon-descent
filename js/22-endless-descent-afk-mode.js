@@ -1825,23 +1825,30 @@ function voidVictory() {
   document.getElementById('void-active').style.display = 'none';
   document.getElementById('void-victory').style.display = '';
 
-  // Level up ALL characters by 3
+  // Level up ALL characters by 3, once a day (UTC). Every win did it, so a
+  // few minutes of Void Mode reached level 50 and prestige 10.
   var leveled = 0;
-  if (CHARS && CHARS.length > 0) {
+  var today = new Date().toISOString().slice(0, 10);
+  var levelToday = DDStore.getItem('dd_void_level_day') !== today;
+  if (levelToday && CHARS && CHARS.length > 0) {
     CHARS.forEach(function(ch) {
       ch.persistLevel = Math.min(50, (ch.persistLevel || ch.level || 1) + 3);
       leveled++;
     });
     saveChars();
+    DDStore.setItem('dd_void_level_day', today);
   }
 
   // Generate reward code
   var code = generateVoidCode();
   document.getElementById('void-reward-code').textContent = code;
-  document.getElementById('void-level-msg').textContent = leveled + ' character' + (leveled !== 1 ? 's' : '') + ' leveled up by 3!';
+  var levelMsg = levelToday
+    ? leveled + ' character' + (leveled !== 1 ? 's' : '') + ' leveled up by 3!'
+    : 'Your characters already gained their levels from Void Mode today. Come back tomorrow for more.';
+  document.getElementById('void-level-msg').textContent = levelMsg;
 
   awardAchievement('ach-void-conqueror');
-  say('THE VOID PREVAILS! All five waves defeated. All ' + leveled + ' characters leveled up by 3. Your reward code is ' + code + '. Share it with anyone. Press Copy Code to copy it.');
+  say('THE VOID PREVAILS! All five waves defeated. ' + (levelToday ? 'All ' + leveled + ' characters leveled up by 3.' : levelMsg) + ' Your reward code is ' + code + '. Share it with anyone. Press Copy Code to copy it.');
 }
 
 function voidDefeat(killedBy) {
@@ -1961,6 +1968,7 @@ function enterRewardCode() {
     if(result){result.style.color='#ff4444';result.textContent='Invalid code. Birthday codes: DDBD26. Void Reaper codes: VOID-XXXX-XXXX';}
     say('Invalid code format.'); return;
   }
+  if (!voidCodeAllowedToday()) { if(result){result.style.color='#ff4444';result.textContent='You already redeemed a Void code today. Come back tomorrow.';} say('You already redeemed a Void code today. Come back tomorrow.'); return; }
   var seed = 0;
   for (var i = 0; i < code.length; i++) seed = (seed * 31 + code.charCodeAt(i)) & 0xffff;
   var prize = REWARD_CODE_PRIZES[seed % REWARD_CODE_PRIZES.length];
