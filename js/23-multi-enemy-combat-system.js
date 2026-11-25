@@ -1807,26 +1807,43 @@ function renderBlacksmithSell() {
   title.style.cssText = 'font-family:Cinzel,serif;font-size:0.7rem;color:#888;margin-bottom:12px;';
   title.textContent = inv.length + ' items — tap to sell';
   content.appendChild(title);
+  // The same item once, with how many you have (a player had 20 Soul Traps in
+  // a row); selling sells one, like the merchant.
+  var groups = [], at = {};
   inv.forEach(function(item, idx) {
-    var price = getSellPrice(item);
+    var key = [item.name, item.type, item.level || 1, item.rarity || '', item.heal || '', item.sp || ''].join('|');
+    if (at[key] === undefined) { at[key] = groups.length; groups.push({ item: item, idx: idx, count: 0, key: key }); }
+    groups[at[key]].count++;
+  });
+  groups.forEach(function(g) {
+    var item = g.item, idx = g.idx, price = getSellPrice(item);
+    var many = g.count > 1 ? ' ×' + g.count : '';
     var row = document.createElement('div');
     row.style.cssText = 'background:#0a0500;border:1px solid #221100;padding:10px;margin-bottom:8px;display:flex;align-items:center;gap:10px;';
     row.setAttribute('tabindex','0');
-    row.setAttribute('aria-label', (item.icon||'') + ' ' + item.name + '. Sell for ' + price + ' gold.');
+    row.setAttribute('aria-label', (item.icon||'') + ' ' + item.name + (g.count > 1 ? ', ' + g.count + ' of them' : '') + '. Sell for ' + price + ' gold' + (g.count > 1 ? ' each' : '') + '.');
     var info = document.createElement('div');
     info.style.cssText = 'flex:1;';
-    info.innerHTML = '<div style="font-family:Cinzel,serif;font-size:0.75rem;color:#e0c080;">' + (item.icon||'') + ' ' + item.name + (item.level > 1 ? ' Lv' + item.level : '') + '</div>' +
+    info.innerHTML = '<div style="font-family:Cinzel,serif;font-size:0.75rem;color:#e0c080;">' + (item.icon||'') + ' ' + item.name + (item.level > 1 ? ' Lv' + item.level : '') + many + '</div>' +
       '<div style="font-family:Cinzel,serif;font-size:0.62rem;color:#666;">' + (item.desc||item.type||'') + '</div>';
     var btn = document.createElement('button');
     btn.style.cssText = 'padding:6px 14px;background:#1a0800;border:1px solid #aa6622;color:#cc8844;font-family:Cinzel,serif;font-size:0.65rem;cursor:pointer;flex-shrink:0;';
     btn.textContent = '💰 ' + price + 'g';
-    btn.setAttribute('aria-label', 'Sell ' + item.name + ' for ' + price + ' gold');
-    btn.onclick = (function(i, x) { return function() { sellItem(i, x); }; })(item, idx);
+    btn.setAttribute('data-sell-key', g.key);
+    btn.setAttribute('aria-label', g.count > 1 ? 'Sell one ' + item.name + ' for ' + price + ' gold. You have ' + g.count : 'Sell ' + item.name + ' for ' + price + ' gold');
+    btn.onclick = (function(i, x, key) { return function() { _bsLastSellKey = key; sellItem(i, x); }; })(item, idx, g.key);
     row.appendChild(info);
     row.appendChild(btn);
     content.appendChild(row);
   });
+  // Keep VoiceOver on the same item after selling one of a stack.
+  if (_bsLastSellKey) {
+    var again = content.querySelector('button[data-sell-key="' + _bsLastSellKey.replace(/"/g, '\\"') + '"]');
+    _bsLastSellKey = null;
+    if (again) setTimeout(function() { again.focus(); }, 30);
+  }
 }
+var _bsLastSellKey = null;
 
 function sellItem(item, idx) {
   var fromMenu = DS._fromMenu;
