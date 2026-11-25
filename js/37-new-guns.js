@@ -7,7 +7,10 @@
 // - Tesla Coil: each shot in a row in a fight hits 25% harder, up to double.
 // Every gun sounds different: the shot's pitch (big guns boom lower, small
 // ones crack higher) and an echo or a second sound. The revolver and the
-// repeater have their own recorded shots (made with ElevenLabs sound effects).
+// repeater have their own recorded shots (made with ElevenLabs sound effects),
+// except in the Android app (see _gunAndroid). When copying the web version
+// into the Android app's www, leave out audio/sfx-gun-revolver.mp3 and
+// audio/sfx-gun-repeater.mp3.
 
 (function() {
   function gun(id, name, icon, tier, lo, hi, shots, cd, cost, parts, desc, effect) {
@@ -63,8 +66,16 @@ function _gunPlay(src, pitch, volume) {
   } catch (e) {}
 }
 
+// The two recorded shots were made on the free ElevenLabs plan, which doesn't
+// allow commercial use. The Android app sells Mystery Coins and shows ads, so
+// there they're left out: the revolver and the repeater use pitched shots.
+function _gunAndroid() {
+  try { return !!(window.Capacitor && Capacitor.getPlatform && Capacitor.getPlatform() === 'android'); } catch (e) { return false; }
+}
+var GUN_SOUNDS_ANDROID = { revolver: ['shot', 1.05], repeater: ['shot', 1.1, 'shot', 1.15, 0.09, 0.45] };
+
 function playGunShot(gunId) {
-  var s = GUN_SOUNDS[gunId] || ['shot', 1];
+  var s = (_gunAndroid() && GUN_SOUNDS_ANDROID[gunId]) || GUN_SOUNDS[gunId] || ['shot', 1];
   _gunPlay(s[0], s[1], 1);
   if (s[2]) setTimeout(function() { _gunPlay(s[2], s[3], s[5]); }, Math.round((s[4] || 0) * 1000));
 }
