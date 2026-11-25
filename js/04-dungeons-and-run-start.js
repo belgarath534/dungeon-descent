@@ -3022,7 +3022,7 @@ function enterRoom() {
       }
 
       // Community enemy — 12% chance to spawn a player-created enemy
-      if (_communityEnemyCache.length && Math.random() < 0.12) {
+      if (!DS._communityDungeon && _communityEnemyCache.length && Math.random() < 0.12) {
         var ce = getCommunityEnemy(DS.dungeon);
         if (ce) {
           var communityFight = communityEnemyToFightData(ce);
@@ -3093,6 +3093,8 @@ function enterRoom() {
           atk: [Math.round(_lf.atk[0]*(1+(DS.floor-1)*0.06)*ngMult*lvlMult), Math.round(_lf.atk[1]*(1+(DS.floor-1)*0.06)*ngMult*lvlMult)] }, _lf);
         enemy.maxHp = enemy.hp;
       }
+      // 12.1: a community dungeon's own enemies roam it, at this dungeon's strength.
+      if (DS._communityDungeon && typeof cdDress === 'function') enemy = cdDress(enemy);
       DS.enemy = enemy;
       // Special Hollow enemies — unique spawn handling
       if (enemy.isMusicBox) {

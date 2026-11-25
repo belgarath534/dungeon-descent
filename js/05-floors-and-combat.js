@@ -626,6 +626,8 @@ function startCombat(isBoss) {
       isShapeshifter: bossTemplate.isShapeshifter || false,
       isEcho:     bossTemplate.isEcho     || false,
     };
+    // 12.1: a community dungeon's chosen boss wears this boss's strength.
+    if (DS._communityDungeon && typeof cdDressBoss === 'function') cdDressBoss(DS.enemy);
     // Shapeshifter — 4 phase boss, announce dramatically
     if (bossTemplate.isShapeshifter) {
       DS.enemy.fourPhase = true;
