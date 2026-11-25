@@ -2205,6 +2205,12 @@ function minionCombatAttack(enemy) {
     enemy.hp = Math.max(0, (enemy.hp || 0) - dmg);
     addLog('👾 ' + m.name + ' attacks for ' + dmg + ' damage!');
   }
+  // 12.1.1: Starlight the Unicorn's horn heals you as it fights.
+  if (m.id === 'unicorn' && DS.hp > 0 && DS.hp < DS.maxHp) {
+    DS.hp = Math.min(DS.maxHp, DS.hp + 3);
+    addLog("🦄 Starlight's horn glows. You heal 3 HP.");
+    try { updatePlayerBar(); } catch (e) {}
+  }
 }
 
 function renderHomeSkills() {
