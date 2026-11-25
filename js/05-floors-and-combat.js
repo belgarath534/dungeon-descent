@@ -871,6 +871,16 @@ function gunAction() {
       updateGunCombatButton();
     }, 1200);
   } else if (_gunState.shotsLeft > 0) {
+    // Frozen, you can't pull the trigger: the turn passes (a player found that
+    // shooting killed the enemies that freeze you).
+    if (DS.frozen) {
+      DS.frozen = false;
+      addLog('You are frozen and cannot fire! The turn passes.');
+      say('You are frozen and cannot fire. The turn passes.');
+      setCombatBtns(false);
+      setTimeout(function() { if (DS.inCombat && DS.enemy && DS.enemy.hp > 0) doFight('_gunCounter'); }, 600);
+      return;
+    }
     // SHOOT
     _gunState.shotsLeft--;
     var dmg = Math.floor(Math.random() * (gun.dmgMax - gun.dmgMin + 1)) + gun.dmgMin;
