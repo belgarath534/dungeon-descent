@@ -1436,7 +1436,7 @@ function fxReset() {
   DS._fx = { stun: 0, dodge: 0, soften: 1, softenHits: 0, reduce: 0, reduceTurns: 0,
     empower: 1, empowerCount: 0, vuln: 0, vulnTurns: 0, dot: 0, dotTurns: 0,
     buffAtk: 0, buffDef: 0, buffTurns: 0, fightAtk: 0, fightDef: 0, retaliate: 0,
-    confuse: 0, confuseTurns: 0, decay: 0, decayTurns: 0, damageTaken: 0, recentHits: [],
+    confuse: 0, confuseTurns: 0, decay: 0, decayTurns: 0, damageTaken: 0, recentHits: [], permUsed: {},
     enemyMiss: 0, cap: 0, capTurns: 0, unstoppable: 0, regen: 0, regenTurns: 0, thorns: 0, thornsTurns: 0,
     crusade: 0, crusadeTurns: 0, warlord: false, stickyBomb: 0, lethalTempo: 0 };
 }
@@ -1869,7 +1869,7 @@ function runSkillSpec(skill, e, baseAtk) {
       var o = Math.floor(Math.random() * 4);
       if (o === 0) { r.msg += ' Destruction!'; dmg += baseAtk * 3; }
       else if (o === 1) { var h = Math.min(30, DS.maxHp - DS.hp); DS.hp += h; r.msg += ' Restoration: +' + h + ' HP.'; }
-      else if (o === 2) { DS.manaShield = (DS.manaShield || 0) + 30; r.msg += ' Protection: a 30-point shield.'; }
+      else if (o === 2) { DS.manaShield = Math.max(DS.manaShield || 0, 30); r.msg += ' Protection: a 30-point shield.'; }
       else { f.stun = Math.max(f.stun, 1); r.msg += ' Control: the enemy is frozen in place.'; }
       break;
   }
@@ -1932,7 +1932,13 @@ function runSkillSpec(skill, e, baseAtk) {
     if (DS.sp > spBefore) r.msg += ' +' + (DS.sp - spBefore) + ' SP.';
   }
   if (s.drainSP) { DS.sp = 0; r.msg += ' All SP consumed.'; }
-  if (s.perm) {
+  // Permanent stat skills work once per fight. Most are free actions, so at
+  // 0 SP (Apocalypse) they could otherwise be repeated without limit.
+  if (!f.permUsed) f.permUsed = {};
+  if (s.perm && f.permUsed[skill.effect]) {
+    r.msg += ' Its permanent bonus was already gained this fight.';
+  } else if (s.perm) {
+    f.permUsed[skill.effect] = true;
     DS.atkBonus += s.perm[0]; DS.defBonus += s.perm[1];
     if (s.perm[2]) { DS.maxHp += s.perm[2]; DS.hp += s.perm[2]; }
     if (s.perm[3]) { DS.maxSp += s.perm[3]; DS.sp += s.perm[3]; }
@@ -1955,7 +1961,9 @@ function runSkillSpec(skill, e, baseAtk) {
     r.msg += ' ' + [f.buffAtk ? '+' + f.buffAtk + ' attack' : '', f.buffDef ? '+' + f.buffDef + ' defense' : '']
       .filter(Boolean).join(' and ') + ' for ' + f.buffTurns + ' turns.';
   }
-  if (s.shield) { DS.manaShield = (DS.manaShield || 0) + s.shield; r.msg += ' Shield absorbs up to ' + DS.manaShield + ' damage.'; }
+  // Shields raise the shield to their size; they don't stack. Stacking let free
+  // 0-SP casts under Apocalypse build a shield of tens of thousands.
+  if (s.shield) { DS.manaShield = Math.max(DS.manaShield || 0, s.shield); r.msg += ' Shield absorbs up to ' + DS.manaShield + ' damage.'; }
   if (s.dodge) { f.dodge += s.dodge; r.msg += s.dodge === 1 ? ' The next attack will miss you.' : ' The next ' + s.dodge + ' attacks will miss you.'; }
   if (s.reduce) { f.reduce = s.reduce[0]; f.reduceTurns = s.reduce[1]; r.msg += ' Damage taken -' + Math.round(s.reduce[0] * 100) + '% for ' + s.reduce[1] + ' turns.'; }
   if (s.enemyMiss) { f.enemyMiss = s.enemyMiss; r.msg += ' ' + Math.round(s.enemyMiss * 100) + '% chance the enemy misses.'; }
@@ -2023,6 +2031,10 @@ function useSkill(idx) {
   var skill = unlocked[idx];
   if (DS.sp < skill.spCost) { say('Not enough SP. You need ' + skill.spCost + ' SP but have ' + DS.sp + '.'); return; }
   if (!DS.inCombat) { say('Skills can only be used in combat.'); return; }
+  var _permSpec = SKILL_SPECS[DS.cls + '/' + skill.effect];
+  if (_permSpec && _permSpec.perm && fxGet().permUsed && fxGet().permUsed[skill.effect]) {
+    say(skill.name + ' can only be used once per fight.'); return;
+  }
   setTimeout(function(){ showDungeonTip('first-skill'); }, 800);
   // Daily Quest — track unique skills used this run (dq-skills-3's 'skilluse'
   // type had no call site anywhere, so that quest could never be completed)
