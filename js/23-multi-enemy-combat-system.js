@@ -2174,10 +2174,10 @@ function renderBlacksmith() {
   if (DS.equippedWeapon) {
     var w = DS.equippedWeapon;
     var lvl = w.level || 1;
-    var MAX_UPGRADE = 10;
-    var atMax = lvl >= MAX_UPGRADE;
-    var cost = atMax ? 0 : getUpgradeCost(lvl);
-    var hasEnchanter = (fromMenu ? getGlobalInventory() : DS.inventory).some(function(i){ return i.type === 'enchanter' && i.charges > 0; });
+    // 12.2: weapons upgrade without end (past 10, gold only, and enemies grow with them).
+    var atMax = false;
+    var cost = getUpgradeCost(lvl);
+    var hasEnchanter = lvl < 10 && (fromMenu ? getGlobalInventory() : DS.inventory).some(function(i){ return i.type === 'enchanter' && i.charges > 0; });
     var canAfford = !atMax && (playerGold >= cost || hasEnchanter);
     var div = document.createElement('div');
     div.style.cssText = 'background:#0a0a0a;border:1px solid #3a2a1a;padding:14px;margin-bottom:10px;';
@@ -2186,6 +2186,7 @@ function renderBlacksmith() {
     div.innerHTML =
       '<div style="font-family:Cinzel,serif;font-size:0.7rem;color:var(--gold);margin-bottom:6px;">' + w.icon + ' ' + w.name + ' — Level ' + lvl + (atMax ? ' <span style="color:#44ff88;font-size:0.6rem;">MAX</span>' : '') + '</div>' +
       '<div style="font-size:0.68rem;color:#888;font-style:italic;margin-bottom:10px;">' + w.desc + ' ATK: ' + getWeaponAtk(w).join('-') + '</div>' +
+      (lvl >= 10 ? '<div style="font-size:0.68rem;color:#cc8866;font-style:italic;margin-bottom:10px;">Past level 10 every upgrade costs more, and enemies grow with your weapon: ' + weaponGrowthPercent(lvl + 1) + '% tougher at level ' + (lvl + 1) + '.</div>' : '') +
       '<div style="display:flex;align-items:center;justify-content:space-between;">' +
         '<div style="font-family:Cinzel,serif;font-size:0.7rem;color:' + (atMax?'#44ff88':canAfford?'#ffdd44':'#666') + ';">' + (atMax ? '✦ Maximum Level Reached' : hasEnchanter ? '🪄 Enchanter Active — Free Upgrade!' : 'Upgrade to Level ' + (lvl+1) + ' — ' + cost + 'g' + (isBlacksmith?' (10% off)':'')) + '</div>' +
         (atMax ? '' : '<button onclick="upgradeEquipped(\'weapon\')" ' + (canAfford?'':'disabled') + ' style="padding:6px 14px;font-family:Cinzel,serif;font-size:0.68rem;background:' + (canAfford?'#1a1400':'#0a0a0a') + ';border:1px solid ' + (canAfford?'#ffdd44':'#333') + ';color:' + (canAfford?'#ffdd44':'#444') + ';cursor:' + (canAfford?'pointer':'default') + ';" aria-label="Upgrade weapon to level ' + (lvl+1) + ' for ' + cost + ' gold">⬆ Upgrade</button>') +
@@ -2252,14 +2253,16 @@ function upgradeEquipped(type) {
 
   var lvl = item.level || 1;
   var MAX_UPGRADE = 10;
-  if (lvl >= MAX_UPGRADE) { say(item.name + ' is already at maximum level ' + MAX_UPGRADE + '.'); return; }
+  // 12.2: armor stops at 10; weapons don't (enemies grow with them instead).
+  if (type !== 'weapon' && lvl >= MAX_UPGRADE) { say(item.name + ' is already at maximum level ' + MAX_UPGRADE + '.'); return; }
 
   var cost = getUpgradeCost(lvl);
   var playerGold = fromMenu ? getGlobalGold() : inSpire ? SPIRE.gold : (DS.gold || 0);
 
   // Check if player has an Enchanter — use it instead of gold
   var inv = fromMenu ? getGlobalInventory() : DS.inventory;
-  var hasEnchanter = inv.some(function(i){ return i.type === 'enchanter' && i.charges > 0; });
+  // Enchanters only work up to level 10.
+  var hasEnchanter = lvl < 10 && inv.some(function(i){ return i.type === 'enchanter' && i.charges > 0; });
 
   if (playerGold < cost && !hasEnchanter) { say('Not enough gold. Need ' + cost + 'g but you have ' + playerGold + 'g. Find an Enchanter to upgrade for free.'); return; }
 
