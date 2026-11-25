@@ -169,6 +169,9 @@ function condListen() {
 
 function condStep() {
   var h = condHall(); if (!h) return;
+  // One step a second at most: spamming Step crossed the whole hall in one verse.
+  if (Date.now() - (COND.lastStep || 0) < 1000) { say('Slowly.'); return; }
+  COND.lastStep = Date.now();
   // A step right as the music stops still counts as in time.
   var forgiven = h.silent && Date.now() - COND.silentSince < CONDUCTOR_GRACE;
   var wasNear = condNear(h);
