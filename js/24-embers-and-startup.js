@@ -876,6 +876,12 @@ function spireGunAction() {
 function spireFloorRewards() {
   if (SPIRE._rewardedFloor === SPIRE.floor) return;
   SPIRE._rewardedFloor = SPIRE.floor;
+  // Each floor's milestone and drops pay once, ever (the same "rewardedFloor"
+  // as the apps): dying sends you back one floor, so dying on floor 10 and
+  // climbing it again rolled its Mystery Coins and diamonds over and over.
+  var _sv = getSpireSave();
+  if (SPIRE.floor <= (_sv.rewardedFloor || 0)) return;
+  if (SPIRE.floor % 10 === 0 || SPIRE_MILESTONES[SPIRE.floor]) { _sv.rewardedFloor = SPIRE.floor; saveSpireData(_sv); }
   // Check milestone
   if (SPIRE_MILESTONES[SPIRE.floor]) {
     var ms = SPIRE_MILESTONES[SPIRE.floor];
