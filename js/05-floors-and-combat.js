@@ -887,6 +887,7 @@ function gunAction() {
     // Apply ATK bonus
     dmg = Math.round(dmg * (1 + (DS.atkBonus || 0) / 100));
     dmg = Math.max(1, dmg);
+    if (typeof prestigeHit === 'function') dmg = prestigeHit(dmg);
 
     DS.enemy.hp = Math.max(0, DS.enemy.hp - dmg);
     updateEnemyBar();
