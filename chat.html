@@ -133,6 +133,8 @@
       <div class="row"><button id="back">Back</button><h2 id="room-title" tabindex="-1" style="margin:0"></h2></div>
       <p id="room-topic" class="muted"></p>
       <div id="group-info" class="card" hidden></div>
+      <div id="profile" class="card" hidden role="region" aria-label="Player profile"></div>
+      <details id="pinned-box" class="card" hidden><summary id="pinned-title">Pinned</summary><ul class="list" id="pinned-list"></ul></details>
       <ul class="list" id="messages" aria-label="Messages, newest last"></ul>
       <form id="composer" class="card">
         <p id="replying" class="muted" hidden></p>
@@ -246,6 +248,16 @@ import { getFirestore, connectFirestoreEmulator, doc, collection, getDoc, getDoc
     return null;
   }
   const pairID = (a, b) => [a, b].sort().join('_');
+  const EMOJIS = ['👍', '❤️', '😂', '🔥', '😮', '😢'];
+  const EMOJI_NAMES = { '👍': 'thumbs up', '❤️': 'heart', '😂': 'laughing', '🔥': 'fire', '😮': 'wow', '😢': 'sad' };
+  const pref = (k, d) => { try { const v = localStorage.getItem('chat.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } };
+  const setPref = (k, v) => { try { localStorage.setItem('chat.' + k, JSON.stringify(v)); } catch (e) {} };
+  function reactionText(r) {
+    const counts = {};
+    Object.values(r || {}).forEach(e => { counts[e] = (counts[e] || 0) + 1; });
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([e, n]) => n + ' ' + (EMOJI_NAMES[e] || e)).join(', ');
+  }
+  const mentionsMe = (m) => S.member && m.uid !== S.user.uid && new RegExp('@' + S.member.username + '\\b', 'i').test(m.text);
   async function findMember(name) {
     const key = name.trim().toLowerCase();
     if (!key) return null;
@@ -389,9 +401,16 @@ import { getFirestore, connectFirestoreEmulator, doc, collection, getDoc, getDoc
     $('room').hidden = !S.room;
     $('dev-channel-tools').hidden = !isDev();
     const ch = $('channel-list'); ch.replaceChildren();
-    for (const c of S.channels.filter(c => !c.testersOnly || isTester())) {
-      const label = '# ' + c.name + (c.topic ? '. ' + c.topic : '') + (c.modsPost ? '. Read only' : '') + (c.testersOnly ? '. Testers only' : '');
+    const mine = pref('myPinned', []);
+    const visible = S.channels.filter(c => !c.testersOnly || isTester());
+    const ordered = mine.map(id => visible.find(c => c.id === id)).filter(Boolean).concat(visible.filter(c => !mine.includes(c.id)));
+    for (const c of ordered) {
+      const pinnedHere = mine.includes(c.id);
+      const label = (pinnedHere ? '📌 ' : '') + '# ' + c.name + (c.topic ? '. ' + c.topic : '') + (c.modsPost ? '. Read only' : '') + (c.testersOnly ? '. Testers only' : '');
       const li = el('li', {}, el('button', { class: 'open', text: label, onclick: () => openRoom({ kind: 'channel', id: c.id, title: c.name, topic: c.topic, path: 'chat_channels/' + c.id, canPost: !c.modsPost || isMod() }) }));
+      li.append(el('button', { text: pinnedHere ? 'Unpin' : 'Pin to top', 'aria-label': (pinnedHere ? 'Unpin ' : 'Pin to top: ') + c.name, onclick: () => {
+        setPref('myPinned', pinnedHere ? mine.filter(x => x !== c.id) : mine.concat(c.id)); renderAll(); say(pinnedHere ? 'Unpinned.' : 'Pinned to the top.');
+      } }));
       if (isDev()) li.append(el('div', { class: 'row' },
         el('button', { text: 'Edit', 'aria-label': 'Edit ' + c.name, onclick: () => editChannel(c) }),
         el('button', { text: 'Move up', 'aria-label': 'Move ' + c.name + ' up', onclick: () => moveChannel(c, -1) }),
@@ -467,14 +486,52 @@ import { getFirestore, connectFirestoreEmulator, doc, collection, getDoc, getDoc
     renderGroupInfo();
     let first = true;
     S.roomUnsub = db.collection(room.path + '/messages').orderBy('ts', 'desc').limit(100).onSnapshot(s => {
-      const list = s.docs.map(d => { const x = d.data(); return { id: d.id, uid: x.uid, username: x.username, text: x.text, date: x.ts && x.ts.toDate(), replyTo: x.replyTo }; }).reverse();
+      const list = s.docs.map(d => { const x = d.data(); return { id: d.id, uid: x.uid, username: x.username, text: x.text, date: x.ts && x.ts.toDate(), replyTo: x.replyTo, reactions: x.reactions || {}, pinned: !!x.pinned }; }).reverse();
       const fresh = list.filter(m => !S.messages.some(o => o.id === m.id));
       S.messages = list;
       renderMessages(true);
-      if (!first) for (const m of fresh) if (m.uid !== S.user.uid && !S.blocked[m.uid]) say(m.username + ': ' + m.text);
+      if (!first) for (const m of fresh) if (m.uid !== S.user.uid && !S.blocked[m.uid]) {
+        if (mentionsMe(m)) say(m.username + ' mentioned you: ' + m.text);
+        else if (pref('readAloud', true)) say(m.username + ': ' + m.text);
+      }
       first = false;
     }, () => say("Couldn't load this conversation."));
+    $('profile').hidden = true;
+    loadPinned();
     $('room-title').focus();
+  }
+  async function loadPinned() {
+    const box = $('pinned-box');
+    box.hidden = true;
+    if (!S.room || S.room.kind !== 'channel') return;
+    const s = await db.collection(S.room.path + '/messages').where('pinned', '==', true).limit(20).get().catch(() => null);
+    if (!s || s.empty) return;
+    $('pinned-title').textContent = '📌 Pinned (' + s.size + ')';
+    $('pinned-list').replaceChildren(...s.docs.map(d => el('li', { text: d.data().username + ': ' + d.data().text })));
+    box.hidden = false;
+  }
+  async function showProfile(uid) {
+    const box = $('profile');
+    const d = await db.collection('chat_members').doc(uid).get().catch(() => null);
+    box.replaceChildren();
+    if (!d || !d.exists) { box.append(el('p', { text: "This player isn't in chat anymore." })); box.hidden = false; return; }
+    const m = d.data();
+    const seen = m.lastSeen && m.lastSeen.toDate ? m.lastSeen.toDate() : null;
+    const board = await db.collection('leaderboard').doc(uid).get().catch(() => null);
+    const role = uid === DEV ? 'Developer' : m.mod ? 'Moderator' : m.tester ? 'Tester' : 'Member';
+    box.append(el('h3', { text: m.username, tabindex: '-1', id: 'profile-name' }),
+      el('p', { text: 'Role: ' + role + '. ' + (seen && Date.now() - seen < 150000 ? 'Online now.' : 'Offline.') }),
+      el('p', { text: (m.createdAt && m.createdAt.toDate ? 'Joined chat ' + m.createdAt.toDate().toLocaleDateString() + '. ' : '')
+                    + (board && board.exists && board.data().score ? 'High Score ' + Number(board.data().score).toLocaleString() + '.' : '') }));
+    const acts = el('div', { class: 'row' });
+    if (uid !== S.user.uid) {
+      acts.append(el('button', { text: 'Message ' + m.username + ' privately', onclick: () => openDM(uid, m.username) }));
+      if (!S.blocked[uid]) acts.append(el('button', { class: 'danger', text: 'Block ' + m.username, onclick: () => block(uid, m.username) }));
+    }
+    acts.append(el('button', { text: 'Close profile', onclick: () => { box.hidden = true; $('room-title').focus(); } }));
+    box.append(acts);
+    box.hidden = false;
+    $('profile-name').focus();
   }
   function renderMessages(scroll) {
     const box = $('messages'); if (!S.room) return;
@@ -483,11 +540,25 @@ import { getFirestore, connectFirestoreEmulator, doc, collection, getDoc, getDoc
       const reply = m.replyTo && S.messages.find(o => o.id === m.replyTo);
       const li = el('li', { class: 'msg' });
       if (reply) li.append(el('div', { class: 'reply', text: 'Replying to ' + reply.username + ': ' + reply.text.slice(0, 80) }));
-      li.append(el('span', { class: 'who', text: m.username }), document.createTextNode(': '), el('span', { text: m.text }),
+      li.append(el('span', { class: 'who', text: m.username }), document.createTextNode(': '),
+                el(mentionsMe(m) ? 'strong' : 'span', { text: m.text }),
                 document.createTextNode(' '), el('span', { class: 'when', text: ago(m.date) }));
+      if (mentionsMe(m)) li.append(el('span', { class: 'sr-only', text: ' Mentions you.' }));
+      if (m.pinned) li.append(el('span', { class: 'muted', text: ' 📌 Pinned' }));
+      if (Object.keys(m.reactions).length) li.append(el('div', { class: 'muted', text: 'Reactions: ' + reactionText(m.reactions) }));
       const acts = el('div', { class: 'row' });
       const mine = m.uid === S.user.uid;
       if (S.room.canPost && !S.banned) acts.append(el('button', { text: 'Reply', onclick: () => { setReply(m); $('draft').focus(); } }));
+      if (!S.banned) for (const e of EMOJIS) acts.append(el('button', { text: e, 'aria-label': 'React ' + EMOJI_NAMES[e] + (m.reactions[S.user.uid] === e ? ', chosen' : ''),
+        onclick: async () => {
+          const remove = m.reactions[S.user.uid] === e;
+          await db.collection(S.room.path + '/messages').doc(m.id).update(new FieldPath('reactions', S.user.uid), remove ? deleteField() : e)
+            .then(() => say(remove ? 'Reaction removed.' : 'Reacted ' + EMOJI_NAMES[e] + '.')).catch(() => say("Couldn't react."));
+        } }));
+      if (m.uid !== 'hall-of-legends') acts.append(el('button', { text: m.uid === S.user.uid ? 'View your profile' : 'View ' + m.username + "'s profile", onclick: () => showProfile(m.uid) }));
+      if (isMod() && S.room.kind === 'channel') acts.append(el('button', { text: m.pinned ? 'Unpin message' : 'Pin message', onclick: async () => {
+        await db.collection(S.room.path + '/messages').doc(m.id).update({ pinned: !m.pinned }).then(() => { say(m.pinned ? 'Unpinned.' : 'Pinned.'); loadPinned(); }).catch(() => say("Couldn't change the pin."));
+      } }));
       if (!mine && m.uid !== 'hall-of-legends') {
         if (S.room.kind !== 'dm') acts.append(el('button', { text: 'Message ' + m.username + ' privately', onclick: () => openDM(m.uid, m.username) }));
         acts.append(el('button', { text: 'Report', onclick: () => report(m) }));
@@ -681,6 +752,10 @@ import { getFirestore, connectFirestoreEmulator, doc, collection, getDoc, getDoc
     on.checked = showOnline();
     on.onchange = () => { try { localStorage.setItem('chat.showOnline', on.checked ? 'yes' : 'no'); } catch (e) {} beat(); say(on.checked ? 'Others can see you online.' : "You're hidden from the online list."); };
     box.append(el('div', { class: 'card row' }, on, el('label', { for: 'online-on', text: 'Show me as online', style: 'margin:0' })));
+    const ra = el('input', { type: 'checkbox', id: 'read-aloud', style: 'width:auto' });
+    ra.checked = pref('readAloud', true);
+    ra.onchange = () => { setPref('readAloud', ra.checked); say(ra.checked ? 'New messages will be read aloud.' : 'New messages won\'t be read aloud, except ones that mention you.'); };
+    box.append(el('div', { class: 'card row' }, ra, el('label', { for: 'read-aloud', text: 'Read new messages aloud (messages that mention you always are)', style: 'margin:0' })));
     const bl = el('div', { class: 'card' }, el('h3', { text: 'Blocked players (' + Object.keys(S.blocked).length + ')' }));
     if (!Object.keys(S.blocked).length) bl.append(el('p', { class: 'muted', text: "You haven't blocked anyone." }));
     for (const [id, name] of Object.entries(S.blocked))
