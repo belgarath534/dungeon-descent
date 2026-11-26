@@ -101,6 +101,7 @@
 
     <div id="tab-channels" hidden>
       <h2>Channels</h2>
+      <details id="online-box" class="card"><summary id="online-count">Players online</summary><ul class="list" id="online-list"></ul></details>
       <div id="dev-channel-tools" hidden class="row"><button id="new-channel">New channel</button></div>
       <ul class="list" id="channel-list"></ul>
     </div>
@@ -314,7 +315,7 @@ import { getFirestore, connectFirestoreEmulator, doc, collection, getDoc, getDoc
   $('agree').onclick = () => db.collection('chat_members').doc(S.user.uid).update({ agreedAt: TS() });
 
   // ── Live data ──
-  function stopAll() { S.unsubs.forEach(u => u()); S.unsubs = []; closeRoom(); }
+  function stopAll() { S.unsubs.forEach(u => u()); S.unsubs = []; closeRoom(); if (presenceTimer) { clearInterval(presenceTimer); presenceTimer = null; } }
   onAuthStateChanged(auth, async (u) => {
     stopAll();
     S.user = u; S.member = null;
@@ -328,7 +329,7 @@ import { getFirestore, connectFirestoreEmulator, doc, collection, getDoc, getDoc
       S.member = d.exists ? d.data() : null;
       if (!S.member) show('join');
       else if (!S.member.agreedAt) show('rules');
-      else { show('app'); renderAll(); }
+      else { show('app'); renderAll(); startPresence(); }
     }));
     S.unsubs.push(db.collection('chat_bans').doc(uid).onSnapshot(d => { S.banned = d.exists; renderAll(); }, () => {}));
     S.unsubs.push(db.collection('chat_channels').onSnapshot(s => {
@@ -353,6 +354,28 @@ import { getFirestore, connectFirestoreEmulator, doc, collection, getDoc, getDoc
       renderAll(); renderMessages(false);
     }, () => {}));
   });
+
+  // ── Online: check in every minute while the page is open and visible ──
+  let presenceTimer = null;
+  const showOnline = () => { try { return localStorage.getItem('chat.showOnline') !== 'no'; } catch (e) { return true; } };
+  async function beat() {
+    if (!S.user || !S.member) return;
+    await db.collection('chat_members').doc(S.user.uid).update({ lastSeen: showOnline() && !document.hidden ? TS() : deleteField() }).catch(() => {});
+    refreshOnline();
+  }
+  async function refreshOnline() {
+    const s = await db.collection('chat_members').where('lastSeen', '>', new Date(Date.now() - 150000)).orderBy('lastSeen', 'desc').limit(200).get().catch(() => null);
+    if (!s) return;
+    S.online = s.docs.map(d => d.data().username).filter(n => n && !Object.values(S.blocked).includes(n)).sort((a, b) => a.localeCompare(b));
+    $('online-count').textContent = S.online.length + (S.online.length === 1 ? ' player online' : ' players online');
+    $('online-list').replaceChildren(...(S.online.length ? S.online.map(n => el('li', { text: n })) : [el('li', { class: 'muted', text: 'Nobody else is online right now.' })]));
+  }
+  function startPresence() {
+    if (presenceTimer) return;
+    beat();
+    presenceTimer = setInterval(beat, 60000);
+  }
+  document.addEventListener('visibilitychange', () => { if (S.member) beat(); });
 
   // ── Lists ──
   document.querySelectorAll('nav button').forEach(b => b.onclick = () => { closeRoom(); S.tab = b.dataset.tab; renderAll(); });
@@ -654,6 +677,10 @@ import { getFirestore, connectFirestoreEmulator, doc, collection, getDoc, getDoc
     dm.checked = S.member.dmOff !== true;
     dm.onchange = () => db.collection('chat_members').doc(S.user.uid).update({ dmOff: !dm.checked }).then(() => say(dm.checked ? 'Private messages on.' : 'Private messages off.'));
     box.append(el('div', { class: 'card row' }, dm, el('label', { for: 'dm-on', text: 'Accept private messages', style: 'margin:0' })));
+    const on = el('input', { type: 'checkbox', id: 'online-on', style: 'width:auto' });
+    on.checked = showOnline();
+    on.onchange = () => { try { localStorage.setItem('chat.showOnline', on.checked ? 'yes' : 'no'); } catch (e) {} beat(); say(on.checked ? 'Others can see you online.' : "You're hidden from the online list."); };
+    box.append(el('div', { class: 'card row' }, on, el('label', { for: 'online-on', text: 'Show me as online', style: 'margin:0' })));
     const bl = el('div', { class: 'card' }, el('h3', { text: 'Blocked players (' + Object.keys(S.blocked).length + ')' }));
     if (!Object.keys(S.blocked).length) bl.append(el('p', { class: 'muted', text: "You haven't blocked anyone." }));
     for (const [id, name] of Object.entries(S.blocked))
