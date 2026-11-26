@@ -77,12 +77,23 @@ function csApply(data, message) {
     username: 'dd_username', titleTag: 'dd_title_tag', srPromptSeen: 'dd_sr_prompt_seen', accessSettings: 'dd_access' };
   Object.keys(old).forEach(function(f) { if (data[f]) full[old[f]] = data[f]; });
   Object.keys(full).forEach(function(k) { if (csSynced(k) && typeof full[k] === 'string') DDStore.setItem(k, full[k]); });
-  // Loading isn't progress: this browser now matches the cloud.
-  var mark = String(csNum(data.savedAt));
+  // Loading isn't progress: this browser now matches the cloud. An old cloud
+  // save has no savedAt: mark it 1, not 0. With 0, the next page load saw an
+  // unsynced browser again, loaded the same save and reloaded, forever (the
+  // "Migration complete" screen over and over).
+  var mark = String(csNum(data.savedAt) || 1);
   DDStore.setItem(CS.lastKey, mark);
   DDStore.setItem(CS.dirtyKey, mark);
   try { DDStore.flushNow(); } catch (e) {}
   try { sessionStorage.setItem('dd_sync_message', message || 'Loaded your newer save from your other device.'); } catch (e) {}
+  // Safety net: never reload twice within 30 seconds, whatever the reason.
+  var lastReload = 0;
+  try { lastReload = Number(sessionStorage.getItem('dd_sync_reloaded_at')) || 0; } catch (e) {}
+  if (Date.now() - lastReload < 30000) {
+    console.warn('[sync] skipped a second reload in a row; the save is loaded, refresh by hand if anything looks old');
+    return;
+  }
+  try { sessionStorage.setItem('dd_sync_reloaded_at', String(Date.now())); } catch (e) {}
   setTimeout(function() { location.reload(); }, 600);
 }
 
