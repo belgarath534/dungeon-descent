@@ -488,7 +488,7 @@ import { getFirestore, connectFirestoreEmulator, doc, collection, getDoc, getDoc
       const acts = el('div', { class: 'row' });
       const mine = m.uid === S.user.uid;
       if (S.room.canPost && !S.banned) acts.append(el('button', { text: 'Reply', onclick: () => { setReply(m); $('draft').focus(); } }));
-      if (!mine) {
+      if (!mine && m.uid !== 'hall-of-legends') {
         if (S.room.kind !== 'dm') acts.append(el('button', { text: 'Message ' + m.username + ' privately', onclick: () => openDM(m.uid, m.username) }));
         acts.append(el('button', { text: 'Report', onclick: () => report(m) }));
         acts.append(el('button', { text: 'Block ' + m.username, onclick: () => block(m.uid, m.username) }));
@@ -693,7 +693,8 @@ import { getFirestore, connectFirestoreEmulator, doc, collection, getDoc, getDoc
         el('button', { text: 'Sign out', onclick: () => signOut(auth) }),
         el('button', { class: 'danger', text: 'Delete my chat profile', onclick: deleteChatProfile }),
         el('button', { class: 'danger', text: 'Delete my whole Dungeon Descent account', onclick: deleteWholeAccount })),
-      el('p', { class: 'muted' }, el('a', { href: 'terms.html', text: 'Terms of Service' }), document.createTextNode(' · '), el('a', { href: 'privacy.html', text: 'Privacy Policy' }))));
+      el('p', { class: 'muted' }, el('a', { href: 'terms.html', text: 'Terms of Service' }), document.createTextNode(' · '), el('a', { href: 'privacy.html', text: 'Privacy Policy' }),
+                                     document.createTextNode(' · '), el('a', { href: 'support.html', text: 'Contact support' }))));
   }
   function modTools() {
     const box = el('div', { class: 'card' }, el('h3', { text: isDev() ? 'Developer mode (only your account sees this)' : 'Moderator tools' }));
