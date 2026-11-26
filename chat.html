@@ -511,12 +511,25 @@ import { getFirestore, connectFirestoreEmulator, doc, collection, getDoc, getDoc
       await b.commit();
       lastSent = Date.now();
       if (S.room.kind !== 'channel') db.doc(S.room.path).update({ lastAt: TS() }).catch(() => {});
+      notifyPush(S.room);
       $('draft').value = ''; setReply(null); $('send-msg').textContent = '';
       say('Sent.');
     } catch (e) {
       fail(S.room.kind === 'dm' ? "Couldn't send. This player may have turned private messages off or blocked you." : "Couldn't send. Check your connection and try again.");
     }
   };
+
+  // Tells the push server about the message just sent, so people who asked
+  // get a notification on their phone (the iPhone app does the same).
+  const PUSH_URL = 'https://us-central1-dungeon-descent-fbaf2.cloudfunctions.net/chatPush';
+  async function notifyPush(room) {
+    if (/[?&]emulator\b/.test(location.search)) return;
+    try {
+      const token = await auth.currentUser.getIdToken();
+      await fetch(PUSH_URL, { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ kind: room.kind, room: room.id }) });
+    } catch (e) { /* notifications are best effort */ }
+  }
 
   // ── Groups ──
   function renderGroupInfo() {
