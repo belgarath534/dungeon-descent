@@ -2237,7 +2237,7 @@ function loadObituary(targetId) {
 function postDeathToObituary(deathData) {
   try {
     if (!window._fbDb && typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length) {
-      window._fbDb = firebase.firestore();
+      window._fbDb = window._ddFirestore();
     }
     if (!window._fbDb) return;
     window._fbDb.collection('deaths').add({

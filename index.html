@@ -136,6 +136,23 @@
     console.warn('Firebase init error:', e);
   }
 })();
+// The game's Firestore database is "dungeon-descent" (the iPhone, Mac and
+// Vision Pro apps and Dungeon Descent Chat use it). The compat SDK ignores
+// settings({ databaseId }) and always used "(default)", so web saves,
+// deaths and community enemies went to a different database. This points
+// the compat Firestore at the named database's instance (same sign-in, same
+// rules), so every existing _fbDb call reaches the right place.
+window._ddFirestore = function () {
+  if (window.__ddDb) return window.__ddDb;
+  var db = firebase.firestore();
+  try {
+    var named = firebase.app()._delegate.container.getProvider('firestore').getImmediate({ identifier: 'dungeon-descent' });
+    if (named && named._databaseId && named._databaseId.database === 'dungeon-descent') db._delegate = named;
+    else console.warn('Firestore: dungeon-descent database not available; using (default)');
+  } catch (e) { console.warn('Firestore: could not open dungeon-descent', e); }
+  window.__ddDb = db;
+  return db;
+};
 </script>
 
 

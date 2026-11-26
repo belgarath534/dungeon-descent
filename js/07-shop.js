@@ -1760,7 +1760,7 @@ function ecSubmit() {
   // Fire and forget — same as obituary system
   try {
     if (!window._fbDb && typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length) {
-      window._fbDb = firebase.firestore();
+      window._fbDb = window._ddFirestore();
     }
     var db = window._fbDb;
     if (db) {
