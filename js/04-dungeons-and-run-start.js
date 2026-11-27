@@ -2198,7 +2198,7 @@ var LOOT = [
 var HP_MAP = { Warrior:120, Monk:90, Assassin:80, Paladin:130, Naturalist:85, Sorcerer:70, Necromancer:75, Berserker:110, Bard:80, Alchemist:85, BloodKnight:100, Druid:95, Warlock:75, DeathKnight:115, Ranger:90, Sentinel:145, Cleric:105, Wizard:60 };
 var ATK_MAP = { Warrior:[8,16], Monk:[7,14], Assassin:[10,18], Paladin:[6,13], Naturalist:[6,12], Sorcerer:[12,22], Necromancer:[7,14], Berserker:[9,17], Bard:[6,12], Alchemist:[7,14], BloodKnight:[10,20], Druid:[7,14], Warlock:[9,17], DeathKnight:[8,16], Ranger:[9,17], Sentinel:[5,11], Cleric:[6,12], Wizard:[14,24] };
 var DEF_MAP = { Warrior:3, Monk:1, Paladin:5, Assassin:0, Naturalist:1, Sorcerer:0, Necromancer:0, Berserker:2, Bard:1, Alchemist:1, BloodKnight:2, Druid:2, Warlock:0, DeathKnight:4, Ranger:1, Sentinel:7, Cleric:3, Wizard:0 };
-var LIVES_MAP = { Wanderer:3, Ironblood:1, Condemned:1, Forsaken:1, Nightmare:1, Endless:2, Insane:1 };
+var LIVES_MAP = { Wanderer:3, Ironblood:1, Condemned:1, Forsaken:1, Nightmare:1, Endless:2, Insane:1, Impossible:1 };
 
 var DS = {};
 
@@ -2497,10 +2497,15 @@ function initDungeon(ch) {
     if (ch.cls === 'TimeMage') { DS.maxHp = Math.round(DS.maxHp * 0.82); DS.hp = DS.maxHp; }
     if (ch.cls === 'Shaman') { DS.maxHp = Math.round(DS.maxHp * 0.90); DS.hp = DS.maxHp; }
     if (ch.cls === 'Arcanist') { DS.maxHp = Math.round(DS.maxHp * 0.78); DS.hp = DS.maxHp; }
+    // 12.3: Aarakocra (light, quick) and Goliath (giant-folk)
+    if (ch.race === 'Aarakocra') { DS.maxHp = Math.round(DS.maxHp * 0.90); DS.hp = DS.maxHp; }
+    if (ch.race === 'Goliath') { DS.maxHp = Math.round(DS.maxHp * 1.15); DS.hp = DS.maxHp; }
     // Angel race — extra life
     if (ch.race === 'Angel') { DS.lives = (DS.lives || 1) + 1; DS.maxLives = (DS.maxLives || 1) + 1; }
   }
   // Init Insane Mode
+  // 12.3: Impossible — one life, no revives (js/36-new-heroes.js does the rest)
+  if (ch.difficulty === 'Impossible') { DS.lives = 1; DS.maxLives = 1; DS._impossible = true; }
   if (ch.difficulty === 'Insane') {
     DS.lives = 1; DS.maxLives = 1;
     initInsaneMode();
@@ -3058,7 +3063,7 @@ function enterRoom() {
                       (DS.dungeon === 'The Shadow World' ? (SHADOW_ENEMIES.elites || []) : null) ||
                       (DS.dungeon === 'The Sky Ruins' ? SKY_ENEMIES.elites : null) ||
                       ELITE_ENEMIES[eliteKey] || [];
-      var spawnElite = DS.floor >= 4 && elitePool.length > 0 && Math.random() < 0.15;
+      var spawnElite = DS.floor >= 4 && elitePool.length > 0 && Math.random() < (DS.diff === 'Impossible' ? 0.30 : 0.15);
       var tier = DS.floor <= 3 ? 't1' : DS.floor <= 6 ? 't2' : 't3';
       var pool = DS.dungeon === 'The Whispering Forest'
         ? WHISPER_ENEMIES[tier]

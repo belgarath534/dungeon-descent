@@ -147,7 +147,7 @@ function skyAddPoison(stacks, source) {
 function skyPoisonPerTurn() {
   var p = DS._skyPoison; if (!p || !p.stacks) return 0;
   var d = p.stacks * 2;
-  if (DS.cls === 'Plague Doctor') d = Math.ceil(d / 2);
+  if (DS.cls === 'PlagueDoctor') d = Math.ceil(d / 2);
   return d;
 }
 function skyClearPoison() { DS._skyPoison = null; skyUpdateStatus(); }
@@ -299,7 +299,7 @@ function skyTurnStart(e, action, skill) {
   // The Hollow Gardener plants a Spore Pod every 3 turns.
   if (t.gardener && e._skyTurns % 3 === 0) {
     skySfx('sfx-spore-burst');
-    if (DS.cls === 'Plague Doctor') skyLog('🍄 The Gardener plants a Spore Pod. Your bird mask filters the spores.');
+    if (DS.cls === 'PlagueDoctor') skyLog('🍄 The Gardener plants a Spore Pod. Your bird mask filters the spores.');
     else { skyLog('🍄 The Gardener plants a Spore Pod. It bursts in your face.'); skyAddPoison(1, 'a Spore Pod'); }
   }
   // The Groundskeeper's sweep every 3rd turn.
@@ -438,7 +438,7 @@ function skyOnKill(e) {
   var t = skyTemplate(e);
   if (t.burstPoison) {
     skySfx('sfx-spore-burst');
-    if (DS.cls === 'Plague Doctor') skyLog('🍄 The Spore Drifter bursts. Your bird mask filters the cloud.');
+    if (DS.cls === 'PlagueDoctor') skyLog('🍄 The Spore Drifter bursts. Your bird mask filters the cloud.');
     else { skyLog('🍄 The Spore Drifter bursts into a poison cloud!'); skyAddPoison(t.burstPoison, 'the spore cloud'); }
   }
   if (t.harpyGust && Math.random() < t.harpyGust && !skyIsRace('Goliath')) {
@@ -572,7 +572,7 @@ function skyPlantRoom() {
       { label: 'Hold your breath and move on (no search here)', action: function(){ DS.searched = true; try { updateSearchBadge(false); } catch(x) {} skyLog('🍄 You hold your breath and slip past.'); } },
       { label: 'Search anyway', action: function(){
           skySfx('sfx-spore-burst'); skySfx('sfx-spore-cough');
-          if (DS.cls === 'Plague Doctor') skyLog('🍄 The pod bursts. Your bird mask filters every spore.');
+          if (DS.cls === 'PlagueDoctor') skyLog('🍄 The pod bursts. Your bird mask filters every spore.');
           else skyAddPoison(1, 'the spores');
         } }
     ]);
@@ -641,7 +641,7 @@ function _skyWrapShowVictory() {
       DS._skyPoison = null;
       try { addLog('🌹 Verdana\'s last root splits. The towers groan, and for the first time in a thousand years the ruins begin, slowly, to sink back toward the earth. Somewhere below, a single seed falls with them.'); } catch(x) {}
     }
-    if (DS && DS.cls === 'Plague Doctor') skyAward('ach-doctors-orders');
+    if (DS && DS.cls === 'PlagueDoctor') skyAward('ach-doctors-orders');
     if (DS && DS.cls === 'Artificer') skyAward('ach-some-assembly');
     return orig.apply(this, arguments);
   };

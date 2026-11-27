@@ -1614,6 +1614,7 @@ function doFight(action) {
     // second boost made them heal 2.7 times)
     // Merfolk — potions heal 20% more
     if (DS.merfolkRace && ACCESS.classTraits) heal = Math.round(heal * 1.20);
+    if (DS.diff === 'Impossible') heal = Math.round(heal / 2); // 12.3: potions heal half
     DS.hp = Math.min(DS.maxHp, DS.hp + heal);
     sfx('sfx-potion');
     DS.potionsUsed = (DS.potionsUsed || 0) + 1;
@@ -1833,7 +1834,7 @@ function doFight(action) {
     // Apply enemy mechanic flags — drain, lifesteal, double strike etc
     rawDmg = applyEnemyMechanicsOnTurn(e, rawDmg);
     // Difficulty multiplier — hard modes hit harder
-    var diffMult = DS.diff === 'Nightmare' ? 1.75 : DS.diff === 'Forsaken' ? 1.5 : DS.diff === 'Condemned' ? 1.25 : DS.diff === 'Ironblood' ? 1.1 : 1.0;
+    var diffMult = DS.diff === 'Impossible' ? 1.6 : DS.diff === 'Nightmare' ? 1.75 : DS.diff === 'Forsaken' ? 1.5 : DS.diff === 'Condemned' ? 1.25 : DS.diff === 'Ironblood' ? 1.1 : 1.0;
     rawDmg = Math.round(rawDmg * diffMult);
     // Undead resistance
     var undeadNames = ['Hollow Shade','Brittle Skeleton','Wailing Wraith','Armored Skeleton','Bone Colossus','Death Knight','Soul Harvester','Malachar the Undying'];
