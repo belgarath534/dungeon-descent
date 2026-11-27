@@ -25,6 +25,34 @@
   if (typeof CLASS_ICONS !== 'undefined') { CLASS_ICONS.PlagueDoctor = '🩺'; CLASS_ICONS.Artificer = '⚙️'; }
   if (typeof CLASS_ICONS_ORIG !== 'undefined') { CLASS_ICONS_ORIG.PlagueDoctor = '🩺'; CLASS_ICONS_ORIG.Artificer = '⚙️'; }
 
+  // Subclasses (chosen at level 5)
+  if (typeof SUBCLASSES !== 'undefined') {
+    SUBCLASSES.PlagueDoctor = [
+      { id:'carrier', name:'Carrier', icon:'🦠',
+        desc:'Your attacks have a 25% chance to infect. Infected enemies take 5 damage per turn.',
+        passive:'Patient Zero — the sickness spreads from your touch.',
+        statBonus:{ intelligence:2, luck:1 },
+        apply: function(){ DS._plagueBearerSub = true; addLog('🦠 Carrier path chosen. The sickness spreads.'); } },
+      { id:'apothecary', name:'Apothecary', icon:'⚗️',
+        desc:'Potions heal 50% more. A doctor knows the right dose.',
+        passive:'Right Dose — every potion works harder.',
+        statBonus:{ intelligence:1, vitality:2 },
+        apply: function(){ DS.potionMult = (DS.potionMult || 1) * 1.5; addLog('⚗️ Apothecary path chosen. Every potion works harder.'); } },
+    ];
+    SUBCLASSES.Artificer = [
+      { id:'engineer', name:'Engineer', icon:'🔧',
+        desc:'+4 defense from reinforced plating. Built to last.',
+        passive:'Reinforced — your gear takes the hits.',
+        statBonus:{ vitality:2, strength:1 },
+        apply: function(){ DS.defBonus = (DS.defBonus || 0) + 4; addLog('🔧 Engineer path chosen. Built to last.'); } },
+      { id:'demolitionist', name:'Demolitionist', icon:'💣',
+        desc:'+4 attack. Everything you build explodes eventually.',
+        passive:'Blast Radius — your gadgets hit harder.',
+        statBonus:{ strength:2, agility:1 },
+        apply: function(){ DS.atkBonus = (DS.atkBonus || 0) + 4; addLog('💣 Demolitionist path chosen. Things go boom.'); } },
+    ];
+  }
+
   // Class traits (Class Traits setting)
   if (typeof CLASS_TRAITS !== 'undefined') {
     CLASS_TRAITS.PlagueDoctor = { name:'Bird Mask', desc:'Poison does half damage to you and spore clouds can\'t reach you. Enemies you\'ve poisoned deal 15% less damage.' };
