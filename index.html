@@ -1201,6 +1201,15 @@ window._ddFirestore = function () {
           </div>
         </button>
 
+        <button class="dungeon-card locked" id="skyruins-dungeon-card" role="radio" aria-checked="false" data-dungeon="The Sky Ruins" onclick="handleSkyRuinsClick()" aria-label="The Sky Ruins, locked. Complete The Shadow World to unlock.">
+          <span class="dungeon-icon" aria-hidden="true">☁️</span>
+          <div style="flex:1;">
+            <div class="dungeon-name" style="color:#88cc66;">The Sky Ruins</div>
+            <div style="font-family:Cinzel,serif;font-size:0.62rem;color:#3a5a2a;font-style:italic;line-height:1.5;">A kingdom torn out of the earth by a flower that could not die. Stacking poison, killer plants, wind that throws you off the edge, and a garden that grows stronger the longer you stay. Queen Verdana waits on her throne of thorns.</div>
+            <div class="dungeon-unlock-note" style="color:#88cc66;" aria-hidden="true">🔒 Complete The Shadow World to unlock</div>
+          </div>
+        </button>
+
         </div>
         <div class="btn-row"><button class="btn btn-secondary" onclick="cStep(4)">← Back</button><button class="btn btn-primary" id="cbtn-5" onclick="cStep(6)">Continue to Fate →</button></div>
       </section>
@@ -1642,6 +1651,7 @@ window._ddFirestore = function () {
         <div class="dg-hp-bar-wrap"><div class="dg-hp-bar dg-player-hp-bar" id="dg-player-bar" style="width:100%"></div></div>
         <div class="dg-hp-text" id="dg-player-hp" aria-live="polite" aria-label="Your health: 100 of 100">HP: 100/100</div>
         <div id="dg-shadow-corruption" style="display:none;font-family:Cinzel,serif;font-size:0.65rem;color:#9966cc;margin-top:4px;" aria-live="assertive"></div>
+        <div id="dg-sky-status" style="display:none;font-family:Cinzel,serif;font-size:0.65rem;color:#88cc66;margin-top:4px;" role="status"></div>
       </div>
       <div class="dg-combat-log" id="dg-combat-log" role="log" aria-live="polite" aria-label="Combat log"></div>
       <button type="button" class="dg-btn" id="dg-recap-btn" onclick="whatJustHappened()" aria-label="What just happened? Reads the last five lines again. Alt+W on a keyboard." style="width:100%;margin:6px 0;font-size:0.7rem;">❓ What just happened</button>
@@ -1937,6 +1947,7 @@ window._ddFirestore = function () {
         <button class="quest-tab" id="be-filter-infernal" role="tab" aria-selected="false" onclick="filterBestiary('infernal')" aria-label="Show The Infernal enemies">🔥 Infernal</button>
       <button class="quest-tab" id="be-filter-abyssal" role="tab" aria-selected="false" onclick="filterBestiary('abyssal')" aria-label="Show The Abyssal Deep enemies">🌊 Abyssal</button>
       <button class="quest-tab" id="be-filter-shadow" role="tab" aria-selected="false" onclick="filterBestiary('shadow')" aria-label="Show The Shadow World enemies">🌑 Shadow</button>
+          <button class="quest-tab" id="be-filter-sky" role="tab" aria-selected="false" onclick="filterBestiary('sky')" aria-label="Show The Sky Ruins enemies">☁️ Sky</button>
         <button class="quest-tab" id="be-filter-builder" role="tab" aria-selected="false" onclick="openSpiritBuilder()" aria-label="Spirit Builder — craft your own spirit companion">🔮 Builder</button>
         <button class="quest-tab" id="be-filter-special" role="tab" aria-selected="false" onclick="filterBestiary('special')" aria-label="Special enemies — Void Mode, Boss Rush, AFK, and seasonal">⭐ Special</button>
       </div>
@@ -7700,6 +7711,7 @@ window._ddFirestore = function () {
 <script src="js/32-audio-map.js?v=12.1.0"></script>
 <script src="js/33-hunt-tracking.js?v=12.1.0"></script>
 <script src="js/34-guilds.js?v=12.1.0"></script>
+<script src="js/35-sky-ruins.js?v=12.1.0"></script>
 
 
 
