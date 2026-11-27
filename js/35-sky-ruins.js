@@ -264,7 +264,7 @@ function skyTurnStart(e, action, skill) {
   skyApplyStage(e);
   var t = skyTemplate(e);
   e._skyTurns = (e._skyTurns || 0) + 1;
-  skyGardenTurn();
+  if (!e.isBoss) skyGardenTurn(); // the garden doesn't grow during Verdana's fight
   skyApplyStage(e);
   // Poison, bleed
   skyTickPoison(!!e.isBoss);
